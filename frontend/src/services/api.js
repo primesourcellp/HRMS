@@ -157,8 +157,12 @@ const api = {
   }).then(res => res.json()),
 
   // Dashboard
-  getDashboardStats: (date) => {
-    const url = date ? `${API_BASE_URL}/dashboard/stats?date=${date}` : `${API_BASE_URL}/dashboard/stats`
+  getDashboardStats: (date, employeeId) => {
+    let url = `${API_BASE_URL}/dashboard/stats`
+    const params = new URLSearchParams()
+    if (date) params.append('date', date)
+    if (employeeId) params.append('employeeId', employeeId)
+    if (params.toString()) url += `?${params.toString()}`
     return fetch(url).then(res => res.json())
   },
 

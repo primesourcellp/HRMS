@@ -374,16 +374,19 @@ const Employees = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="All">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Resigned">Resigned</option>
-          <option value="Terminated">Terminated</option>
-        </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="All">All Status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="On Leave">On Leave</option>
+            <option value="Resigned">Resigned</option>
+            <option value="Terminated">Terminated</option>
+            <option value="Suspended">Suspended</option>
+          </select>
       </div>
 
       {/* Employees Grid */}
@@ -402,7 +405,10 @@ const Employees = () => {
               </div>
               <span className={`px-2 py-1 rounded text-xs font-medium ${
                 employee.status === 'Active' ? 'bg-green-100 text-green-800' :
+                employee.status === 'Inactive' ? 'bg-gray-100 text-gray-800' :
+                employee.status === 'On Leave' ? 'bg-blue-100 text-blue-800' :
                 employee.status === 'Resigned' ? 'bg-yellow-100 text-yellow-800' :
+                employee.status === 'Suspended' ? 'bg-orange-100 text-orange-800' :
                 'bg-red-100 text-red-800'
               }`}>
                 {employee.status}
@@ -548,8 +554,11 @@ const Employees = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="On Leave">On Leave</option>
                     <option value="Resigned">Resigned</option>
                     <option value="Terminated">Terminated</option>
+                    <option value="Suspended">Suspended</option>
                   </select>
                 </div>
               </div>
