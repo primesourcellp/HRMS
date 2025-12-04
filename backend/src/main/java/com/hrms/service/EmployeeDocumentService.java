@@ -1,0 +1,82 @@
+package com.hrms.service;
+
+import com.hrms.entity.EmployeeDocument;
+import com.hrms.entity.Employee;
+import com.hrms.repository.EmployeeDocumentRepository;
+import com.hrms.repository.EmployeeRepository;
+import com.hrms.util.FileStorageService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+public class EmployeeDocumentService {
+
+    @Autowired
+    private EmployeeDocumentRepository documentRepository;
+
+    @Autowired
+    private EmployeeRepository employeeRepository;
+
+    @Autowired
+    private FileStorageService fileStorageService;
+
+    public EmployeeDocument uploadDocument(Long employeeId, MultipartFile file, String documentType, String description) throws IOException {
+        employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        String filePath = fileStorageService.storeDocument(file);
+
+        EmployeeDocument document = new EmployeeDocument();
+        document.setEmployeeId(employeeId);
+        document.setDocumentType(documentType);
+        document.setFileName(file.getOriginalFilename());
+        document.setFilePath(filePath);
+        document.setFileSize(file.getSize());
+        document.setMimeType(file.getContentType());
+        document.setDescription(description);
+        document.setUploadedAt(LocalDateTime.now());
+        document.setVerified(false);
+
+        return documentRepository.save(document);
+    }
+
+    public List<EmployeeDocument> getEmployeeDocuments(Long employeeId) {
+        return documentRepository.findByEmployeeId(employeeId);
+    }
+
+    public List<EmployeeDocument> getDocumentsByType(Long employeeId, String documentType) {
+        return documentRepository.findByEmployeeIdAndDocumentType(employeeId, documentType);
+    }
+
+    public EmployeeDocument getDocumentById(Long id) {
+        return documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+    }
+
+    public void deleteDocument(Long id) {
+        EmployeeDocument document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+        
+        fileStorageService.deleteFile(document.getFilePath());
+        documentRepository.deleteById(id);
+    }
+
+    public EmployeeDocument verifyDocument(Long id, Boolean verified) {
+        EmployeeDocument document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+        document.setVerified(verified);
+        return documentRepository.save(document);
+    }
+
+    public byte[] downloadDocument(Long id) throws IOException {
+        EmployeeDocument document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+        return fileStorageService.loadFile(document.getFilePath());
+    }
+}
+

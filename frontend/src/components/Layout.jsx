@@ -1,0 +1,134 @@
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { 
+  LayoutDashboard, 
+  Users, 
+  Clock,
+  Calendar, 
+  DollarSign, 
+  TrendingUp, 
+  Settings, 
+  LogOut,
+  Menu,
+  X,
+  Shield,
+  Briefcase,
+  Ticket,
+  FileText,
+  BarChart3
+} from 'lucide-react'
+import { useState } from 'react'
+
+const Layout = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const userRole = localStorage.getItem('userRole')
+  const isSuperAdmin = userRole === 'SUPER_ADMIN'
+
+  const menuItems = [
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/employees', icon: Users, label: 'Employees' },
+    { path: '/attendance', icon: Clock, label: 'Attendance' },
+    { path: '/leave', icon: Calendar, label: 'Leave Management' },
+    { path: '/payroll', icon: DollarSign, label: 'Payroll' },
+    { path: '/performance', icon: TrendingUp, label: 'Performance' },
+    { path: '/shifts', icon: Clock, label: 'Shifts' },
+    { path: '/tickets', icon: Ticket, label: 'HR Tickets' },
+    { path: '/recruitment', icon: Briefcase, label: 'Recruitment' },
+    { path: '/analytics', icon: BarChart3, label: 'Analytics' },
+    ...(isSuperAdmin ? [{ path: '/users', icon: Shield, label: 'User Management' }] : []),
+    { path: '/settings', icon: Settings, label: 'Settings' },
+  ]
+
+  const handleLogout = () => {
+    // Clear all authentication data
+    localStorage.removeItem('isAuthenticated')
+    localStorage.removeItem('userEmail')
+    localStorage.removeItem('userName')
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('userId')
+    // Force navigation to login page
+    window.location.href = '/login'
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 flex flex-col`}>
+        <div className="p-4 flex items-center justify-between border-b border-gray-200">
+          {sidebarOpen && <h1 className="text-xl font-bold text-primary-600">HRMS</h1>}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+        
+        <nav className="flex-1 p-4 space-y-2">
+          {menuItems.map((item) => {
+            const Icon = item.icon
+            const isActive = location.pathname === item.path
+            return (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                  isActive
+                    ? 'bg-primary-50 text-primary-600 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Icon size={20} />
+                {sidebarOpen && <span>{item.label}</span>}
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-gray-200">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-all"
+          >
+            <LogOut size={20} />
+            {sidebarOpen && <span>Logout</span>}
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-gray-800">
+              {menuItems.find(item => item.path === location.pathname)?.label || 'HRMS'}
+            </h2>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold">
+                  {localStorage.getItem('userName')?.charAt(0) || 'A'}
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-800">
+                    {localStorage.getItem('userName') || 'Admin'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {userRole === 'SUPER_ADMIN' ? 'Super Administrator' : 'Administrator'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  )
+}
+
+export default Layout
+
