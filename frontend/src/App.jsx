@@ -20,7 +20,7 @@ import InitialRoute from './components/InitialRoute'
 function App() {
   return (
     <HRMSProvider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<InitialRoute />} />
           <Route path="/register" element={<Register />} />

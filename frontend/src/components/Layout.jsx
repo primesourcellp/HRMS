@@ -23,9 +23,12 @@ const Layout = () => {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const userRole = localStorage.getItem('userRole')
+  const userType = localStorage.getItem('userType') // 'admin' or 'employee'
   const isSuperAdmin = userRole === 'SUPER_ADMIN'
+  const isEmployee = userType === 'employee'
 
-  const menuItems = [
+  // Admin menu items (Super Admin and Admin)
+  const adminMenuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/employees', icon: Users, label: 'Employees' },
     { path: '/attendance', icon: Clock, label: 'Attendance' },
@@ -40,6 +43,19 @@ const Layout = () => {
     { path: '/settings', icon: Settings, label: 'Settings' },
   ]
 
+  // Employee menu items (limited access)
+  const employeeMenuItems = [
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/attendance', icon: Clock, label: 'My Attendance' },
+    { path: '/leave', icon: Calendar, label: 'My Leaves' },
+    { path: '/payroll', icon: DollarSign, label: 'My Payroll' },
+    { path: '/performance', icon: TrendingUp, label: 'My Performance' },
+    { path: '/tickets', icon: Ticket, label: 'My Tickets' },
+    { path: '/settings', icon: Settings, label: 'Settings' },
+  ]
+
+  const menuItems = isEmployee ? employeeMenuItems : adminMenuItems
+
   const handleLogout = () => {
     // Clear all authentication data
     localStorage.removeItem('isAuthenticated')
@@ -47,6 +63,9 @@ const Layout = () => {
     localStorage.removeItem('userName')
     localStorage.removeItem('userRole')
     localStorage.removeItem('userId')
+    localStorage.removeItem('userType')
+    localStorage.removeItem('employeeDepartment')
+    localStorage.removeItem('employeePosition')
     // Force navigation to login page
     window.location.href = '/login'
   }
@@ -111,10 +130,12 @@ const Layout = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-800">
-                    {localStorage.getItem('userName') || 'Admin'}
+                    {localStorage.getItem('userName') || (isEmployee ? 'Employee' : 'Admin')}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {userRole === 'SUPER_ADMIN' ? 'Super Administrator' : 'Administrator'}
+                    {isEmployee 
+                      ? `${localStorage.getItem('employeePosition') || 'Employee'} - ${localStorage.getItem('employeeDepartment') || ''}`
+                      : userRole === 'SUPER_ADMIN' ? 'Super Administrator' : 'Administrator'}
                   </p>
                 </div>
               </div>

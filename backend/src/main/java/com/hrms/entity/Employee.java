@@ -1,8 +1,16 @@
 package com.hrms.entity;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDate;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "employees")
@@ -40,6 +48,9 @@ public class Employee {
 
     @Column(name = "shift_id")
     private Long shiftId;
+
+    @Column(name = "password", length = 255)
+    private String password; // BCrypt hash (60 characters)
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id", insertable = false, updatable = false)
@@ -159,5 +170,13 @@ public class Employee {
 
     public void setShift(com.hrms.entity.Shift shift) {
         this.shift = shift;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 }

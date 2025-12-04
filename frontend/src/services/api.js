@@ -28,6 +28,26 @@ const api = {
     }
   },
 
+  employeeLogin: async (email, password) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/employee/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Network error' }))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('Employee login API error:', error)
+      throw error
+    }
+  },
+
   checkAuth: (email) => fetch(`${API_BASE_URL}/auth/check?email=${encodeURIComponent(email)}`).then(res => res.json()),
 
   checkSuperAdminExists: () => fetch(`${API_BASE_URL}/auth/check-superadmin`).then(res => res.json()),
@@ -148,7 +168,19 @@ const api = {
     body: formData
   }).then(res => res.json()),
   getEmployeeDocuments: (employeeId) => fetch(`${API_BASE_URL}/documents/employee/${employeeId}`).then(res => res.json()),
-  downloadDocument: (id) => fetch(`${API_BASE_URL}/documents/${id}/download`).then(res => res.blob()),
+  downloadDocument: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/documents/${id}/download`)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error')
+        throw new Error(`Failed to download document: ${response.status} ${response.statusText}`)
+      }
+      return await response.blob()
+    } catch (error) {
+      console.error('Download document API error:', error)
+      throw error
+    }
+  },
   verifyDocument: (id, verified) => fetch(`${API_BASE_URL}/documents/${id}/verify`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

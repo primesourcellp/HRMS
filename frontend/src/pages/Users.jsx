@@ -1,8 +1,23 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Edit, Trash2, Shield, UserCheck } from 'lucide-react'
 import api from '../services/api'
 
 const Users = () => {
+  const navigate = useNavigate()
+  const userType = localStorage.getItem('userType')
+  const userRole = localStorage.getItem('userRole')
+  
+  // Only Super Admin can access this page
+  useEffect(() => {
+    if (userType === 'employee' || userRole !== 'SUPER_ADMIN') {
+      navigate('/dashboard')
+    }
+  }, [userType, userRole, navigate])
+  
+  if (userType === 'employee' || userRole !== 'SUPER_ADMIN') {
+    return null // Will redirect via useEffect
+  }
   const [users, setUsers] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)

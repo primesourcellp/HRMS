@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Lock, Mail } from 'lucide-react'
+import { Building2, Lock, Mail, User, Shield } from 'lucide-react'
 import api from '../services/api'
 
 const Login = () => {
+  const [loginType, setLoginType] = useState('admin') // 'admin' or 'employee'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -25,8 +26,13 @@ const Login = () => {
         setChecking(false)
       }
     }
-    checkSuperAdmin()
-  }, [navigate])
+    // Only check super admin for admin login
+    if (loginType === 'admin') {
+      checkSuperAdmin()
+    } else {
+      setChecking(false)
+    }
+  }, [navigate, loginType])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -34,21 +40,39 @@ const Login = () => {
     setLoading(true)
 
     try {
-      const response = await api.login(email, password)
-      console.log('Login response:', response) // Debug log
-      
-      if (response && response.success) {
-        localStorage.setItem('isAuthenticated', 'true')
-        localStorage.setItem('userEmail', response.user.email)
-        localStorage.setItem('userName', response.user.name)
-        localStorage.setItem('userRole', response.user.role)
-        localStorage.setItem('userId', response.user.id.toString())
-        navigate('/dashboard')
+      let response
+      if (loginType === 'admin') {
+        response = await api.login(email, password)
+        if (response && response.success) {
+          localStorage.setItem('isAuthenticated', 'true')
+          localStorage.setItem('userEmail', response.user.email)
+          localStorage.setItem('userName', response.user.name)
+          localStorage.setItem('userRole', response.user.role)
+          localStorage.setItem('userId', response.user.id.toString())
+          localStorage.setItem('userType', 'admin')
+          navigate('/dashboard')
+        } else {
+          setError(response?.message || 'Invalid email or password')
+        }
       } else {
-        setError(response?.message || 'Invalid email or password')
+        // Employee login
+        response = await api.employeeLogin(email, password)
+        if (response && response.success) {
+          localStorage.setItem('isAuthenticated', 'true')
+          localStorage.setItem('userEmail', response.employee.email)
+          localStorage.setItem('userName', response.employee.name)
+          localStorage.setItem('userRole', 'EMPLOYEE')
+          localStorage.setItem('userId', response.employee.id.toString())
+          localStorage.setItem('userType', 'employee')
+          localStorage.setItem('employeeDepartment', response.employee.department)
+          localStorage.setItem('employeePosition', response.employee.position)
+          navigate('/dashboard')
+        } else {
+          setError(response?.message || 'Invalid email or password')
+        }
       }
     } catch (err) {
-      console.error('Login error:', err) // Debug log
+      console.error('Login error:', err)
       setError(err.message || 'Login failed. Please check your connection and try again.')
     } finally {
       setLoading(false)
@@ -74,6 +98,44 @@ const Login = () => {
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">HRMS Portal</h1>
           <p className="text-gray-600">Human Resource Management System</p>
+        </div>
+
+        {/* Login Type Tabs */}
+        <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg">
+          <button
+            type="button"
+            onClick={() => {
+              setLoginType('admin')
+              setError('')
+              setEmail('')
+              setPassword('')
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-all ${
+              loginType === 'admin'
+                ? 'bg-white text-primary-600 shadow-sm font-medium'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            <Shield size={18} />
+            <span>Admin</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLoginType('employee')
+              setError('')
+              setEmail('')
+              setPassword('')
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-all ${
+              loginType === 'employee'
+                ? 'bg-white text-primary-600 shadow-sm font-medium'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            <User size={18} />
+            <span>Employee</span>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -126,16 +188,18 @@ const Login = () => {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Don't have an account?</p>
-          <button
-            type="button"
-            onClick={() => navigate('/register')}
-            className="text-primary-600 hover:text-primary-700 font-medium mt-1"
-          >
-            Register as Super Admin
-          </button>
-        </div>
+        {loginType === 'admin' && (
+          <div className="mt-6 text-center text-sm text-gray-600">
+            <p>Don't have an account?</p>
+            <button
+              type="button"
+              onClick={() => navigate('/register')}
+              className="text-primary-600 hover:text-primary-700 font-medium mt-1"
+            >
+              Register as Super Admin
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

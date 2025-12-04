@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Edit, Trash2, Mail, Phone, MapPin, Upload, FileText, Download, Eye } from 'lucide-react'
 import api from '../services/api'
 
+const API_BASE_URL = 'http://localhost:8080/api'
+
 const Employees = () => {
+  const navigate = useNavigate()
+  const userType = localStorage.getItem('userType')
+  
+  // Redirect employees - they shouldn't access employee management
+  useEffect(() => {
+    if (userType === 'employee') {
+      navigate('/dashboard')
+    }
+  }, [userType, navigate])
+  
+  if (userType === 'employee') {
+    return null // Will redirect via useEffect
+  }
   const [employees, setEmployees] = useState([])
   const [documents, setDocuments] = useState({})
   const [searchTerm, setSearchTerm] = useState('')
@@ -21,7 +37,8 @@ const Employees = () => {
     salary: '',
     joinDate: '',
     status: 'Active',
-    shiftId: null
+    shiftId: null,
+    password: ''
   })
   const [docFormData, setDocFormData] = useState({
     documentType: 'AADHAAR',
@@ -45,10 +62,15 @@ const Employees = () => {
 
   const loadDocuments = async (employeeId) => {
     try {
+      console.log('Loading documents for employee:', employeeId)
       const data = await api.getEmployeeDocuments(employeeId)
+      console.log('Documents loaded:', data)
       setDocuments(prev => ({ ...prev, [employeeId]: data }))
     } catch (error) {
       console.error('Error loading documents:', error)
+      alert('Error loading documents: ' + (error.message || 'Unknown error'))
+      // Set empty array on error to prevent undefined issues
+      setDocuments(prev => ({ ...prev, [employeeId]: [] }))
     }
   }
 
@@ -72,7 +94,8 @@ const Employees = () => {
         salary: employee.salary || '',
         joinDate: employee.joinDate || '',
         status: employee.status || 'Active',
-        shiftId: employee.shiftId || null
+        shiftId: employee.shiftId || null,
+        password: '' // Don't show existing password
       })
     } else {
       setEditingEmployee(null)
@@ -85,7 +108,8 @@ const Employees = () => {
         salary: '',
         joinDate: '',
         status: 'Active',
-        shiftId: null
+        shiftId: null,
+        password: ''
       })
     }
     setShowModal(true)
@@ -133,10 +157,10 @@ const Employees = () => {
 
       await api.uploadDocument(formData)
       await loadDocuments(selectedEmployee.id)
-      setShowDocModal(false)
+      // Keep modal open so user can view the uploaded document
       setDocFile(null)
       setDocFormData({ documentType: 'AADHAAR', description: '' })
-      alert('Document uploaded successfully')
+      alert('Document uploaded successfully! You can now view it below.')
     } catch (error) {
       alert('Error uploading document: ' + error.message)
     } finally {
@@ -146,24 +170,180 @@ const Employees = () => {
 
   const handleDownloadDocument = async (docId, fileName) => {
     try {
+      console.log('Downloading document:', docId)
+      // Use the API service method for consistency
       const blob = await api.downloadDocument(docId)
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = fileName
+      a.download = fileName || 'document'
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (error) {
-      alert('Error downloading document: ' + error.message)
+      console.error('Download error:', error)
+      if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        alert('Cannot connect to server. Please ensure:\n1. Backend is running on http://localhost:8080\n2. Check browser console (F12) for CORS errors')
+      } else {
+        alert('Error downloading document: ' + (error.message || 'Unknown error'))
+      }
     }
   }
 
-  const openDocModal = (employee) => {
-    setSelectedEmployee(employee)
-    loadDocuments(employee.id)
-    setShowDocModal(true)
+  const handleViewDocument = async (docId, fileName, event) => {
+    try {
+      console.log('Viewing document:', docId, fileName)
+      
+      // Prevent double-clicks
+      let button = null
+      if (event) {
+        button = event.target?.closest('button')
+        if (button?.disabled) return
+        if (button) button.disabled = true
+      }
+      
+      // Determine file type from filename
+      const fileExtension = fileName?.split('.').pop()?.toLowerCase()
+      const isPdf = fileExtension === 'pdf'
+      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension || '')
+      
+      // Use direct backend URL for viewing - simpler and more reliable
+      const viewUrl = `${API_BASE_URL}/documents/${docId}/download`
+      
+      if (isPdf || isImage) {
+        // Open directly from backend URL - browser will handle the content type
+        const newWindow = window.open(viewUrl, '_blank')
+        if (!newWindow) {
+          // Popup blocked - fall back to blob approach
+          console.log('Popup blocked, using blob approach')
+          const blob = await api.downloadDocument(docId)
+          
+          let mimeType = 'application/octet-stream'
+          if (isPdf) {
+            mimeType = 'application/pdf'
+          } else if (fileExtension === 'jpg' || fileExtension === 'jpeg') {
+            mimeType = 'image/jpeg'
+          } else if (fileExtension === 'png') {
+            mimeType = 'image/png'
+          } else if (fileExtension === 'gif') {
+            mimeType = 'image/gif'
+          } else if (fileExtension === 'webp') {
+            mimeType = 'image/webp'
+          }
+          
+          const typedBlob = new Blob([blob], { type: mimeType })
+          const blobUrl = window.URL.createObjectURL(typedBlob)
+          
+          // Create iframe in new window for PDFs
+          if (isPdf) {
+            const fallbackWindow = window.open('', '_blank')
+            if (fallbackWindow) {
+              fallbackWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <title>${fileName}</title>
+                    <style>
+                      body { margin: 0; padding: 0; overflow: hidden; }
+                      iframe { width: 100%; height: 100vh; border: none; }
+                    </style>
+                  </head>
+                  <body>
+                    <iframe src="${blobUrl}"></iframe>
+                  </body>
+                </html>
+              `)
+              fallbackWindow.document.close()
+              
+              // Clean up when window closes
+              const checkClosed = setInterval(() => {
+                if (fallbackWindow.closed) {
+                  window.URL.revokeObjectURL(blobUrl)
+                  clearInterval(checkClosed)
+                }
+              }, 1000)
+              setTimeout(() => {
+                window.URL.revokeObjectURL(blobUrl)
+                clearInterval(checkClosed)
+              }, 600000)
+            } else {
+              // Last resort - download
+              const a = document.createElement('a')
+              a.href = blobUrl
+              a.download = fileName || 'document'
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000)
+            }
+          } else {
+            // For images, open blob URL
+            const imgWindow = window.open(blobUrl, '_blank')
+            if (imgWindow) {
+              const checkClosed = setInterval(() => {
+                if (imgWindow.closed) {
+                  window.URL.revokeObjectURL(blobUrl)
+                  clearInterval(checkClosed)
+                }
+              }, 1000)
+              setTimeout(() => {
+                window.URL.revokeObjectURL(blobUrl)
+                clearInterval(checkClosed)
+              }, 600000)
+            } else {
+              const a = document.createElement('a')
+              a.href = blobUrl
+              a.download = fileName || 'document'
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000)
+            }
+          }
+        }
+      } else {
+        // For other file types, download
+        const blob = await api.downloadDocument(docId)
+        const blobUrl = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = fileName || 'document'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000)
+      }
+      
+      // Re-enable button after a delay
+      if (button) {
+        setTimeout(() => {
+          button.disabled = false
+        }, 2000)
+      }
+    } catch (error) {
+      console.error('View error:', error)
+      if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        alert('Cannot connect to server. Please ensure:\n1. Backend is running on http://localhost:8080\n2. Check browser console (F12) for CORS errors\n3. Verify the document exists in the database')
+      } else {
+        alert('Error opening document: ' + (error.message || 'Unknown error'))
+      }
+      // Re-enable button on error
+      if (button) {
+        button.disabled = false
+      }
+    }
+  }
+
+  const openDocModal = async (employee) => {
+    try {
+      setSelectedEmployee(employee)
+      setShowDocModal(true)
+      await loadDocuments(employee.id)
+    } catch (error) {
+      console.error('Error opening document modal:', error)
+      alert('Error loading documents: ' + (error.message || 'Unknown error'))
+    }
   }
 
   return (
@@ -295,6 +475,19 @@ const Employees = () => {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password {editingEmployee && '(leave empty to keep current)'}
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    required={!editingEmployee}
+                    placeholder={editingEmployee ? "Enter new password to change" : "Enter password"}
                   />
                 </div>
                 <div>
@@ -452,15 +645,59 @@ const Employees = () => {
                     }`}>
                       {doc.verified ? 'Verified' : 'Pending'}
                     </span>
-                    <button
-                      onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                    >
-                      <Download size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                    {!doc.verified && userRole && (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.verifyDocument(doc.id, true)
+                            await loadDocuments(selectedEmployee.id)
+                            alert('Document verified successfully')
+                          } catch (error) {
+                            alert('Error verifying document: ' + error.message)
+                          }
+                        }}
+                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                        title="Verify Document"
+                      >
+                        Verify
+                      </button>
+                    )}
+                     <button
+                       onClick={(e) => handleViewDocument(doc.id, doc.fileName, e)}
+                       className="p-2 text-green-600 hover:bg-green-50 rounded"
+                       title="View Document"
+                     >
+                       <Eye size={18} />
+                     </button>
+                     <button
+                       onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
+                       className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                       title="Download Document"
+                     >
+                       <Download size={18} />
+                     </button>
+                     {userRole && (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') && (
+                       <button
+                         onClick={async () => {
+                           if (window.confirm(`Are you sure you want to delete "${doc.fileName}"? This action cannot be undone.`)) {
+                             try {
+                               await api.deleteDocument(doc.id)
+                               await loadDocuments(selectedEmployee.id)
+                               alert('Document deleted successfully')
+                             } catch (error) {
+                               alert('Error deleting document: ' + (error.message || 'Unknown error'))
+                             }
+                           }
+                         }}
+                         className="p-2 text-red-600 hover:bg-red-50 rounded"
+                         title="Delete Document"
+                       >
+                         <Trash2 size={18} />
+                       </button>
+                     )}
+                   </div>
+                 </div>
+               ))}
               {(!documents[selectedEmployee.id] || documents[selectedEmployee.id].length === 0) && (
                 <p className="text-center text-gray-500 py-4">No documents uploaded</p>
               )}

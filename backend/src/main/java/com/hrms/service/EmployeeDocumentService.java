@@ -1,17 +1,17 @@
 package com.hrms.service;
 
-import com.hrms.entity.EmployeeDocument;
-import com.hrms.entity.Employee;
-import com.hrms.repository.EmployeeDocumentRepository;
-import com.hrms.repository.EmployeeRepository;
-import com.hrms.util.FileStorageService;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.List;
+import com.hrms.entity.EmployeeDocument;
+import com.hrms.repository.EmployeeDocumentRepository;
+import com.hrms.repository.EmployeeRepository;
+import com.hrms.util.FileStorageService;
 
 @Service
 public class EmployeeDocumentService {
@@ -40,7 +40,8 @@ public class EmployeeDocumentService {
         document.setMimeType(file.getContentType());
         document.setDescription(description);
         document.setUploadedAt(LocalDateTime.now());
-        document.setVerified(false);
+        // Auto-verify documents when uploaded - they can be viewed immediately
+        document.setVerified(true);
 
         return documentRepository.save(document);
     }

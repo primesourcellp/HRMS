@@ -1,16 +1,25 @@
 package com.hrms.controller;
 
-import com.hrms.entity.User;
-import com.hrms.repository.UserRepository;
-import com.hrms.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.hrms.entity.Employee;
+import com.hrms.entity.User;
+import com.hrms.repository.UserRepository;
+import com.hrms.service.EmployeeService;
+import com.hrms.service.UserService;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -21,6 +30,9 @@ public class AuthController {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private EmployeeService employeeService;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, String> registrationData) {
@@ -149,6 +161,50 @@ public class AuthController {
         long superAdminCount = userRepository.countByRole("SUPER_ADMIN");
         response.put("exists", superAdminCount > 0);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/employee/login")
+    public ResponseEntity<Map<String, Object>> employeeLogin(@RequestBody Map<String, String> credentials) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String email = credentials.get("email");
+            String password = credentials.get("password");
+            
+            // Validate input
+            if (email == null || email.trim().isEmpty() || password == null || password.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Email and password are required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            // Authenticate employee
+            if (employeeService.authenticate(email.trim(), password)) {
+                Optional<Employee> employee = employeeService.findByEmail(email.trim());
+                if (employee.isPresent() && "Active".equals(employee.get().getStatus())) {
+                    response.put("success", true);
+                    response.put("message", "Login successful");
+                    response.put("employee", Map.of(
+                        "id", employee.get().getId(),
+                        "email", employee.get().getEmail(),
+                        "name", employee.get().getName(),
+                        "department", employee.get().getDepartment(),
+                        "position", employee.get().getPosition(),
+                        "role", "EMPLOYEE"
+                    ));
+                    return ResponseEntity.ok(response);
+                }
+            }
+            
+            response.put("success", false);
+            response.put("message", "Invalid email or password");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Login failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
     }
 }
 
