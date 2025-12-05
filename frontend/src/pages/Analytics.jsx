@@ -101,14 +101,14 @@ const Analytics = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Analytics & Reports</h2>
+          <h2 className="text-2xl font-bold text-blue-600">Analytics & Reports</h2>
           <p className="text-gray-600 mt-1">Comprehensive insights and analytics</p>
         </div>
         <div className="flex gap-3">
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="week">Last Week</option>
             <option value="month">Last Month</option>
@@ -122,8 +122,8 @@ const Analytics = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-2">
-            <Users className="text-blue-500" size={24} />
-            <TrendingUp className="text-green-500" size={20} />
+            <Users className="text-blue-600" size={24} />
+            <TrendingUp className="text-blue-600" size={20} />
           </div>
           <h3 className="text-2xl font-bold text-gray-800">{stats.totalEmployees}</h3>
           <p className="text-sm text-gray-600">Total Employees</p>
@@ -132,8 +132,8 @@ const Analytics = () => {
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-2">
-            <Clock className="text-green-500" size={24} />
-            <TrendingUp className="text-green-500" size={20} />
+            <Clock className="text-blue-600" size={24} />
+            <TrendingUp className="text-blue-600" size={20} />
           </div>
           <h3 className="text-2xl font-bold text-gray-800">{stats.presentToday}</h3>
           <p className="text-sm text-gray-600">Present Today</p>
@@ -144,8 +144,8 @@ const Analytics = () => {
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-2">
-            <Calendar className="text-yellow-500" size={24} />
-            <TrendingUp className="text-yellow-500" size={20} />
+            <Calendar className="text-blue-600" size={24} />
+            <TrendingUp className="text-blue-600" size={20} />
           </div>
           <h3 className="text-2xl font-bold text-gray-800">{stats.pendingLeaves}</h3>
           <p className="text-sm text-gray-600">Pending Leaves</p>
@@ -154,8 +154,8 @@ const Analytics = () => {
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-2">
-            <DollarSign className="text-purple-500" size={24} />
-            <TrendingUp className="text-green-500" size={20} />
+            <DollarSign className="text-blue-600" size={24} />
+            <TrendingUp className="text-blue-600" size={20} />
           </div>
           <h3 className="text-2xl font-bold text-gray-800">₹{(stats.totalPayroll / 100000).toFixed(1)}L</h3>
           <p className="text-sm text-gray-600">Total Payroll</p>
@@ -164,8 +164,8 @@ const Analytics = () => {
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-2">
-            <BarChart3 className="text-indigo-500" size={24} />
-            <TrendingUp className="text-green-500" size={20} />
+            <BarChart3 className="text-blue-600" size={24} />
+            <TrendingUp className="text-blue-600" size={20} />
           </div>
           <h3 className="text-2xl font-bold text-gray-800">95%</h3>
           <p className="text-sm text-gray-600">System Health</p>
@@ -181,7 +181,7 @@ const Analytics = () => {
             <h3 className="text-lg font-semibold text-gray-800">Attendance Trend (Last 7 Days)</h3>
             <button
               onClick={() => handleExportReport('Attendance')}
-              className="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm"
+              className="text-blue-600 hover:text-blue-700 flex items-center gap-1 text-sm"
             >
               <Download size={16} />
               Export
@@ -195,7 +195,7 @@ const Analytics = () => {
                 </div>
                 <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
                   <div
-                    className="bg-primary-600 h-6 rounded-full flex items-center justify-end pr-2"
+                    className="bg-blue-600 h-6 rounded-full flex items-center justify-end pr-2"
                     style={{ width: `${(item.present / stats.totalEmployees) * 100}%` }}
                   >
                     <span className="text-xs text-white font-medium">{item.present}</span>
@@ -212,7 +212,7 @@ const Analytics = () => {
             <h3 className="text-lg font-semibold text-gray-800">Leave Distribution</h3>
             <button
               onClick={() => handleExportReport('Leave')}
-              className="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm"
+              className="text-blue-600 hover:text-blue-700 flex items-center gap-1 text-sm"
             >
               <Download size={16} />
               Export
@@ -243,7 +243,7 @@ const Analytics = () => {
           <h3 className="text-lg font-semibold text-gray-800">Payroll Summary</h3>
           <button
             onClick={() => handleExportReport('Payroll')}
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2 text-sm"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
           >
             <Download size={16} />
             Export Report
@@ -285,7 +285,7 @@ const Analytics = () => {
           onClick={() => handleExportReport('Employee')}
           className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow text-left"
         >
-          <Users className="text-blue-500 mb-3" size={32} />
+          <Users className="text-blue-600 mb-3" size={32} />
           <h3 className="font-semibold text-gray-800 mb-1">Employee Report</h3>
           <p className="text-sm text-gray-600">Export employee database</p>
         </button>
@@ -294,7 +294,7 @@ const Analytics = () => {
           onClick={() => handleExportReport('Attendance')}
           className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow text-left"
         >
-          <Clock className="text-green-500 mb-3" size={32} />
+          <Clock className="text-blue-600 mb-3" size={32} />
           <h3 className="font-semibold text-gray-800 mb-1">Attendance Report</h3>
           <p className="text-sm text-gray-600">Export attendance records</p>
         </button>
@@ -303,7 +303,7 @@ const Analytics = () => {
           onClick={() => handleExportReport('Performance')}
           className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow text-left"
         >
-          <TrendingUp className="text-purple-500 mb-3" size={32} />
+          <TrendingUp className="text-blue-600 mb-3" size={32} />
           <h3 className="font-semibold text-gray-800 mb-1">Performance Report</h3>
           <p className="text-sm text-gray-600">Export performance data</p>
         </button>

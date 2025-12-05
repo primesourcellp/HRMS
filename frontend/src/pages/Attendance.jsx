@@ -225,13 +225,13 @@ const Attendance = () => {
   const weeklyCalendar = isEmployee ? getWeeklyCalendar() : []
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">
+          <h2 className="text-3xl font-bold text-blue-600">
             {isEmployee ? 'My Attendance' : 'Attendance Management'}
           </h2>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 mt-1 font-medium">
             {isEmployee ? 'View and manage your attendance' : 'Track and manage employee attendance with GPS'}
           </p>
         </div>
@@ -252,7 +252,7 @@ const Attendance = () => {
       {isEmployee && employeeId && employees.length > 0 && (
         <>
           {/* Check In/Out Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-xl font-semibold text-gray-800 mb-1">Today's Attendance</h3>
@@ -303,9 +303,9 @@ const Attendance = () => {
             </div>
 
             {todayRecord?.workingHours && (
-              <div className="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-100">
+              <div className="bg-gray-100 rounded-lg p-4 mb-4 border border-gray-200">
                 <p className="text-blue-600 text-sm mb-1 font-medium">Working Hours</p>
-                <p className="text-2xl font-bold text-blue-700">{todayRecord.workingHours.toFixed(2)}h</p>
+                <p className="text-2xl font-bold text-gray-800">{todayRecord.workingHours.toFixed(2)}h</p>
               </div>
             )}
 
@@ -323,7 +323,7 @@ const Attendance = () => {
                 <button
                   onClick={() => handleCheckOut(employeeId)}
                   disabled={loading}
-                  className="flex-1 bg-orange-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                  className="flex-1 bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
                 >
                   <XCircle size={20} />
                   Check Out
@@ -340,30 +340,30 @@ const Attendance = () => {
           {/* Stats Cards */}
           {stats && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+              <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                    <Timer className="w-6 h-6 text-blue-600" />
+                  <div className="bg-blue-600 p-3 rounded-lg">
+                    <Timer className="w-6 h-6 text-white" />
                   </div>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">{stats.weeklyHours}h</h3>
                 <p className="text-sm text-gray-500">Weekly Hours</p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+              <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="bg-green-50 p-3 rounded-lg border border-green-100">
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  <div className="bg-blue-600 p-3 rounded-lg">
+                    <CheckCircle2 className="w-6 h-6 text-white" />
                   </div>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">{stats.monthlyPresent}/{stats.monthlyTotal}</h3>
                 <p className="text-sm text-gray-500">Monthly Attendance</p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+              <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                    <TrendingUp className="w-6 h-6 text-purple-600" />
+                  <div className="bg-blue-600 p-3 rounded-lg">
+                    <TrendingUp className="w-6 h-6 text-white" />
                   </div>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">{stats.attendanceRate}%</h3>
@@ -373,7 +373,7 @@ const Attendance = () => {
           )}
 
           {/* Weekly Calendar */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <CalendarDays size={20} className="text-gray-600" />
               This Week
@@ -386,9 +386,9 @@ const Attendance = () => {
                     day.isToday
                       ? 'border-blue-300 bg-blue-50 shadow-sm'
                       : day.record?.status === 'Present'
-                      ? 'border-green-200 bg-green-50'
+                      ? 'border-gray-200 bg-gray-50'
                       : day.record?.status === 'Absent'
-                      ? 'border-red-200 bg-red-50'
+                      ? 'border-gray-200 bg-gray-100'
                       : 'border-gray-200 bg-gray-50'
                   }`}
                 >
@@ -417,7 +417,7 @@ const Attendance = () => {
           </div>
 
           {/* Recent Attendance History */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200">
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">Recent Attendance</h3>
             </div>
@@ -512,14 +512,14 @@ const Attendance = () => {
 
           {/* Location Status */}
           {userLocation && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+            <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 flex items-center gap-2">
               <MapPin className="text-blue-600" size={20} />
-              <span className="text-sm text-blue-800">GPS Location: {userLocation.latitude.toFixed(4)}, {userLocation.longitude.toFixed(4)}</span>
+              <span className="text-sm text-gray-700">GPS Location: {userLocation.latitude.toFixed(4)}, {userLocation.longitude.toFixed(4)}</span>
             </div>
           )}
 
           {/* Attendance Table */}
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -541,7 +541,7 @@ const Attendance = () => {
                       <tr key={employee.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold mr-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold mr-3">
                               {employee.name?.charAt(0) || 'E'}
                             </div>
                             <div>
@@ -619,7 +619,7 @@ const Attendance = () => {
                                 <button
                                   onClick={() => handleCheckIn(employee.id)}
                                   disabled={loading}
-                                  className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50"
+                                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
                                 >
                                   Check In
                                 </button>
@@ -627,7 +627,7 @@ const Attendance = () => {
                                 <button
                                   onClick={() => handleCheckOut(employee.id)}
                                   disabled={loading}
-                                  className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 disabled:opacity-50"
+                                  className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 disabled:opacity-50"
                                 >
                                   Check Out
                                 </button>

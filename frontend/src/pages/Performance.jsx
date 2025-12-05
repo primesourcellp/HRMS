@@ -4,9 +4,10 @@ import { Plus, TrendingUp, Star, Target, Award, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 const Performance = () => {
-  const { employees, performance, addPerformance } = useHRMS()
+  const { employees = [], performance = [], addPerformance, loading = false } = useHRMS()
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
     employeeId: '',
     reviewDate: format(new Date(), 'yyyy-MM-dd'),
@@ -18,11 +19,19 @@ const Performance = () => {
     areasForImprovement: ''
   })
 
-  const filteredPerformance = performance.filter(perf => {
-    const employee = employees.find(emp => emp.id === perf.employeeId)
-    const matchesSearch = !searchTerm || 
-      (employee && employee.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    return matchesSearch
+  // Ensure performance is an array
+  const performanceList = Array.isArray(performance) ? performance : []
+
+  const filteredPerformance = performanceList.filter(perf => {
+    try {
+      const employee = employees.find(emp => emp.id === perf.employeeId)
+      const matchesSearch = !searchTerm || 
+        (employee && employee.name && employee.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      return matchesSearch
+    } catch (err) {
+      console.error('Error filtering performance:', err)
+      return false
+    }
   })
 
   const handleOpenModal = () => {
@@ -39,14 +48,20 @@ const Performance = () => {
     setShowModal(true)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    addPerformance({
-      ...formData,
-      employeeId: parseInt(formData.employeeId),
-      rating: parseInt(formData.rating)
-    })
-    setShowModal(false)
+    try {
+      setError(null)
+      await addPerformance({
+        ...formData,
+        employeeId: parseInt(formData.employeeId),
+        rating: parseInt(formData.rating)
+      })
+      setShowModal(false)
+    } catch (err) {
+      setError(err.message || 'Failed to add performance review')
+      console.error('Error submitting performance:', err)
+    }
   }
 
   const getEmployeeName = (employeeId) => {
@@ -69,67 +84,85 @@ const Performance = () => {
     ))
   }
 
-  const averageRating = performance.length > 0
-    ? (performance.reduce((sum, p) => sum + (p.rating || 0), 0) / performance.length).toFixed(1)
+  const averageRating = performanceList.length > 0
+    ? (performanceList.reduce((sum, p) => sum + (p.rating || 0), 0) / performanceList.length).toFixed(1)
     : 0
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading performance data...</p>
+          </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Performance Reviews</h2>
-          <p className="text-gray-600 mt-1">Track and manage employee performance</p>
+          <h2 className="text-3xl font-bold text-blue-600">Performance Reviews</h2>
+          <p className="text-gray-600 mt-1 font-medium">Track and manage employee performance</p>
         </div>
         <button
           onClick={handleOpenModal}
-          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
         >
           <Plus size={20} />
           Add Review
         </button>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6 transform hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">Total Reviews</p>
-              <p className="text-2xl font-bold text-gray-800">{performance.length}</p>
+              <p className="text-2xl font-bold text-gray-800">{performanceList.length}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Target className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Target className="w-6 h-6 text-white" />
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6 transform hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">Average Rating</p>
-              <p className="text-2xl font-bold text-primary-600">{averageRating}</p>
+              <p className="text-2xl font-bold text-blue-600">{averageRating}</p>
             </div>
-            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-              <Star className="w-6 h-6 text-primary-600 fill-current" />
+            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-md">
+              <Star className="w-6 h-6 text-white fill-current" />
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6 transform hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">Top Performers</p>
-              <p className="text-2xl font-bold text-green-600">
-                {performance.filter(p => p.rating >= 4).length}
+              <p className="text-2xl font-bold text-blue-600">
+                {performanceList.filter(p => p.rating >= 4).length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <Award className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Award className="w-6 h-6 text-white" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
@@ -145,10 +178,10 @@ const Performance = () => {
       {/* Performance Reviews */}
       <div className="grid grid-cols-1 gap-4">
         {filteredPerformance.map((perf) => (
-          <div key={perf.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div key={perf.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6 hover:border-blue-300 transform hover:scale-105">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold shadow-md">
                   {getEmployeeAvatar(perf.employeeId)}
                 </div>
                 <div className="flex-1">
@@ -159,8 +192,8 @@ const Performance = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <span>Period: {perf.period}</span>
-                    <span>Date: {format(new Date(perf.reviewDate), 'MMM dd, yyyy')}</span>
+                    <span>Period: {perf.period || 'N/A'}</span>
+                    <span>Date: {perf.reviewDate ? format(new Date(perf.reviewDate), 'MMM dd, yyyy') : 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -311,7 +344,7 @@ const Performance = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Add Review
                 </button>

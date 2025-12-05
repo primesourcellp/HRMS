@@ -200,6 +200,7 @@ const api = {
   },
   getPendingLeaves: () => fetch(`${API_BASE_URL}/leaves/pending`).then(res => res.json()),
   getLeavesByEmployee: (employeeId) => fetch(`${API_BASE_URL}/leaves/employee/${employeeId}`).then(res => res.json()),
+  deleteLeave: (id) => fetch(`${API_BASE_URL}/leaves/${id}`, { method: 'DELETE' }).then(res => res.json()),
   createLeave: (leave) => fetch(`${API_BASE_URL}/leaves`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

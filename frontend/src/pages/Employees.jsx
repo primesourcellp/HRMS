@@ -347,15 +347,15 @@ const Employees = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Employee Management</h2>
+          <h2 className="text-2xl font-bold text-blue-600">Employee Management</h2>
           <p className="text-gray-600 mt-1">Manage employee information and documents</p>
         </div>
         <button
           onClick={() => handleOpenModal()}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+          className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
         >
           <Plus size={20} />
           Add Employee
@@ -389,71 +389,106 @@ const Employees = () => {
           </select>
       </div>
 
-      {/* Employees Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEmployees.map((employee) => (
-          <div key={employee.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold text-lg">
-                  {employee.name?.charAt(0) || 'E'}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800">{employee.name}</h3>
-                  <p className="text-sm text-gray-500">{employee.position}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                employee.status === 'Active' ? 'bg-green-100 text-green-800' :
-                employee.status === 'Inactive' ? 'bg-gray-100 text-gray-800' :
-                employee.status === 'On Leave' ? 'bg-blue-100 text-blue-800' :
-                employee.status === 'Resigned' ? 'bg-yellow-100 text-yellow-800' :
-                employee.status === 'Suspended' ? 'bg-orange-100 text-orange-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {employee.status}
-              </span>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Mail size={16} />
-                <span>{employee.email}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Phone size={16} />
-                <span>{employee.phone}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <MapPin size={16} />
-                <span>{employee.department}</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => openDocModal(employee)}
-                className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 text-sm"
-              >
-                <FileText size={16} />
-                Documents
-              </button>
-              <button
-                onClick={() => handleOpenModal(employee)}
-                className="flex-1 bg-primary-50 text-primary-600 px-3 py-2 rounded-lg hover:bg-primary-100 flex items-center justify-center gap-2 text-sm"
-              >
-                <Edit size={16} />
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(employee.id)}
-                className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 flex items-center justify-center gap-2 text-sm"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+      {/* Employees Table */}
+      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-blue-600 text-white border-b-2 border-blue-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Position</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+              {filteredEmployees.map((employee) => (
+                <tr key={employee.id} className="hover:bg-gray-50 transition-all duration-200 border-b border-gray-100">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold mr-3">
+                        {employee.name?.charAt(0) || 'E'}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{employee.name}</div>
+                        <div className="text-sm text-gray-500">ID: {employee.id}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <Mail size={16} className="text-gray-400" />
+                      <span className="text-sm text-gray-700">{employee.email}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} className="text-gray-400" />
+                      <span className="text-sm text-gray-700">{employee.phone}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <MapPin size={16} className="text-gray-400" />
+                      <span className="text-sm text-gray-700">{employee.department}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-700">{employee.position}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      employee.status === 'Active' ? 'bg-green-50 text-green-700 border border-green-200' :
+                      employee.status === 'Inactive' ? 'bg-gray-50 text-gray-700 border border-gray-200' :
+                      employee.status === 'On Leave' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                      employee.status === 'Resigned' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                      employee.status === 'Suspended' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                      'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                      {employee.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openDocModal(employee)}
+                        className="bg-gray-100 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 flex items-center gap-1.5 text-sm transition-colors"
+                        title="View Documents"
+                      >
+                        <FileText size={14} />
+                    
+                      </button>
+                      <button
+                        onClick={() => handleOpenModal(employee)}
+                        className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 flex items-center gap-1.5 text-sm transition-colors"
+                        title="Edit Employee"
+                      >
+                        <Edit size={14} />
+                    
+                      </button>
+                      <button
+                        onClick={() => handleDelete(employee.id)}
+                        className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 flex items-center gap-1.5 text-sm transition-colors"
+                        title="Delete Employee"
+                      >
+                        <Trash2 size={14} />
+                        
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {filteredEmployees.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No employees found</p>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Add/Edit Employee Modal */}
@@ -573,7 +608,7 @@ const Employees = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading ? 'Saving...' : 'Save'}
                 </button>
@@ -631,7 +666,7 @@ const Employees = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {loading ? 'Uploading...' : 'Upload Document'}
               </button>
@@ -642,7 +677,7 @@ const Employees = () => {
               {documents[selectedEmployee.id]?.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <FileText className="text-blue-500" size={20} />
+                    <FileText className="text-blue-600" size={20} />
                     <div>
                       <p className="font-medium">{doc.fileName}</p>
                       <p className="text-sm text-gray-500">{doc.documentType}</p>

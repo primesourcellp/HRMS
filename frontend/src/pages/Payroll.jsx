@@ -99,11 +99,11 @@ const Payroll = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Payroll Management</h2>
-          <p className="text-gray-600 mt-1">View and manage employee payrolls</p>
+          <h2 className="text-3xl font-bold text-blue-600">Payroll Management</h2>
+          <p className="text-gray-600 mt-1 font-medium">View and manage employee payrolls</p>
         </div>
         {isAdmin && (
           <div className="flex items-center gap-3">
@@ -118,28 +118,28 @@ const Payroll = () => {
       </div>
 
       {/* Payroll List */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-blue-600 text-white">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gross Salary</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deductions</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Salary</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Month</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Gross Salary</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Deductions</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Net Salary</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {payrolls.map((payroll) => {
                 const structure = getSalaryStructure(payroll.employeeId)
                 return (
-                  <tr key={payroll.id} className="hover:bg-gray-50">
+                  <tr key={payroll.id} className="hover:bg-gray-50 transition-all duration-200 border-b border-gray-100">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold mr-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold mr-3">
                           {getEmployeeName(payroll.employeeId)?.charAt(0) || 'E'}
                         </div>
                         <span className="text-sm font-medium text-gray-900">{getEmployeeName(payroll.employeeId)}</span>
@@ -159,7 +159,7 @@ const Payroll = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-primary-600">
+                      <span className="text-sm font-semibold text-blue-600">
                         ₹{payroll.netSalary?.toLocaleString() || payroll.amount?.toLocaleString() || '0'}
                       </span>
                     </td>
@@ -176,7 +176,7 @@ const Payroll = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleDownloadPayslip(payroll.id)}
-                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                          className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                           title="Download Payslip"
                         >
                           <Download size={16} />
@@ -184,7 +184,7 @@ const Payroll = () => {
                         </button>
                         <button
                           onClick={() => handleDownloadForm16(payroll.employeeId, payroll.year)}
-                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                          className="text-gray-700 hover:text-gray-900 flex items-center gap-1"
                           title="Download Form 16"
                         >
                           <FileText size={16} />
