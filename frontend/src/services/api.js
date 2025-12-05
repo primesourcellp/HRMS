@@ -168,6 +168,11 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(employee)
   }).then(res => res.json()),
+  changeEmployeePassword: (id, currentPassword, newPassword) => fetchWithAuth(`${API_BASE_URL}/employees/${id}/change-password`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword })
+  }).then(res => res.json()),
   deleteEmployee: (id, userRole) => fetchWithAuth(`${API_BASE_URL}/employees/${id}?userRole=${userRole}`, {
     method: 'DELETE'
   }).then(res => res.ok),
@@ -317,6 +322,18 @@ const api = {
   getLeaveBalances: (employeeId, year) => {
     const url = year ? `${API_BASE_URL}/leave-balances/employee/${employeeId}?year=${year}` : `${API_BASE_URL}/leave-balances/employee/${employeeId}`
     return fetch(url).then(res => res.json())
+  },
+  initializeLeaveBalances: (employeeId, year) => {
+    const url = year 
+      ? `${API_BASE_URL}/leave-balances/initialize/${employeeId}?year=${year}`
+      : `${API_BASE_URL}/leave-balances/initialize/${employeeId}`
+    return fetch(url, { method: 'POST' }).then(res => res.json())
+  },
+  assignLeaveBalance: (employeeId, leaveTypeId, totalDays, year) => {
+    const url = year 
+      ? `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}&year=${year}`
+      : `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}`
+    return fetch(url, { method: 'POST' }).then(res => res.json())
   },
 
   // Salary Structures

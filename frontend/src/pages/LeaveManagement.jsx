@@ -8,10 +8,18 @@ const LeaveManagement = () => {
   const [leaveTypes, setLeaveTypes] = useState([])
   const [leaveBalances, setLeaveBalances] = useState([])
   const [employees, setEmployees] = useState([])
+  const [users, setUsers] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showBalanceModal, setShowBalanceModal] = useState(false)
+  const [balanceFormData, setBalanceFormData] = useState({
+    employeeId: '',
+    leaveTypeId: '',
+    totalDays: '',
+    year: new Date().getFullYear()
+  })
   const [selectedLeave, setSelectedLeave] = useState(null)
   const [filter, setFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
@@ -73,23 +81,64 @@ const LeaveManagement = () => {
         leavesData = filter === 'All' ? await api.getLeaves() : await api.getLeaves(filter)
       }
 
-      const [typesData, employeesData] = await Promise.all([
+      const [typesData, employeesData, usersData] = await Promise.all([
         api.getActiveLeaveTypes(),
-        isAdmin ? api.getEmployees() : Promise.resolve([])
+        // Load employees for admins, or load current employee's data for employees
+        isAdmin ? api.getEmployees() : (isEmployee && currentUserId ? 
+          api.getEmployees().then(emps => {
+            // Filter to include only current employee for employees
+            const currentEmp = emps.find(emp => {
+              const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+              return empId === parseInt(currentUserId)
+            })
+            return currentEmp ? [currentEmp] : []
+          }).catch(() => []) : Promise.resolve([])),
+        // Load users (admins) to get approver names
+        isAdmin ? api.getUsers() : Promise.resolve([])
       ])
       
       setLeaves(Array.isArray(leavesData) ? leavesData : [])
       setLeaveTypes(Array.isArray(typesData) ? typesData : [])
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
+      setUsers(Array.isArray(usersData) ? usersData : [])
 
-      // Load leave balances for current user
+      // Load leave balances for current user and auto-initialize if needed
       if (currentUserId) {
         try {
-          const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-          setLeaveBalances(Array.isArray(balances) ? balances : [])
+          let balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+          let balancesArray = Array.isArray(balances) ? balances : []
+          
+          // Check if we need to initialize balances
+          const needsInitialization = balancesArray.length === 0 || 
+            balancesArray.every(b => !b.totalDays || b.totalDays === 0)
+          
+          // Auto-initialize balances if none exist or all have 0 totalDays, but leave types are configured
+          if (needsInitialization && typesData.length > 0) {
+            try {
+              console.log('Initializing leave balances for employee:', currentUserId)
+              balances = await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+              balancesArray = Array.isArray(balances) ? balances : []
+              console.log('Leave balances initialized:', balancesArray)
+            } catch (initError) {
+              console.error('Error initializing leave balances:', initError)
+            }
+          }
+          
+          setLeaveBalances(balancesArray)
         } catch (balanceError) {
           console.error('Error loading leave balances:', balanceError)
-          setLeaveBalances([])
+          // Try to initialize even on error if we have leave types
+          if (typesData.length > 0) {
+            try {
+              const balances = await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+              setLeaveBalances(Array.isArray(balances) ? balances : [])
+            } catch (initError) {
+              console.error('Error initializing leave balances on error recovery:', initError)
+              setLeaveBalances([])
+            }
+          } else {
+            setLeaveBalances([])
+          }
         }
       }
     } catch (error) {
@@ -339,8 +388,50 @@ const LeaveManagement = () => {
   }
 
   const getEmployeeName = (employeeId) => {
-    const employee = employees.find(emp => emp.id === employeeId)
+    // Handle type conversion for comparison
+    const empId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId
+    const currentUserIdNum = currentUserId ? parseInt(currentUserId) : null
+    
+    // If this is the current employee viewing their own leaves, use localStorage
+    if (isEmployee && currentUserIdNum && empId === currentUserIdNum) {
+      const userName = localStorage.getItem('userName')
+      return userName || 'You'
+    }
+    
+    // Otherwise, try to find in employees array
+    const employee = employees.find(emp => {
+      const empIdNum = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+      return empIdNum === empId
+    })
+    
     return employee?.name || 'Unknown'
+  }
+
+  const getApproverName = (approverId) => {
+    if (!approverId) return 'Unknown'
+    
+    const approverIdNum = typeof approverId === 'string' ? parseInt(approverId) : approverId
+    
+    // First check in users (admins) - approvers are usually admins
+    const user = users.find(u => {
+      const userId = typeof u.id === 'string' ? parseInt(u.id) : u.id
+      return userId === approverIdNum
+    })
+    if (user) return user.name
+    
+    // Then check in employees (in case an employee approved)
+    const employee = employees.find(emp => {
+      const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+      return empId === approverIdNum
+    })
+    if (employee) return employee.name
+    
+    // If it's the current user, use localStorage
+    if (currentUserId && approverIdNum === parseInt(currentUserId)) {
+      return localStorage.getItem('userName') || 'You'
+    }
+    
+    return 'Unknown'
   }
 
   const getLeaveTypeName = (leaveTypeId) => {
@@ -349,20 +440,74 @@ const LeaveManagement = () => {
   }
 
   const getLeaveBalance = (leaveTypeId) => {
-    const balance = leaveBalances.find(b => b.leaveTypeId === leaveTypeId)
+    if (!leaveTypeId) return 0
+    const balance = leaveBalances.find(b => {
+      const balanceTypeId = typeof b.leaveTypeId === 'string' ? parseInt(b.leaveTypeId) : b.leaveTypeId
+      const typeId = typeof leaveTypeId === 'string' ? parseInt(leaveTypeId) : leaveTypeId
+      return balanceTypeId === typeId
+    })
     return balance?.balance || 0
   }
 
+  const handleAssignBalance = async (e) => {
+    e.preventDefault()
+    if (!balanceFormData.employeeId || !balanceFormData.leaveTypeId || !balanceFormData.totalDays) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await api.assignLeaveBalance(
+        parseInt(balanceFormData.employeeId),
+        parseInt(balanceFormData.leaveTypeId),
+        parseFloat(balanceFormData.totalDays),
+        balanceFormData.year
+      )
+      setShowBalanceModal(false)
+      setBalanceFormData({
+        employeeId: '',
+        leaveTypeId: '',
+        totalDays: '',
+        year: new Date().getFullYear()
+      })
+      // Reload data if viewing that employee's balances
+      if (balanceFormData.employeeId === currentUserId) {
+        await loadData()
+      } else {
+        alert('Leave balance assigned successfully')
+      }
+    } catch (error) {
+      alert('Error assigning leave balance: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const filteredLeaves = leaves.filter(leave => {
+    // Search functionality
+    const searchLower = searchTerm.toLowerCase().trim()
     const matchesSearch = searchTerm === '' || 
-      getEmployeeName(leave.employeeId).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getLeaveTypeName(leave.leaveTypeId).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      leave.reason?.toLowerCase().includes(searchTerm.toLowerCase())
+      getEmployeeName(leave.employeeId).toLowerCase().includes(searchLower) ||
+      getLeaveTypeName(leave.leaveTypeId).toLowerCase().includes(searchLower) ||
+      leave.reason?.toLowerCase().includes(searchLower) ||
+      leave.status?.toLowerCase().includes(searchLower) ||
+      (leave.startDate && format(new Date(leave.startDate), 'MMM dd, yyyy').toLowerCase().includes(searchLower)) ||
+      (leave.endDate && format(new Date(leave.endDate), 'MMM dd, yyyy').toLowerCase().includes(searchLower)) ||
+      (leave.startDate && format(new Date(leave.startDate), 'dd/MM/yyyy').toLowerCase().includes(searchLower)) ||
+      (leave.endDate && format(new Date(leave.endDate), 'dd/MM/yyyy').toLowerCase().includes(searchLower)) ||
+      (leave.totalDays && leave.totalDays.toString().includes(searchLower))
     
+    // Employee filter (for admin)
     const matchesEmployee = employeeFilter === 'All' || 
       leave.employeeId.toString() === employeeFilter
 
-    return matchesSearch && matchesEmployee
+    // Status filter
+    const matchesStatus = filter === 'All' || 
+      leave.status?.toUpperCase() === filter.toUpperCase() ||
+      (filter === 'PENDING' && (leave.status === 'Pending' || leave.status === 'PENDING'))
+
+    return matchesSearch && matchesEmployee && matchesStatus
   })
 
   if (loading) {
@@ -397,9 +542,45 @@ const LeaveManagement = () => {
             <option value="REJECTED">Rejected</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setBalanceFormData({
+                  employeeId: '',
+                  leaveTypeId: '',
+                  totalDays: '',
+                  year: new Date().getFullYear()
+                })
+                setShowBalanceModal(true)
+              }}
+              className="bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              title="Assign Leave Balance to Employee"
+            >
+              <User size={20} />
+              Assign Balance
+            </button>
+          )}
           <button
-            onClick={() => {
+            onClick={async () => {
               resetForm()
+              // Refresh balances before opening modal to ensure they're up to date
+              if (currentUserId) {
+                try {
+                  const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                  setLeaveBalances(Array.isArray(balances) ? balances : [])
+                  // If balances are empty or all 0, try to initialize
+                  const balancesArray = Array.isArray(balances) ? balances : []
+                  if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
+                    if (leaveTypes.length > 0) {
+                      await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                      const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                      setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error refreshing balances:', error)
+                }
+              }
               setShowModal(true)
             }}
             className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
@@ -416,11 +597,20 @@ const LeaveManagement = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder="Search by employee, leave type, or reason..."
+            placeholder="Search by employee, leave type, reason, date, status, or days..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Clear search"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
         {isAdmin && (
           <select
@@ -459,21 +649,182 @@ const LeaveManagement = () => {
       )}
 
       {/* Leave Balances */}
-      {leaveBalances.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-          <h3 className="text-xl font-bold text-blue-600 mb-4">Your Leave Balance</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {leaveBalances.map((balance, index) => {
-              const type = leaveTypes.find(t => t.id === balance.leaveTypeId)
-              return (
-                <div key={balance.id} className="bg-blue-600 rounded-xl p-5 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 border-2 border-white">
-                  <p className="text-sm font-semibold text-white mb-2">{type?.name || 'Unknown'}</p>
-                  <p className="text-3xl font-bold text-white mb-1">{balance.balance.toFixed(1)}</p>
-                  <p className="text-xs text-white opacity-90">Used: {balance.usedDays.toFixed(1)} / {balance.totalDays.toFixed(1)}</p>
+      {(() => {
+        // Remove duplicates by grouping by leaveTypeId (keep the one with highest totalDays or most recent)
+        const uniqueBalances = leaveBalances.reduce((acc, balance) => {
+          const typeId = balance.leaveTypeId
+          const existing = acc.find(b => b.leaveTypeId === typeId)
+          if (!existing) {
+            acc.push(balance)
+          } else {
+            // Keep the one with higher totalDays, or if equal, keep the one with higher balance
+            if (balance.totalDays > existing.totalDays || 
+                (balance.totalDays === existing.totalDays && balance.balance > existing.balance)) {
+              const index = acc.indexOf(existing)
+              acc[index] = balance
+            }
+          }
+          return acc
+        }, [])
+
+        if (uniqueBalances.length === 0) return null
+
+        return (
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-800">Your Leave Balance</h3>
+                <p className="text-sm text-gray-500 mt-1">Year {new Date().getFullYear()}</p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (currentUserId) {
+                    try {
+                      setLoading(true)
+                      const balances = await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                      setLeaveBalances(Array.isArray(balances) ? balances : [])
+                      alert('Leave balances refreshed successfully')
+                    } catch (error) {
+                      alert('Error refreshing balances: ' + error.message)
+                    } finally {
+                      setLoading(false)
+                    }
+                  }
+                }}
+                className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center gap-2"
+                title="Refresh Leave Balances"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {uniqueBalances.map((balance) => {
+                const type = leaveTypes.find(t => {
+                  const typeId = typeof t.id === 'string' ? parseInt(t.id) : t.id
+                  const balanceTypeId = typeof balance.leaveTypeId === 'string' ? parseInt(balance.leaveTypeId) : balance.leaveTypeId
+                  return typeId === balanceTypeId
+                })
+                const hasZeroBalance = balance.balance === 0 && balance.totalDays === 0
+                const usagePercentage = balance.totalDays > 0 ? (balance.usedDays / balance.totalDays) * 100 : 0
+                const isLowBalance = balance.balance <= balance.totalDays * 0.2 && balance.totalDays > 0
+                
+                return (
+                  <div 
+                    key={`${balance.leaveTypeId}-${balance.id}`} 
+                    className={`rounded-xl p-5 shadow-md hover:shadow-lg transition-all duration-300 border-2 ${
+                      hasZeroBalance 
+                        ? 'bg-yellow-50 border-yellow-200' 
+                        : isLowBalance
+                        ? 'bg-orange-50 border-orange-200'
+                        : 'bg-blue-50 border-blue-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className={`text-sm font-semibold mb-1 ${
+                          hasZeroBalance ? 'text-yellow-800' : 
+                          isLowBalance ? 'text-orange-800' : 
+                          'text-blue-800'
+                        }`}>
+                          {type?.name || 'Unknown Leave Type'}
+                        </p>
+                        {type?.code && (
+                          <p className={`text-xs ${
+                            hasZeroBalance ? 'text-yellow-600' : 
+                            isLowBalance ? 'text-orange-600' : 
+                            'text-blue-600'
+                          }`}>{type.code}</p>
+                        )}
+                      </div>
+                      {hasZeroBalance && type && type.maxDays && (
+                        <span className={`text-xs ${
+                          hasZeroBalance ? 'bg-yellow-100 text-yellow-800' : 
+                          isLowBalance ? 'bg-orange-100 text-orange-800' : 
+                          'bg-blue-100 text-blue-800'
+                        } px-2 py-1 rounded-full font-medium`}>
+                          Max: {type.maxDays}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="mb-3">
+                      <p className={`text-4xl font-bold mb-1 ${
+                        hasZeroBalance ? 'text-yellow-700' : 
+                        isLowBalance ? 'text-orange-700' : 
+                        'text-blue-700'
+                      }`}>
+                        {balance.balance.toFixed(1)}
+                        <span className="text-lg font-normal ml-1 text-gray-600">days</span>
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Available
+                      </p>
+                    </div>
+
+                    {/* Progress Bar */}
+                    {balance.totalDays > 0 && (
+                      <div className="mb-3">
+                        <div className={`flex items-center justify-between text-xs mb-1 ${
+                          hasZeroBalance ? 'text-yellow-700' : 
+                          isLowBalance ? 'text-orange-700' : 
+                          'text-blue-700'
+                        }`}>
+                          <span>Used: {balance.usedDays.toFixed(1)} / {balance.totalDays.toFixed(1)} days</span>
+                          <span>{usagePercentage.toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              usagePercentage >= 80 ? 'bg-red-500' : 
+                              usagePercentage >= 50 ? 'bg-orange-500' : 
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(usagePercentage, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Additional Info */}
+                    {balance.carriedForward > 0 && (
+                      <p className="text-xs text-gray-600 mt-2">
+                        ↳ Carried forward: {balance.carriedForward.toFixed(1)} days
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {uniqueBalances.some(b => b.balance === 0 && b.totalDays === 0) && (
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-yellow-800 mb-1">
+                      Some balances are not initialized
+                    </p>
+                    <p className="text-xs text-yellow-700">
+                      Click "Refresh" above to initialize balances from leave type settings, or contact your admin to assign leave balances.
+                    </p>
+                  </div>
                 </div>
-              )
-            })}
+              </div>
+            )}
           </div>
+        )
+      })()}
+      
+      {/* Show message if no balances but leave types exist */}
+      {leaveBalances.length === 0 && leaveTypes.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800">
+            <strong>No leave balances found.</strong> Click "Refresh" in the balance section above, or ask admin to assign leave balances.
+          </p>
         </div>
       )}
 
@@ -495,8 +846,27 @@ const LeaveManagement = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredLeaves.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                    No leaves found
+                  <td colSpan="7" className="px-6 py-8 text-center">
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <Search className="text-gray-400 mb-3" size={48} />
+                      <p className="text-gray-500 font-medium mb-1">
+                        {searchTerm || employeeFilter !== 'All' || filter !== 'All' 
+                          ? 'No leaves match your search criteria' 
+                          : 'No leaves found'}
+                      </p>
+                      {(searchTerm || employeeFilter !== 'All' || filter !== 'All') && (
+                        <button
+                          onClick={() => {
+                            setSearchTerm('')
+                            setEmployeeFilter('All')
+                            setFilter('All')
+                          }}
+                          className="text-sm text-blue-600 hover:text-blue-800 mt-2 underline"
+                        >
+                          Clear all filters
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -643,7 +1013,30 @@ const LeaveManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
                   <select
                     value={formData.leaveTypeId}
-                    onChange={(e) => setFormData({ ...formData, leaveTypeId: e.target.value })}
+                    onChange={async (e) => {
+                      setFormData({ ...formData, leaveTypeId: e.target.value })
+                      // If balance is 0 and leave type has maxDays, try to initialize balance
+                      if (e.target.value && currentUserId) {
+                        const selectedType = leaveTypes.find(t => t.id === parseInt(e.target.value))
+                        const currentBalance = getLeaveBalance(parseInt(e.target.value))
+                        if (currentBalance === 0 && selectedType && selectedType.maxDays && selectedType.maxDays > 0) {
+                          try {
+                            // Force initialization by calling getOrCreateLeaveBalance through a dummy API call
+                            // This will trigger the backend to update the balance if it's 0
+                            await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                            // Reload balances to get updated values
+                            const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                            setLeaveBalances(Array.isArray(balances) ? balances : [])
+                            // Clear validation error if balance was successfully initialized
+                            if (validationError && validationError.includes('Insufficient leave balance')) {
+                              setValidationError('')
+                            }
+                          } catch (error) {
+                            console.error('Error initializing balance for leave type:', error)
+                          }
+                        }
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     required
                     disabled={leaveTypes.length === 0}
@@ -651,11 +1044,14 @@ const LeaveManagement = () => {
                     <option value="">
                       {leaveTypes.length === 0 ? 'No leave types available' : 'Select Leave Type'}
                     </option>
-                    {leaveTypes.map(type => (
-                      <option key={type.id} value={type.id}>
-                        {type.name} {type.maxDays ? `(Max: ${type.maxDays} days)` : ''} (Balance: {getLeaveBalance(type.id).toFixed(1)})
-                      </option>
-                    ))}
+                    {leaveTypes.map(type => {
+                      const balance = getLeaveBalance(type.id)
+                      return (
+                        <option key={type.id} value={type.id}>
+                          {type.name} {type.maxDays ? `(Max: ${type.maxDays} days)` : ''} (Balance: {balance.toFixed(1)})
+                        </option>
+                      )
+                    })}
                   </select>
                   {leaveTypes.length === 0 && (
                     <p className="text-xs text-red-600 mt-1">
@@ -1016,10 +1412,10 @@ const LeaveManagement = () => {
                   </div>
                 )}
                 {selectedLeave.approvedBy && (
-                  <div>
-                    <p className="text-sm text-gray-600">Approved By</p>
-                    <p className="font-semibold text-gray-900">{getEmployeeName(selectedLeave.approvedBy)}</p>
-                  </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Approved By</p>
+                      <p className="font-semibold text-gray-900">{getApproverName(selectedLeave.approvedBy)}</p>
+                    </div>
                 )}
               </div>
               <div>
@@ -1044,6 +1440,136 @@ const LeaveManagement = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Leave Balance Modal (Admin Only) */}
+      {showBalanceModal && isAdmin && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-blue-600">Assign Leave Balance</h3>
+              <button
+                onClick={() => {
+                  setShowBalanceModal(false)
+                  setBalanceFormData({
+                    employeeId: '',
+                    leaveTypeId: '',
+                    totalDays: '',
+                    year: new Date().getFullYear()
+                  })
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleAssignBalance} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Employee *</label>
+                  <select
+                    value={balanceFormData.employeeId}
+                    onChange={(e) => setBalanceFormData({ ...balanceFormData, employeeId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id.toString()}>{emp.name} ({emp.department})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type *</label>
+                  <select
+                    value={balanceFormData.leaveTypeId}
+                    onChange={(e) => setBalanceFormData({ ...balanceFormData, leaveTypeId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Leave Type</option>
+                    {leaveTypes.map(type => (
+                      <option key={type.id} value={type.id}>
+                        {type.name} ({type.code}) {type.maxDays ? `- Max: ${type.maxDays} days` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Available Days *</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={balanceFormData.totalDays}
+                    onChange={(e) => setBalanceFormData({ ...balanceFormData, totalDays: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter total available days (e.g., 12)"
+                    required
+                  />
+                  {balanceFormData.leaveTypeId && (() => {
+                    const selectedType = leaveTypes.find(t => t.id === parseInt(balanceFormData.leaveTypeId))
+                    if (selectedType && selectedType.maxDays) {
+                      return (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Leave type maximum: {selectedType.maxDays} days per year
+                        </p>
+                      )
+                    }
+                    return null
+                  })()}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                  <input
+                    type="number"
+                    value={balanceFormData.year}
+                    onChange={(e) => setBalanceFormData({ ...balanceFormData, year: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="2020"
+                    max="2100"
+                  />
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>📋 How it works:</strong>
+                </p>
+                <ol className="text-xs text-blue-700 mt-2 space-y-1 list-decimal list-inside">
+                  <li>This assigns the total available days for the selected leave type to the employee</li>
+                  <li>The balance is stored in the system and displayed to the employee</li>
+                  <li>Employee can apply for leave within their assigned limits</li>
+                  <li>Days are automatically deducted from balance only when leave is <strong>approved</strong></li>
+                  <li>Rejected or pending leaves do not affect the balance</li>
+                </ol>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBalanceModal(false)
+                    setBalanceFormData({
+                      employeeId: '',
+                      leaveTypeId: '',
+                      totalDays: '',
+                      year: new Date().getFullYear()
+                    })
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                >
+                  {loading ? 'Assigning...' : 'Assign'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, CheckCircle, XCircle, Calendar, Search, MapPin, Smartphone, Monitor, TrendingUp, CalendarDays, Timer, CheckCircle2 } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Calendar, Search, MapPin, Smartphone, Monitor, TrendingUp, CalendarDays, Timer, CheckCircle2, Edit, X, Download, Filter } from 'lucide-react'
 import api from '../services/api'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from 'date-fns'
 
@@ -10,10 +10,23 @@ const Attendance = () => {
   const [shifts, setShifts] = useState([])
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [loading, setLoading] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
   const [isEmployee, setIsEmployee] = useState(false)
   const [employeeId, setEmployeeId] = useState(null)
+  const [showMarkModal, setShowMarkModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
+  const [selectedRecord, setSelectedRecord] = useState(null)
+  const [markFormData, setMarkFormData] = useState({
+    status: 'Present',
+    checkIn: '',
+    checkOut: ''
+  })
+  const [error, setError] = useState(null)
+  const userRole = localStorage.getItem('userRole')
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
   const currentUserId = localStorage.getItem('userId')
 
   useEffect(() => {
@@ -94,6 +107,7 @@ const Attendance = () => {
 
   const handleCheckIn = async (employeeId) => {
     setLoading(true)
+    setError(null)
     try {
       const checkInData = {
         employeeId,
@@ -105,11 +119,15 @@ const Attendance = () => {
         location: userLocation ? `${userLocation.latitude}, ${userLocation.longitude}` : 'Office',
         method: userLocation ? 'MOBILE' : 'WEB'
       }
-      await api.checkIn(checkInData)
+      const response = await api.checkIn(checkInData)
+      if (response.success === false) {
+        throw new Error(response.message || 'Check-in failed')
+      }
       await loadData()
       alert('Check-in successful')
     } catch (error) {
-      alert('Error checking in: ' + error.message)
+      setError(error.message || 'Error checking in')
+      alert('Error checking in: ' + (error.message || 'Unknown error'))
     } finally {
       setLoading(false)
     }
@@ -117,6 +135,7 @@ const Attendance = () => {
 
   const handleCheckOut = async (employeeId) => {
     setLoading(true)
+    setError(null)
     try {
       const checkOutData = {
         employeeId,
@@ -127,20 +146,134 @@ const Attendance = () => {
         location: userLocation ? `${userLocation.latitude}, ${userLocation.longitude}` : 'Office',
         method: userLocation ? 'MOBILE' : 'WEB'
       }
-      await api.checkOut(checkOutData)
+      const response = await api.checkOut(checkOutData)
+      if (response.success === false) {
+        throw new Error(response.message || 'Check-out failed')
+      }
       await loadData()
       alert('Check-out successful')
     } catch (error) {
-      alert('Error checking out: ' + error.message)
+      setError(error.message || 'Error checking out')
+      alert('Error checking out: ' + (error.message || 'Unknown error'))
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const handleMarkAttendance = async (e) => {
+    e.preventDefault()
+    if (!markFormData.status) {
+      alert('Please select a status')
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const markData = {
+        employeeId: selectedEmployee.id,
+        date: selectedDate,
+        status: markFormData.status,
+        checkIn: markFormData.checkIn || null,
+        checkOut: markFormData.checkOut || null
+      }
+      await api.markAttendance(markData)
+      await loadData()
+      setShowMarkModal(false)
+      setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+      setSelectedEmployee(null)
+      alert('Attendance marked successfully')
+    } catch (error) {
+      setError(error.message || 'Error marking attendance')
+      alert('Error marking attendance: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEditAttendance = async (e) => {
+    e.preventDefault()
+    if (!markFormData.status) {
+      alert('Please select a status')
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const markData = {
+        employeeId: selectedRecord.employeeId,
+        date: selectedRecord.date,
+        status: markFormData.status,
+        checkIn: markFormData.checkIn || null,
+        checkOut: markFormData.checkOut || null
+      }
+      await api.markAttendance(markData)
+      await loadData()
+      setShowEditModal(false)
+      setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+      setSelectedRecord(null)
+      alert('Attendance updated successfully')
+    } catch (error) {
+      setError(error.message || 'Error updating attendance')
+      alert('Error updating attendance: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportAttendance = () => {
+    try {
+      const exportData = attendance.map(record => {
+        const employee = employees.find(emp => emp.id === record.employeeId)
+        return {
+          Date: record.date,
+          Employee: employee?.name || 'Unknown',
+          Department: employee?.department || 'N/A',
+          'Check In': record.checkIn || '-',
+          'Check Out': record.checkOut || '-',
+          'Working Hours': record.workingHours ? `${record.workingHours.toFixed(2)}h` : '-',
+          Status: record.status || 'N/A',
+          'Overtime Hours': record.overtimeHours ? `${record.overtimeHours.toFixed(2)}h` : '-',
+          'Undertime Hours': record.undertimeHours ? `${record.undertimeHours.toFixed(2)}h` : '-'
+        }
+      })
+
+      const csvContent = [
+        Object.keys(exportData[0] || {}).join(','),
+        ...exportData.map(row => Object.values(row).join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `attendance_${selectedDate}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      alert('Attendance data exported successfully')
+    } catch (error) {
+      alert('Error exporting data: ' + error.message)
+    }
+  }
+
+  const filteredEmployees = employees.filter(emp => {
+    const matchesSearch = searchTerm === '' || 
+      emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.department?.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const record = getAttendanceStatus(emp.id)
+    const matchesStatus = statusFilter === 'All' ||
+      (statusFilter === 'Present' && record?.status === 'Present') ||
+      (statusFilter === 'Absent' && record?.status === 'Absent') ||
+      (statusFilter === 'Not Marked' && !record)
+    
+    return matchesSearch && matchesStatus
+  })
 
   // Get today's attendance record
   const todayRecord = isEmployee && employeeId 
@@ -495,20 +628,64 @@ const Attendance = () => {
         </>
       )}
 
-      {/* Admin View - Keep existing table design */}
+      {/* Admin View - Enhanced with full functionality */}
       {!isEmployee && (
         <>
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search employees..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+          {/* Search and Filters */}
+          <div className="flex gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search by employee name, email, or department..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  title="Clear search"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="All">All Status</option>
+              <option value="Present">Present</option>
+              <option value="Absent">Absent</option>
+              <option value="Not Marked">Not Marked</option>
+            </select>
+            {isAdmin && (
+              <button
+                onClick={handleExportAttendance}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                title="Export Attendance"
+              >
+                <Download size={18} />
+                Export
+              </button>
+            )}
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800 text-sm">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Location Status */}
           {userLocation && (
@@ -613,29 +790,64 @@ const Attendance = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          {isCurrentUser && (
-                            <div className="flex gap-2">
-                              {!record?.checkIn ? (
-                                <button
-                                  onClick={() => handleCheckIn(employee.id)}
-                                  disabled={loading}
-                                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                  Check In
-                                </button>
-                              ) : !record?.checkOut ? (
-                                <button
-                                  onClick={() => handleCheckOut(employee.id)}
-                                  disabled={loading}
-                                  className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 disabled:opacity-50"
-                                >
-                                  Check Out
-                                </button>
-                              ) : (
-                                <span className="text-gray-500">Completed</span>
-                              )}
-                            </div>
-                          )}
+                          <div className="flex gap-2">
+                            {isCurrentUser && (
+                              <>
+                                {!record?.checkIn ? (
+                                  <button
+                                    onClick={() => handleCheckIn(employee.id)}
+                                    disabled={loading}
+                                    className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50 text-xs"
+                                  >
+                                    Check In
+                                  </button>
+                                ) : !record?.checkOut ? (
+                                  <button
+                                    onClick={() => handleCheckOut(employee.id)}
+                                    disabled={loading}
+                                    className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 disabled:opacity-50 text-xs"
+                                  >
+                                    Check Out
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-500 text-xs">Completed</span>
+                                )}
+                              </>
+                            )}
+                            {isAdmin && (
+                              <>
+                                {record ? (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedRecord(record)
+                                      setMarkFormData({
+                                        status: record.status || 'Present',
+                                        checkIn: record.checkIn || '',
+                                        checkOut: record.checkOut || ''
+                                      })
+                                      setShowEditModal(true)
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 p-1"
+                                    title="Edit Attendance"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedEmployee(employee)
+                                      setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+                                      setShowMarkModal(true)
+                                    }}
+                                    className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-xs"
+                                    title="Mark Attendance"
+                                  >
+                                    Mark
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -643,8 +855,216 @@ const Attendance = () => {
                 </tbody>
               </table>
             </div>
+            {filteredEmployees.length === 0 && employees.length > 0 && (
+              <div className="p-8 text-center">
+                <Search className="mx-auto text-gray-400 mb-3" size={48} />
+                <p className="text-gray-500 font-medium mb-1">
+                  {searchTerm || statusFilter !== 'All' 
+                    ? 'No employees match your search criteria' 
+                    : 'No employees found'}
+                </p>
+                {(searchTerm || statusFilter !== 'All') && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('')
+                      setStatusFilter('All')
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800 mt-2 underline"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            )}
+            {employees.length === 0 && (
+              <div className="p-8 text-center">
+                <p className="text-gray-500">No employees found. Please add employees first.</p>
+              </div>
+            )}
           </div>
         </>
+      )}
+
+      {/* Mark Attendance Modal (Admin) */}
+      {showMarkModal && isAdmin && selectedEmployee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-blue-600">Mark Attendance</h3>
+              <button
+                onClick={() => {
+                  setShowMarkModal(false)
+                  setSelectedEmployee(null)
+                  setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleMarkAttendance} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                <input
+                  type="text"
+                  value={selectedEmployee.name}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                <select
+                  value={markFormData.status}
+                  onChange={(e) => setMarkFormData({ ...markFormData, status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Check In Time</label>
+                <input
+                  type="time"
+                  value={markFormData.checkIn}
+                  onChange={(e) => setMarkFormData({ ...markFormData, checkIn: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Check Out Time</label>
+                <input
+                  type="time"
+                  value={markFormData.checkOut}
+                  onChange={(e) => setMarkFormData({ ...markFormData, checkOut: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMarkModal(false)
+                    setSelectedEmployee(null)
+                    setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Saving...' : 'Mark Attendance'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Attendance Modal (Admin) */}
+      {showEditModal && isAdmin && selectedRecord && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-blue-600">Edit Attendance</h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setSelectedRecord(null)
+                  setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleEditAttendance} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                <input
+                  type="text"
+                  value={employees.find(emp => emp.id === selectedRecord.employeeId)?.name || 'Unknown'}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={typeof selectedRecord.date === 'string' ? selectedRecord.date.split('T')[0] : format(new Date(selectedRecord.date), 'yyyy-MM-dd')}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                <select
+                  value={markFormData.status}
+                  onChange={(e) => setMarkFormData({ ...markFormData, status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Check In Time</label>
+                <input
+                  type="time"
+                  value={markFormData.checkIn}
+                  onChange={(e) => setMarkFormData({ ...markFormData, checkIn: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Check Out Time</label>
+                <input
+                  type="time"
+                  value={markFormData.checkOut}
+                  onChange={(e) => setMarkFormData({ ...markFormData, checkOut: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setSelectedRecord(null)
+                    setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Updating...' : 'Update Attendance'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

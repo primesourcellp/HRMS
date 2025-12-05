@@ -30,17 +30,23 @@ const Dashboard = () => {
   }
 
   // Filter data based on employee or admin view
+  // Ensure arrays exist before filtering
+  const safeAttendance = Array.isArray(attendance) ? attendance : []
+  const safeLeaves = Array.isArray(leaves) ? leaves : []
+  const safePayrolls = Array.isArray(payrolls) ? payrolls : []
+  const safeEmployees = Array.isArray(employees) ? employees : []
+  
   const filteredAttendance = isEmployee && employeeId 
-    ? attendance.filter(a => a.employeeId === employeeId)
-    : attendance
+    ? safeAttendance.filter(a => a.employeeId === employeeId)
+    : safeAttendance
   
   const filteredLeaves = isEmployee && employeeId
-    ? leaves.filter(l => l.employeeId === employeeId)
-    : leaves
+    ? safeLeaves.filter(l => l.employeeId === employeeId)
+    : safeLeaves
   
   const filteredPayrolls = isEmployee && employeeId
-    ? payrolls.filter(p => p.employeeId === employeeId)
-    : payrolls
+    ? safePayrolls.filter(p => p.employeeId === employeeId)
+    : safePayrolls
 
   const stats = isEmployee ? [
     {
@@ -53,7 +59,7 @@ const Dashboard = () => {
     },
     {
       title: 'My Pending Leaves',
-      value: dashboardStats?.pendingLeaves || filteredLeaves.filter(l => l.status === 'Pending').length,
+      value: dashboardStats?.pendingLeaves || filteredLeaves.filter(l => l.status === 'PENDING' || l.status === 'Pending').length,
       change: '-3%',
       trend: 'down',
       icon: Calendar,
@@ -61,7 +67,7 @@ const Dashboard = () => {
     },
     {
       title: 'My Approved Leaves',
-      value: dashboardStats?.approvedLeaves || filteredLeaves.filter(l => l.status === 'Approved').length,
+      value: dashboardStats?.approvedLeaves || filteredLeaves.filter(l => l.status === 'APPROVED' || l.status === 'Approved').length,
       change: '+5%',
       trend: 'up',
       icon: Calendar,
@@ -78,7 +84,7 @@ const Dashboard = () => {
   ] : [
     {
       title: 'Total Employees',
-      value: employees.length,
+      value: safeEmployees.length,
       change: '+12%',
       trend: 'up',
       icon: Users,
@@ -86,7 +92,7 @@ const Dashboard = () => {
     },
     {
       title: 'Present Today',
-      value: dashboardStats?.presentToday || attendance.filter(a => {
+      value: dashboardStats?.presentToday || filteredAttendance.filter(a => {
         const today = format(new Date(), 'yyyy-MM-dd')
         return (a.date === today || a.date?.startsWith(today)) && a.status === 'Present'
       }).length,
@@ -97,7 +103,7 @@ const Dashboard = () => {
     },
     {
       title: 'Pending Leaves',
-      value: dashboardStats?.pendingLeaves || leaves.filter(l => l.status === 'Pending').length,
+      value: dashboardStats?.pendingLeaves || (Array.isArray(leaves) ? leaves.filter(l => l.status === 'PENDING' || l.status === 'Pending').length : 0),
       change: '-3%',
       trend: 'down',
       icon: Calendar,
@@ -116,8 +122,10 @@ const Dashboard = () => {
   // For employee view, show their department only
   const departmentData = isEmployee 
     ? (dashboardStats?.department ? { [dashboardStats.department]: 1 } : {})
-    : (dashboardStats?.departmentDistribution || employees.reduce((acc, emp) => {
-        acc[emp.department] = (acc[emp.department] || 0) + 1
+    : (dashboardStats?.departmentDistribution || safeEmployees.reduce((acc, emp) => {
+        if (emp && emp.department) {
+          acc[emp.department] = (acc[emp.department] || 0) + 1
+        }
         return acc
       }, {}))
 
@@ -173,8 +181,8 @@ const Dashboard = () => {
 
   // For employee view, show only their own info
   const recentEmployees = isEmployee && employeeId
-    ? employees.filter(emp => emp.id === employeeId)
-    : (dashboardStats?.recentEmployees || employees
+    ? safeEmployees.filter(emp => emp.id === employeeId)
+    : (dashboardStats?.recentEmployees || safeEmployees
         .sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate))
         .slice(0, 5))
 

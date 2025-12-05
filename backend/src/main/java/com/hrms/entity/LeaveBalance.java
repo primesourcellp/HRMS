@@ -1,10 +1,24 @@
 package com.hrms.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
 @Entity
-@Table(name = "leave_balances")
+@Table(name = "leave_balances", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"employee_id", "leave_type_id", "year"})
+})
 public class LeaveBalance {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,10 +50,12 @@ public class LeaveBalance {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
+    @JsonIgnore
     private Employee employee;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "leave_type_id", insertable = false, updatable = false)
+    @JsonIgnore
     private LeaveType leaveType;
 
     // Constructors

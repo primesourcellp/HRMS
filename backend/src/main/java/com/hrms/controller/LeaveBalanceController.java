@@ -1,7 +1,5 @@
 package com.hrms.controller;
 
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -24,9 +22,14 @@ public class LeaveBalanceController {
     private LeaveBalanceService leaveBalanceService;
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<LeaveBalance>> getEmployeeLeaveBalances(
+    public ResponseEntity<?> getEmployeeLeaveBalances(
             @PathVariable Long employeeId, @RequestParam(required = false) Integer year) {
-        return ResponseEntity.ok(leaveBalanceService.getEmployeeLeaveBalances(employeeId, year));
+        try {
+            return ResponseEntity.ok(leaveBalanceService.getEmployeeLeaveBalances(employeeId, year));
+        } catch (Exception e) {
+            System.err.println("Error fetching leave balances: " + e.getMessage());
+            return ResponseEntity.status(500).body("Error fetching leave balances: " + e.getMessage());
+        }
     }
 
     @PostMapping("/carry-forward")
@@ -36,6 +39,33 @@ public class LeaveBalanceController {
             @RequestParam Integer toYear) {
         leaveBalanceService.carryForwardLeaves(employeeId, fromYear, toYear);
         return ResponseEntity.ok("Leave carry forward completed");
+    }
+
+    @PostMapping("/initialize/{employeeId}")
+    public ResponseEntity<?> initializeLeaveBalances(
+            @PathVariable Long employeeId,
+            @RequestParam(required = false) Integer year) {
+        try {
+            if (year == null) {
+                year = java.time.LocalDate.now().getYear();
+            }
+            return ResponseEntity.ok(leaveBalanceService.initializeLeaveBalances(employeeId, year));
+        } catch (Exception e) {
+            System.err.println("Error initializing leave balances: " + e.getMessage());
+            return ResponseEntity.status(500).body("Error initializing leave balances: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/assign")
+    public ResponseEntity<LeaveBalance> assignLeaveBalance(
+            @RequestParam Long employeeId,
+            @RequestParam Long leaveTypeId,
+            @RequestParam Double totalDays,
+            @RequestParam(required = false) Integer year) {
+        if (year == null) {
+            year = java.time.LocalDate.now().getYear();
+        }
+        return ResponseEntity.ok(leaveBalanceService.assignLeaveBalance(employeeId, leaveTypeId, year, totalDays));
     }
 }
 

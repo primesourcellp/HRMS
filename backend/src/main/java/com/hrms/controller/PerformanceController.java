@@ -24,8 +24,15 @@ public class PerformanceController {
     private PerformanceService performanceService;
 
     @GetMapping
-    public ResponseEntity<List<Performance>> getAllPerformance() {
-        return ResponseEntity.ok(performanceService.getAllPerformance());
+    public ResponseEntity<?> getAllPerformance() {
+        try {
+            return ResponseEntity.ok(performanceService.getAllPerformance());
+        } catch (Exception e) {
+            java.util.Map<String, Object> errorResponse = new java.util.HashMap<>();
+            errorResponse.put("error", "Failed to fetch performance data");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 
     @GetMapping("/{id}")

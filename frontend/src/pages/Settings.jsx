@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Palette, Calendar, Edit, Trash2 } from 'lucide-react'
+import { Settings as SettingsIcon, User, Bell, Shield, Database, Palette, Calendar, Edit, Trash2, X } from 'lucide-react'
 import api from '../services/api'
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('profile')
+  const [loading, setLoading] = useState(true)
   const [profileData, setProfileData] = useState({
-    name: localStorage.getItem('userName') || 'Admin User',
-    email: 'admin@hrms.com',
-    phone: '+1 234-567-8900',
-    department: 'Administration',
-    position: 'System Administrator'
+    name: localStorage.getItem('userName') || '',
+    email: localStorage.getItem('userEmail') || '',
+    phone: '',
+    department: '',
+    position: '',
+    role: localStorage.getItem('userRole') || ''
   })
 
   const [notifications, setNotifications] = useState({
@@ -26,6 +28,19 @@ const Settings = () => {
     passwordExpiry: '90'
   })
 
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordError, setPasswordError] = useState('')
+
+  const [appearance, setAppearance] = useState({
+    theme: localStorage.getItem('hrms_theme') || 'light',
+    language: localStorage.getItem('hrms_language') || 'english'
+  })
+
   const [leaveTypes, setLeaveTypes] = useState([])
   const [showLeaveTypeModal, setShowLeaveTypeModal] = useState(false)
   const [editingLeaveType, setEditingLeaveType] = useState(null)
@@ -39,7 +54,9 @@ const Settings = () => {
     active: true
   })
   const userRole = localStorage.getItem('userRole')
+  const userId = localStorage.getItem('userId')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+  const isEmployee = userRole === 'EMPLOYEE'
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -51,10 +68,173 @@ const Settings = () => {
   ]
 
   useEffect(() => {
+    loadUserProfile()
     if (isAdmin) {
       loadLeaveTypes()
     }
-  }, [isAdmin])
+    loadAppearanceSettings()
+    
+    // Set up system theme change listener for 'auto' mode
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleSystemThemeChange = (e) => {
+      const savedTheme = localStorage.getItem('hrms_theme') || 'light'
+      if (savedTheme === 'auto') {
+        applyTheme('auto')
+      }
+    }
+    
+    // Modern browsers
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleSystemThemeChange)
+    } else {
+      // Fallback for older browsers
+      mediaQuery.addListener(handleSystemThemeChange)
+    }
+    
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleSystemThemeChange)
+      } else {
+        mediaQuery.removeListener(handleSystemThemeChange)
+      }
+    }
+  }, [isAdmin, userId])
+
+  const loadAppearanceSettings = () => {
+    const savedTheme = localStorage.getItem('hrms_theme') || 'light'
+    const savedLanguage = localStorage.getItem('hrms_language') || 'english'
+    
+    setAppearance({
+      theme: savedTheme,
+      language: savedLanguage
+    })
+    
+    applyTheme(savedTheme)
+  }
+
+  const applyTheme = (theme) => {
+    const root = document.documentElement
+    
+    // Remove any existing theme classes
+    root.classList.remove('dark')
+    
+    if (theme === 'dark') {
+      root.classList.add('dark')
+      document.body.style.backgroundColor = '#1a1a1a'
+      document.body.style.color = '#e5e5e5'
+    } else if (theme === 'light') {
+      root.classList.remove('dark')
+      document.body.style.backgroundColor = '#f5f7fa'
+      document.body.style.color = '#1f2937'
+    } else if (theme === 'auto') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      if (prefersDark) {
+        root.classList.add('dark')
+        document.body.style.backgroundColor = '#1a1a1a'
+        document.body.style.color = '#e5e5e5'
+      } else {
+        root.classList.remove('dark')
+        document.body.style.backgroundColor = '#f5f7fa'
+        document.body.style.color = '#1f2937'
+      }
+    }
+  }
+
+  const handleThemeChange = (theme) => {
+    const newAppearance = { ...appearance, theme }
+    setAppearance(newAppearance)
+    localStorage.setItem('hrms_theme', theme)
+    applyTheme(theme)
+    
+    // Show success message without alert (better UX)
+    const successMsg = document.createElement('div')
+    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300'
+    successMsg.textContent = '✓ Theme applied successfully!'
+    document.body.appendChild(successMsg)
+    
+    setTimeout(() => {
+      successMsg.style.opacity = '0'
+      setTimeout(() => {
+        document.body.removeChild(successMsg)
+      }, 300)
+    }, 2000)
+  }
+
+  const handleLanguageChange = (language) => {
+    const newAppearance = { ...appearance, language }
+    setAppearance(newAppearance)
+    localStorage.setItem('hrms_language', language)
+    
+    // Show success message
+    const successMsg = document.createElement('div')
+    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300'
+    successMsg.textContent = '✓ Language preference saved!'
+    document.body.appendChild(successMsg)
+    
+    setTimeout(() => {
+      successMsg.style.opacity = '0'
+      setTimeout(() => {
+        document.body.removeChild(successMsg)
+      }, 300)
+    }, 2000)
+  }
+
+  const loadUserProfile = async () => {
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      if (isEmployee) {
+        // Load employee details
+        const employees = await api.getEmployees()
+        const employee = Array.isArray(employees) 
+          ? employees.find(emp => emp.id.toString() === userId.toString())
+          : null
+        
+        if (employee) {
+          setProfileData({
+            name: employee.name || '',
+            email: employee.email || '',
+            phone: employee.phone || '',
+            department: employee.department || '',
+            position: employee.position || '',
+            role: 'EMPLOYEE'
+          })
+        }
+      } else {
+        // Load admin user details
+        const users = await api.getUsers()
+        const user = Array.isArray(users)
+          ? users.find(u => u.id.toString() === userId.toString())
+          : null
+        
+        if (user) {
+          setProfileData({
+            name: user.name || '',
+            email: user.email || '',
+            phone: '',
+            department: isAdmin ? 'Administration' : '',
+            position: user.role === 'SUPER_ADMIN' ? 'Super Administrator' : 
+                     user.role === 'ADMIN' ? 'Administrator' : '',
+            role: user.role || ''
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error)
+      // Fallback to localStorage values
+      setProfileData(prev => ({
+        ...prev,
+        name: localStorage.getItem('userName') || prev.name,
+        email: localStorage.getItem('userEmail') || prev.email
+      }))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const loadLeaveTypes = async () => {
     try {
@@ -122,10 +302,52 @@ const Settings = () => {
     }
   }
 
-  const handleProfileSubmit = (e) => {
+  const handleProfileSubmit = async (e) => {
     e.preventDefault()
-    localStorage.setItem('userName', profileData.name)
-    alert('Profile updated successfully!')
+    try {
+      setLoading(true)
+      if (isEmployee) {
+        // Update employee profile
+        const employees = await api.getEmployees()
+        const employee = Array.isArray(employees)
+          ? employees.find(emp => emp.id.toString() === userId.toString())
+          : null
+        
+        if (employee) {
+          await api.updateEmployee(employee.id, {
+            name: profileData.name,
+            email: profileData.email,
+            phone: profileData.phone,
+            department: profileData.department,
+            position: profileData.position
+          }, userRole)
+        }
+      } else {
+        // Update admin user profile
+        const users = await api.getUsers()
+        const user = Array.isArray(users)
+          ? users.find(u => u.id.toString() === userId.toString())
+          : null
+        
+        if (user) {
+          await api.updateUser(user.id, {
+            name: profileData.name,
+            email: profileData.email
+          }, userRole)
+        }
+      }
+      
+      // Update localStorage
+      localStorage.setItem('userName', profileData.name)
+      localStorage.setItem('userEmail', profileData.email)
+      
+      alert('Profile updated successfully!')
+      await loadUserProfile() // Reload to get latest data
+    } catch (error) {
+      alert('Error updating profile: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleNotificationChange = (key) => {
@@ -134,6 +356,81 @@ const Settings = () => {
 
   const handleSecurityChange = (key, value) => {
     setSecurity({ ...security, [key]: value })
+  }
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    setPasswordError('')
+    
+    // Validation
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError('All fields are required')
+      return
+    }
+    
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long')
+      return
+    }
+    
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New password and confirm password do not match')
+      return
+    }
+    
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      setPasswordError('New password must be different from current password')
+      return
+    }
+
+    setLoading(true)
+    try {
+      // Verify current password first by attempting login
+      const email = profileData.email
+      let loginResponse
+      
+      if (isEmployee) {
+        loginResponse = await api.employeeLogin(email, passwordData.currentPassword)
+      } else {
+        loginResponse = await api.login(email, passwordData.currentPassword)
+      }
+      
+      if (!loginResponse.success) {
+        setPasswordError('Current password is incorrect')
+        setLoading(false)
+        return
+      }
+      
+      // Update password
+      if (isEmployee) {
+        // Use dedicated change password endpoint for employees
+        const response = await api.changeEmployeePassword(
+          parseInt(userId),
+          passwordData.currentPassword,
+          passwordData.newPassword
+        )
+        if (response.error) {
+          throw new Error(response.error)
+        }
+      } else {
+        // Update admin user password
+        const response = await api.updateUser(parseInt(userId), {
+          password: passwordData.newPassword
+        }, userRole)
+        if (response.error) {
+          throw new Error(response.error)
+        }
+      }
+      
+      alert('Password changed successfully!')
+      setShowPasswordModal(false)
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setPasswordError('')
+    } catch (error) {
+      setPasswordError(error.message || 'Error changing password. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleExportData = () => {
@@ -183,74 +480,160 @@ const Settings = () => {
         <div className="p-6 bg-white">
           {/* Profile Tab */}
           {activeTab === 'profile' && (
-            <form onSubmit={handleProfileSubmit} className="space-y-6">
-              <div className="flex items-center gap-6 mb-6">
-                <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-semibold shadow-lg">
-                  {profileData.name.charAt(0)}
+            <div>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600">Loading profile...</span>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{profileData.name}</h3>
-                  <p className="text-sm text-gray-600">{profileData.position}</p>
-                </div>
-              </div>
+              ) : (
+                <form onSubmit={handleProfileSubmit} className="space-y-6">
+                  {/* User Avatar and Basic Info */}
+                  <div className="flex items-center gap-6 mb-6 pb-6 border-b border-gray-200">
+                    <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-semibold shadow-lg">
+                      {profileData.name ? profileData.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-gray-800">{profileData.name || 'User'}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{profileData.position || profileData.role}</p>
+                      <p className="text-xs text-gray-500 mt-1">{profileData.department || 'HRMS System'}</p>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={profileData.name}
-                    onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={profileData.email}
-                    onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    value={profileData.phone}
-                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                  <input
-                    type="text"
-                    value={profileData.department}
-                    onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                  <input
-                    type="text"
-                    value={profileData.position}
-                    onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
+                  {/* Login Credentials Section */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <h4 className="text-sm font-semibold text-blue-800 mb-3">Login Credentials</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-blue-700 mb-1">Email (Login ID)</label>
+                        <div className="px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm text-gray-700">
+                          {profileData.email || 'N/A'}
+                        </div>
+                        <p className="text-xs text-blue-600 mt-1">This is your login email address</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-blue-700 mb-1">Role</label>
+                        <div className="px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm">
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                            profileData.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' :
+                            profileData.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {profileData.role || 'N/A'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-600 mt-1">Your system access level</p>
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
+                  {/* Editable Profile Information */}
+                  <h4 className="text-sm font-semibold text-gray-800 mb-4">Profile Information</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={profileData.name}
+                        onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={profileData.email}
+                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Changing email will update your login credentials</p>
+                    </div>
+                    {isEmployee && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                          <input
+                            type="tel"
+                            value={profileData.phone}
+                            onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="+1 234-567-8900"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                          <input
+                            type="text"
+                            value={profileData.department}
+                            onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
+                          <input
+                            type="text"
+                            value={profileData.position}
+                            onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </>
+                    )}
+                    {isAdmin && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                          <input
+                            type="text"
+                            value={profileData.department}
+                            onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                            readOnly
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Administration (Read-only)</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
+                          <input
+                            type="text"
+                            value={profileData.position}
+                            onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                            readOnly
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Based on your role (Read-only)</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => loadUserProfile()}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
 
           {/* Notifications Tab */}
@@ -272,7 +655,7 @@ const Settings = () => {
                       onChange={() => handleNotificationChange(key)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
               ))}
@@ -305,7 +688,7 @@ const Settings = () => {
                 <select
                   value={security.sessionTimeout}
                   onChange={(e) => handleSecurityChange('sessionTimeout', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="15">15 minutes</option>
                   <option value="30">30 minutes</option>
@@ -319,7 +702,7 @@ const Settings = () => {
                 <select
                   value={security.passwordExpiry}
                   onChange={(e) => handleSecurityChange('passwordExpiry', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="30">30 days</option>
                   <option value="60">60 days</option>
@@ -329,7 +712,14 @@ const Settings = () => {
               </div>
 
               <div className="pt-4 border-t border-gray-200">
-                <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                <button 
+                  onClick={() => {
+                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                    setPasswordError('')
+                    setShowPasswordModal(true)
+                  }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
                   Change Password
                 </button>
               </div>
@@ -376,25 +766,116 @@ const Settings = () => {
           {/* Appearance Tab */}
           {activeTab === 'appearance' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Appearance Settings</h3>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Theme</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-                  <option>Light</option>
-                  <option>Dark</option>
-                  <option>Auto</option>
-                </select>
+                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">Appearance Settings</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Customize how HRMS looks and feels</p>
               </div>
 
+              {/* Theme Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-                  <option>English</option>
-                  <option>Spanish</option>
-                  <option>French</option>
-                  <option>German</option>
-                </select>
+                <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-4">Theme</label>
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { value: 'light', label: 'Light', icon: '☀️', desc: 'Clean and bright' },
+                    { value: 'dark', label: 'Dark', icon: '🌙', desc: 'Easy on the eyes' },
+                    { value: 'auto', label: 'Auto', icon: '🔄', desc: 'Follow system' }
+                  ].map((theme) => (
+                    <button
+                      key={theme.value}
+                      onClick={() => handleThemeChange(theme.value)}
+                      className={`p-4 rounded-xl border-2 transition-all duration-300 text-left ${
+                        appearance.theme === theme.value
+                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-500 shadow-md'
+                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="text-3xl mb-2">{theme.icon}</div>
+                      <div className="font-semibold text-gray-800 dark:text-gray-200 mb-1">{theme.label}</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">{theme.desc}</div>
+                      {appearance.theme === theme.value && (
+                        <div className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium">✓ Selected</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Language Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-4">Language</label>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { value: 'english', label: 'English', flag: '🇺🇸' },
+                    { value: 'spanish', label: 'Español', flag: '🇪🇸' },
+                    { value: 'french', label: 'Français', flag: '🇫🇷' },
+                    { value: 'german', label: 'Deutsch', flag: '🇩🇪' }
+                  ].map((lang) => (
+                    <button
+                      key={lang.value}
+                      onClick={() => handleLanguageChange(lang.value)}
+                      className={`p-4 rounded-xl border-2 transition-all duration-300 text-left flex items-center gap-3 ${
+                        appearance.language === lang.value
+                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-500'
+                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600'
+                      }`}
+                    >
+                      <span className="text-2xl">{lang.flag}</span>
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-800 dark:text-gray-200">{lang.label}</div>
+                        {appearance.language === lang.value && (
+                          <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">✓ Selected</div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reset to Default */}
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    const defaultTheme = 'light'
+                    const defaultLanguage = 'english'
+                    setAppearance({ theme: defaultTheme, language: defaultLanguage })
+                    localStorage.setItem('hrms_theme', defaultTheme)
+                    localStorage.setItem('hrms_language', defaultLanguage)
+                    applyTheme(defaultTheme)
+                    
+                    const successMsg = document.createElement('div')
+                    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300'
+                    successMsg.textContent = '✓ Reset to default settings!'
+                    document.body.appendChild(successMsg)
+                    
+                    setTimeout(() => {
+                      successMsg.style.opacity = '0'
+                      setTimeout(() => {
+                        document.body.removeChild(successMsg)
+                      }, 300)
+                    }, 2000)
+                  }}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                >
+                  Reset to Default
+                </button>
+              </div>
+
+              {/* Current Settings Info */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <strong>Current Settings:</strong>
+                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Theme: <span className="font-semibold capitalize">{appearance.theme}</span>
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Language: <span className="font-semibold capitalize">{appearance.language}</span>
+                  </p>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
+                  Your preferences are saved and will persist across sessions.
+                </p>
               </div>
             </div>
           )}
@@ -469,7 +950,7 @@ const Settings = () => {
                             <div className="flex items-center gap-3">
                               <button
                                 onClick={() => handleEditLeaveType(type)}
-                                className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
+                                className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg transition-colors"
                                 title="Edit Leave Type"
                               >
                                 <Edit size={18} />
@@ -592,9 +1073,115 @@ const Settings = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   {editingLeaveType ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-blue-600">Change Password</h3>
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false)
+                  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                  setPasswordError('')
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              {passwordError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-800 text-sm">{passwordError}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Password <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your current password"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  New Password <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter new password (min 6 characters)"
+                  required
+                  minLength={6}
+                />
+                <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm New Password <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Confirm new password"
+                  required
+                  minLength={6}
+                />
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>Security Tips:</strong>
+                </p>
+                <ul className="text-xs text-blue-700 mt-1 list-disc list-inside space-y-1">
+                  <li>Use a strong password with at least 6 characters</li>
+                  <li>Include a mix of letters, numbers, and special characters</li>
+                  <li>Don't reuse passwords from other accounts</li>
+                </ul>
+              </div>
+              
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false)
+                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                    setPasswordError('')
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Changing...' : 'Change Password'}
                 </button>
               </div>
             </form>

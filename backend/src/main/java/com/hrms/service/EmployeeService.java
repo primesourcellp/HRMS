@@ -45,16 +45,32 @@ public class EmployeeService {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
         
-        employee.setName(employeeDetails.getName());
-        employee.setEmail(employeeDetails.getEmail());
-        employee.setPhone(employeeDetails.getPhone());
-        employee.setDepartment(employeeDetails.getDepartment());
-        employee.setPosition(employeeDetails.getPosition());
-        employee.setSalary(employeeDetails.getSalary());
-        employee.setJoinDate(employeeDetails.getJoinDate());
-        employee.setStatus(employeeDetails.getStatus());
+        if (employeeDetails.getName() != null) {
+            employee.setName(employeeDetails.getName());
+        }
+        if (employeeDetails.getEmail() != null) {
+            employee.setEmail(employeeDetails.getEmail());
+        }
+        if (employeeDetails.getPhone() != null) {
+            employee.setPhone(employeeDetails.getPhone());
+        }
+        if (employeeDetails.getDepartment() != null) {
+            employee.setDepartment(employeeDetails.getDepartment());
+        }
+        if (employeeDetails.getPosition() != null) {
+            employee.setPosition(employeeDetails.getPosition());
+        }
+        if (employeeDetails.getSalary() != null) {
+            employee.setSalary(employeeDetails.getSalary());
+        }
+        if (employeeDetails.getJoinDate() != null) {
+            employee.setJoinDate(employeeDetails.getJoinDate());
+        }
+        if (employeeDetails.getStatus() != null) {
+            employee.setStatus(employeeDetails.getStatus());
+        }
         
-        // Update password if provided
+        // Update password if provided (will be hashed)
         if (employeeDetails.getPassword() != null && !employeeDetails.getPassword().isEmpty()) {
             employee.setPassword(passwordEncoder.encode(employeeDetails.getPassword()));
         }
