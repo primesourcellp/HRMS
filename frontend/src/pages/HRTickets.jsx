@@ -8,7 +8,8 @@ const HRTickets = () => {
   const [showModal, setShowModal] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [filter, setFilter] = useState('All')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
     ticketType: 'SALARY_ISSUE',
     subject: '',
@@ -29,14 +30,21 @@ const HRTickets = () => {
 
   const loadData = async () => {
     try {
+      setLoading(true)
+      setError(null)
       const [ticketsData, employeesData] = await Promise.all([
         filter === 'All' ? api.getTickets() : api.getTicketsByStatus(filter),
         api.getEmployees()
       ])
-      setTickets(ticketsData)
-      setEmployees(employeesData)
+      setTickets(Array.isArray(ticketsData) ? ticketsData : [])
+      setEmployees(Array.isArray(employeesData) ? employeesData : [])
     } catch (error) {
       console.error('Error loading data:', error)
+      setError(error.message || 'Failed to load tickets')
+      setTickets([])
+      setEmployees([])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -83,8 +91,13 @@ const HRTickets = () => {
   }
 
   const getEmployeeName = (employeeId) => {
-    const employee = employees.find(emp => emp.id === employeeId)
-    return employee?.name || 'Unknown'
+    try {
+      const employee = employees.find(emp => emp && emp.id === employeeId)
+      return employee?.name || 'Unknown'
+    } catch (err) {
+      console.error('Error getting employee name:', err)
+      return 'Unknown'
+    }
   }
 
   const getTicketTypeLabel = (type) => {
@@ -118,18 +131,29 @@ const HRTickets = () => {
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading tickets...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">HR Ticketing System</h2>
-          <p className="text-gray-600 mt-1">Manage employee requests and tickets</p>
+          <h2 className="text-3xl font-bold text-blue-600">HR Ticketing System</h2>
+          <p className="text-gray-600 mt-1 font-medium">Manage employee requests and tickets</p>
         </div>
         <div className="flex gap-3">
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="All">All Tickets</option>
             <option value="OPEN">Open</option>
@@ -139,7 +163,7 @@ const HRTickets = () => {
           </select>
           <button
             onClick={() => setShowModal(true)}
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+            className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
           >
             <Plus size={20} />
             Create Ticket
@@ -147,38 +171,59 @@ const HRTickets = () => {
         </div>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">{error}</p>
+          <button
+            onClick={loadData}
+            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Tickets List */}
       <div className="space-y-4">
-        {tickets.map((ticket) => (
-          <div key={ticket.id} className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <Ticket className="text-primary-600" size={20} />
-                  <h3 className="text-lg font-semibold text-gray-800">{ticket.subject}</h3>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
-                    {ticket.priority}
-                  </span>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(ticket.status)}`}>
-                    {ticket.status}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mb-2">
-                  <strong>Type:</strong> {getTicketTypeLabel(ticket.ticketType)} | 
-                  <strong> Employee:</strong> {getEmployeeName(ticket.employeeId)}
-                </p>
-                <p className="text-gray-700">{ticket.description}</p>
-                {ticket.resolution && (
-                  <div className="mt-3 p-3 bg-green-50 rounded-lg">
-                    <p className="text-sm font-medium text-green-800">Resolution:</p>
-                    <p className="text-sm text-green-700">{ticket.resolution}</p>
+        {tickets.length === 0 && !loading && (
+          <div className="text-center py-12 bg-white rounded-2xl shadow-lg border-2 border-gray-200">
+            <Ticket className="mx-auto text-gray-400 mb-4" size={48} />
+            <p className="text-gray-500">No tickets found</p>
+          </div>
+        )}
+        {tickets.map((ticket) => {
+          if (!ticket || !ticket.id) return null
+          return (
+            <div key={ticket.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Ticket className="text-blue-600" size={20} />
+                    <h3 className="text-lg font-semibold text-gray-800">{ticket.subject || 'No Subject'}</h3>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(ticket.priority || 'MEDIUM')}`}>
+                      {ticket.priority || 'MEDIUM'}
+                    </span>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(ticket.status || 'OPEN')}`}>
+                      {ticket.status || 'OPEN'}
+                    </span>
                   </div>
-                )}
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Type:</strong> {getTicketTypeLabel(ticket.ticketType || 'SALARY_ISSUE')} | 
+                    <strong> Employee:</strong> {getEmployeeName(ticket.employeeId)}
+                  </p>
+                  <p className="text-gray-700">{ticket.description || 'No description'}</p>
+                  {ticket.resolution && (
+                    <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                      <p className="text-sm font-medium text-green-800">Resolution:</p>
+                      <p className="text-sm text-green-700">{ticket.resolution}</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-500">
-                Created: {new Date(ticket.createdAt).toLocaleDateString()}
+                Created: {ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : 'N/A'}
                 {ticket.resolvedAt && (
                   <span className="ml-4">Resolved: {new Date(ticket.resolvedAt).toLocaleDateString()}</span>
                 )}
@@ -193,13 +238,14 @@ const HRTickets = () => {
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Create Ticket Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl border-2 border-gray-200">
             <h3 className="text-xl font-bold mb-4">Create New Ticket</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -276,7 +322,7 @@ const HRTickets = () => {
       {/* Update Ticket Modal */}
       {selectedTicket && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl border-2 border-gray-200">
             <h3 className="text-xl font-bold mb-4">Update Ticket</h3>
             <div className="space-y-4">
               <div>

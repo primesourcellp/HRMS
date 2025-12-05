@@ -179,19 +179,19 @@ const Dashboard = () => {
         .slice(0, 5))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <div key={index} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+            <div key={index} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:-translate-y-1">
               <div className="flex items-center justify-between mb-4">
-                <div className={`${stat.color} p-3 rounded-lg`}>
+                <div className="bg-blue-600 p-4 rounded-xl shadow-md">
                   <Icon className="w-6 h-6 text-white" />
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${
-                  stat.trend === 'up' ? 'text-green-600' : 'text-red-600'
+                <div className={`flex items-center gap-1 text-sm font-semibold px-3 py-1 rounded-full ${
+                  stat.trend === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                 }`}>
                   {stat.trend === 'up' ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
                   {stat.change}
@@ -207,8 +207,8 @@ const Dashboard = () => {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Attendance Chart */}
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+          <h3 className="text-xl font-bold text-blue-600 mb-4">
             {isEmployee ? 'My Weekly Attendance' : 'Weekly Attendance'}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -226,8 +226,8 @@ const Dashboard = () => {
 
         {/* Department Distribution - Only show for admin */}
         {!isEmployee && (
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Department Distribution</h3>
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-4">Department Distribution</h3>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -252,8 +252,8 @@ const Dashboard = () => {
 
         {/* Employee Info Card - Only show for employee */}
         {isEmployee && dashboardStats && (
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">My Information</h3>
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-4">My Information</h3>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-600">Department</p>
@@ -274,52 +274,6 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Recent Employees - Only show for admins */}
-      {!isEmployee && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800">Recent Employees</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {recentEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold mr-3">
-                          {emp.avatar}
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{emp.name}</div>
-                          <div className="text-sm text-gray-500">{emp.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{emp.department}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{emp.position}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        emp.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {emp.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

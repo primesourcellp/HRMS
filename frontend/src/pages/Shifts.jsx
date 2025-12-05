@@ -91,12 +91,12 @@ const Shifts = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Shift Management</h2>
+          <h2 className="text-2xl font-bold text-blue-600">Shift Management</h2>
           <p className="text-gray-600 mt-1">Manage work shifts and schedules</p>
         </div>
         <button
           onClick={() => openModal()}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
         >
           <Plus size={20} />
           Add Shift
@@ -108,8 +108,8 @@ const Shifts = () => {
           <div key={shift.id} className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center">
-                  <Clock className="text-primary-600" size={24} />
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Clock className="text-blue-600" size={24} />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-800">{shift.name}</h3>
@@ -142,7 +142,7 @@ const Shifts = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => openModal(shift)}
-                className="flex-1 bg-primary-50 text-primary-600 px-3 py-2 rounded-lg hover:bg-primary-100 flex items-center justify-center gap-2 text-sm"
+                className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 text-sm"
               >
                 <Edit size={16} />
                 Edit
@@ -236,7 +236,7 @@ const Shifts = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading ? 'Saving...' : 'Save'}
                 </button>

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Palette } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Settings as SettingsIcon, User, Bell, Shield, Database, Palette, Calendar, Edit, Trash2 } from 'lucide-react'
+import api from '../services/api'
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('profile')
@@ -25,13 +26,101 @@ const Settings = () => {
     passwordExpiry: '90'
   })
 
+  const [leaveTypes, setLeaveTypes] = useState([])
+  const [showLeaveTypeModal, setShowLeaveTypeModal] = useState(false)
+  const [editingLeaveType, setEditingLeaveType] = useState(null)
+  const [leaveTypeForm, setLeaveTypeForm] = useState({
+    name: '',
+    code: '',
+    maxDays: '',
+    carryForward: false,
+    maxCarryForward: '',
+    description: '',
+    active: true
+  })
+  const userRole = localStorage.getItem('userRole')
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'data', label: 'Data Management', icon: Database },
-    { id: 'appearance', label: 'Appearance', icon: Palette }
+    { id: 'appearance', label: 'Appearance', icon: Palette },
+    ...(isAdmin ? [{ id: 'leaveTypes', label: 'Leave Types', icon: Calendar }] : [])
   ]
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadLeaveTypes()
+    }
+  }, [isAdmin])
+
+  const loadLeaveTypes = async () => {
+    try {
+      const data = await api.getLeaveTypes()
+      setLeaveTypes(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error loading leave types:', error)
+    }
+  }
+
+  const handleLeaveTypeSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      const formData = {
+        ...leaveTypeForm,
+        maxDays: leaveTypeForm.maxDays ? parseInt(leaveTypeForm.maxDays) : null,
+        maxCarryForward: leaveTypeForm.maxCarryForward ? parseInt(leaveTypeForm.maxCarryForward) : null
+      }
+      if (editingLeaveType) {
+        await api.updateLeaveType(editingLeaveType.id, formData)
+      } else {
+        await api.createLeaveType(formData)
+      }
+      await loadLeaveTypes()
+      setShowLeaveTypeModal(false)
+      setEditingLeaveType(null)
+      setLeaveTypeForm({
+        name: '',
+        code: '',
+        maxDays: '',
+        carryForward: false,
+        maxCarryForward: '',
+        description: '',
+        active: true
+      })
+      alert('Leave type saved successfully')
+    } catch (error) {
+      alert('Error saving leave type: ' + error.message)
+    }
+  }
+
+  const handleEditLeaveType = (leaveType) => {
+    setEditingLeaveType(leaveType)
+    setLeaveTypeForm({
+      name: leaveType.name || '',
+      code: leaveType.code || '',
+      maxDays: leaveType.maxDays || '',
+      carryForward: leaveType.carryForward || false,
+      maxCarryForward: leaveType.maxCarryForward || '',
+      description: leaveType.description || '',
+      active: leaveType.active !== undefined ? leaveType.active : true
+    })
+    setShowLeaveTypeModal(true)
+  }
+
+  const handleDeleteLeaveType = async (id) => {
+    if (window.confirm('Are you sure you want to delete this leave type?')) {
+      try {
+        await api.deleteLeaveType(id)
+        await loadLeaveTypes()
+        alert('Leave type deleted successfully')
+      } catch (error) {
+        alert('Error deleting leave type: ' + error.message)
+      }
+    }
+  }
 
   const handleProfileSubmit = (e) => {
     e.preventDefault()
@@ -64,24 +153,24 @@ const Settings = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-800">Settings</h2>
-        <p className="text-gray-600 mt-1">Manage your account settings and preferences</p>
+        <h2 className="text-3xl font-bold text-blue-600">Settings</h2>
+        <p className="text-gray-600 mt-1 font-medium">Manage your account settings and preferences</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="flex border-b border-gray-200">
+      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 overflow-hidden">
+        <div className="flex border-b-2 border-gray-200 bg-gray-50">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-all duration-300 font-semibold ${
                   activeTab === tab.id
-                    ? 'border-primary-600 text-primary-600 bg-primary-50'
-                    : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    ? 'border-blue-600 text-blue-700 bg-white shadow-sm'
+                    : 'border-transparent text-gray-600 hover:text-blue-700 hover:bg-gray-100'
                 }`}
               >
                 <Icon size={20} />
@@ -91,12 +180,12 @@ const Settings = () => {
           })}
         </div>
 
-        <div className="p-6">
+        <div className="p-6 bg-white">
           {/* Profile Tab */}
           {activeTab === 'profile' && (
             <form onSubmit={handleProfileSubmit} className="space-y-6">
               <div className="flex items-center gap-6 mb-6">
-                <div className="w-20 h-20 rounded-full bg-primary-500 flex items-center justify-center text-white text-2xl font-semibold">
+                <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-semibold shadow-lg">
                   {profileData.name.charAt(0)}
                 </div>
                 <div>
@@ -309,8 +398,209 @@ const Settings = () => {
               </div>
             </div>
           )}
+
+          {/* Leave Types Tab (Admin Only) */}
+          {activeTab === 'leaveTypes' && isAdmin && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Leave Types Management</h3>
+                <button
+                  onClick={() => {
+                    setEditingLeaveType(null)
+                    setLeaveTypeForm({
+                      name: '',
+                      code: '',
+                      maxDays: '',
+                      carryForward: false,
+                      maxCarryForward: '',
+                      description: '',
+                      active: true
+                    })
+                    setShowLeaveTypeModal(true)
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                >
+                  <Calendar size={18} />
+                  Add Leave Type
+                </button>
+              </div>
+
+              {leaveTypes.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-gray-200">
+                  <Calendar className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-500 mb-4">No leave types found</p>
+                  <button
+                    onClick={() => setShowLeaveTypeModal(true)}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                  >
+                    Create First Leave Type
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-blue-600 text-white">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Code</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Max Days</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Carry Forward</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {leaveTypes.map((type) => (
+                        <tr key={type.id} className="hover:bg-gray-50 transition-all duration-200">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{type.name}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{type.code}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{type.maxDays || 'Unlimited'}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                            {type.carryForward ? `Yes (Max: ${type.maxCarryForward || 'N/A'})` : 'No'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              type.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {type.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleEditLeaveType(type)}
+                                className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
+                                title="Edit Leave Type"
+                              >
+                                <Edit size={18} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteLeaveType(type.id)}
+                                className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Leave Type"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Leave Type Modal */}
+      {showLeaveTypeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4">
+              {editingLeaveType ? 'Edit Leave Type' : 'Create Leave Type'}
+            </h3>
+            <form onSubmit={handleLeaveTypeSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                  <input
+                    type="text"
+                    value={leaveTypeForm.name}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="e.g., Casual Leave"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+                  <input
+                    type="text"
+                    value={leaveTypeForm.code}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, code: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="e.g., CL"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Days (per year)</label>
+                  <input
+                    type="number"
+                    value={leaveTypeForm.maxDays}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, maxDays: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="Leave empty for unlimited"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Carry Forward Days</label>
+                  <input
+                    type="number"
+                    value={leaveTypeForm.maxCarryForward}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, maxCarryForward: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="Only if carry forward enabled"
+                    min="0"
+                    disabled={!leaveTypeForm.carryForward}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={leaveTypeForm.description}
+                  onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  rows={3}
+                  placeholder="Leave type description..."
+                />
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={leaveTypeForm.carryForward}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, carryForward: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Allow Carry Forward</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={leaveTypeForm.active}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, active: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Active</span>
+                </label>
+              </div>
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLeaveTypeModal(false)
+                    setEditingLeaveType(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  {editingLeaveType ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

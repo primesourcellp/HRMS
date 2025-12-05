@@ -141,12 +141,12 @@ const Recruitment = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Recruitment & Onboarding</h2>
+          <h2 className="text-2xl font-bold text-blue-600">Recruitment & Onboarding</h2>
           <p className="text-gray-600 mt-1">Manage job postings and applicant tracking</p>
         </div>
         <button
           onClick={() => setShowJobModal(true)}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
         >
           <Plus size={20} />
           Post Job
@@ -158,7 +158,7 @@ const Recruitment = () => {
         <button
           onClick={() => setActiveTab('jobs')}
           className={`px-4 py-2 font-medium ${
-            activeTab === 'jobs' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-gray-600'
+            activeTab === 'jobs' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'
           }`}
         >
           Job Postings
@@ -166,7 +166,7 @@ const Recruitment = () => {
         <button
           onClick={() => setActiveTab('applicants')}
           className={`px-4 py-2 font-medium ${
-            activeTab === 'applicants' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-gray-600'
+            activeTab === 'applicants' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'
           }`}
         >
           Applicants
@@ -214,7 +214,7 @@ const Recruitment = () => {
                     loadApplicants(job.id)
                     setActiveTab('applicants')
                   }}
-                  className="flex-1 bg-primary-600 text-white px-3 py-2 rounded-lg hover:bg-primary-700 text-sm"
+                  className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
                 >
                   View Applicants
                 </button>
@@ -420,7 +420,7 @@ const Recruitment = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading ? 'Creating...' : 'Create Job'}
                 </button>
@@ -498,7 +498,7 @@ const Recruitment = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading ? 'Submitting...' : 'Submit Application'}
                 </button>
