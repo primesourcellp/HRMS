@@ -44,6 +44,14 @@ const Login = () => {
       if (loginType === 'admin') {
         response = await api.login(email, password)
         if (response && response.success) {
+          // Store JWT tokens
+          if (response.token) {
+            localStorage.setItem('token', response.token)
+          }
+          if (response.refreshToken) {
+            localStorage.setItem('refreshToken', response.refreshToken)
+          }
+          // Store user info
           localStorage.setItem('isAuthenticated', 'true')
           localStorage.setItem('userEmail', response.user.email)
           localStorage.setItem('userName', response.user.name)
@@ -58,6 +66,14 @@ const Login = () => {
         // Employee login
         response = await api.employeeLogin(email, password)
         if (response && response.success) {
+          // Store JWT tokens
+          if (response.token) {
+            localStorage.setItem('token', response.token)
+          }
+          if (response.refreshToken) {
+            localStorage.setItem('refreshToken', response.refreshToken)
+          }
+          // Store employee info
           localStorage.setItem('isAuthenticated', 'true')
           localStorage.setItem('userEmail', response.employee.email)
           localStorage.setItem('userName', response.employee.name)

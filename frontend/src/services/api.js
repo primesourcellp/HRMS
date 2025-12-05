@@ -1,5 +1,80 @@
 const API_BASE_URL = 'http://localhost:8080/api'
 
+// Helper function to get JWT token from localStorage
+const getToken = () => {
+  return localStorage.getItem('token')
+}
+
+// Helper function to get headers with authentication
+const getAuthHeaders = () => {
+  const token = getToken()
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+// Helper function to handle API requests with auth
+const fetchWithAuth = async (url, options = {}) => {
+  const token = getToken()
+  const headers = {
+    ...(options.headers || {}),
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  }
+  
+  // Don't override Content-Type if it's FormData (browser sets it automatically)
+  if (options.body instanceof FormData) {
+    delete headers['Content-Type']
+  } else if (!headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+  
+  const response = await fetch(url, {
+    ...options,
+    headers
+  })
+  
+  // If token is invalid or expired, try to refresh
+  if (response.status === 401 && token) {
+    const refreshToken = localStorage.getItem('refreshToken')
+    if (refreshToken) {
+      try {
+        const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        })
+        
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json()
+          if (refreshData.token) {
+            localStorage.setItem('token', refreshData.token)
+            // Retry original request with new token
+            headers['Authorization'] = `Bearer ${refreshData.token}`
+            return fetch(url, {
+              ...options,
+              headers
+            })
+          }
+        }
+      } catch (err) {
+        console.error('Token refresh failed:', err)
+      }
+    }
+    
+    // If refresh fails, clear tokens and redirect to login
+    localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('isAuthenticated')
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login'
+    }
+  }
+  
+  return response
+}
+
 const api = {
   // Authentication
   register: (userData) => fetch(`${API_BASE_URL}/auth/register`, {
@@ -52,61 +127,67 @@ const api = {
 
   checkSuperAdminExists: () => fetch(`${API_BASE_URL}/auth/check-superadmin`).then(res => res.json()),
 
+  refreshToken: (refreshToken) => fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken })
+  }).then(res => res.json()),
+
   // Users
   getUsers: (role) => {
     const url = role ? `${API_BASE_URL}/users?role=${role}` : `${API_BASE_URL}/users`
-    return fetch(url).then(res => res.json())
+    return fetchWithAuth(url).then(res => res.json())
   },
-  createUser: (userData, currentUserRole) => fetch(`${API_BASE_URL}/users`, {
+  createUser: (userData, currentUserRole) => fetchWithAuth(`${API_BASE_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...userData, currentUserRole })
   }).then(res => res.json()),
-  updateUser: (id, userData, currentUserRole) => fetch(`${API_BASE_URL}/users/${id}`, {
+  updateUser: (id, userData, currentUserRole) => fetchWithAuth(`${API_BASE_URL}/users/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...userData, currentUserRole })
   }).then(res => res.json()),
-  deleteUser: (id, currentUserRole) => fetch(`${API_BASE_URL}/users/${id}?currentUserRole=${currentUserRole}`, {
+  deleteUser: (id, currentUserRole) => fetchWithAuth(`${API_BASE_URL}/users/${id}?currentUserRole=${currentUserRole}`, {
     method: 'DELETE'
   }).then(res => res.ok ? res : res.json()),
 
   // Employees
   getEmployees: (search) => {
     const url = search ? `${API_BASE_URL}/employees?search=${encodeURIComponent(search)}` : `${API_BASE_URL}/employees`
-    return fetch(url).then(res => res.json())
+    return fetchWithAuth(url).then(res => res.json())
   },
-  getEmployee: (id) => fetch(`${API_BASE_URL}/employees/${id}`).then(res => res.json()),
-  createEmployee: (employee, userRole) => fetch(`${API_BASE_URL}/employees?userRole=${userRole}`, {
+  getEmployee: (id) => fetchWithAuth(`${API_BASE_URL}/employees/${id}`).then(res => res.json()),
+  createEmployee: (employee, userRole) => fetchWithAuth(`${API_BASE_URL}/employees?userRole=${userRole}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(employee)
   }).then(res => res.json()),
-  updateEmployee: (id, employee, userRole) => fetch(`${API_BASE_URL}/employees/${id}?userRole=${userRole}`, {
+  updateEmployee: (id, employee, userRole) => fetchWithAuth(`${API_BASE_URL}/employees/${id}?userRole=${userRole}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(employee)
   }).then(res => res.json()),
-  deleteEmployee: (id, userRole) => fetch(`${API_BASE_URL}/employees/${id}?userRole=${userRole}`, {
+  deleteEmployee: (id, userRole) => fetchWithAuth(`${API_BASE_URL}/employees/${id}?userRole=${userRole}`, {
     method: 'DELETE'
   }).then(res => res.ok),
 
   // Attendance
-  getAttendance: () => fetch(`${API_BASE_URL}/attendance`).then(res => res.json()),
-  getAttendanceByDate: (date) => fetch(`${API_BASE_URL}/attendance/date/${date}`).then(res => res.json()),
-  getAttendanceByEmployee: (employeeId) => fetch(`${API_BASE_URL}/attendance/employee/${employeeId}`).then(res => res.json()),
-  checkIn: (data) => fetch(`${API_BASE_URL}/attendance/check-in`, {
+  getAttendance: () => fetchWithAuth(`${API_BASE_URL}/attendance`).then(res => res.json()),
+  getAttendanceByDate: (date) => fetchWithAuth(`${API_BASE_URL}/attendance/date/${date}`).then(res => res.json()),
+  getAttendanceByEmployee: (employeeId) => fetchWithAuth(`${API_BASE_URL}/attendance/employee/${employeeId}`).then(res => res.json()),
+  checkIn: (data) => fetchWithAuth(`${API_BASE_URL}/attendance/check-in`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   }).then(res => res.json()),
-  checkOut: (data) => fetch(`${API_BASE_URL}/attendance/check-out`, {
+  checkOut: (data) => fetchWithAuth(`${API_BASE_URL}/attendance/check-out`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   }).then(res => res.json()),
-  getWeeklyHours: (employeeId, weekStart) => fetch(`${API_BASE_URL}/attendance/employee/${employeeId}/weekly?weekStart=${weekStart}`).then(res => res.json()),
-  markAttendance: (data) => fetch(`${API_BASE_URL}/attendance/mark`, {
+  getWeeklyHours: (employeeId, weekStart) => fetchWithAuth(`${API_BASE_URL}/attendance/employee/${employeeId}/weekly?weekStart=${weekStart}`).then(res => res.json()),
+  markAttendance: (data) => fetchWithAuth(`${API_BASE_URL}/attendance/mark`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)

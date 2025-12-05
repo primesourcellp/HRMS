@@ -20,6 +20,7 @@ import com.hrms.entity.User;
 import com.hrms.repository.UserRepository;
 import com.hrms.service.EmployeeService;
 import com.hrms.service.UserService;
+import com.hrms.util.JwtUtil;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -33,6 +34,9 @@ public class AuthController {
     
     @Autowired
     private EmployeeService employeeService;
+    
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, String> registrationData) {
@@ -112,8 +116,24 @@ public class AuthController {
             if (userService.authenticate(email.trim(), password)) {
                 Optional<User> user = userService.findByEmail(email.trim());
                 if (user.isPresent() && user.get().getActive()) {
+                    // Generate JWT token
+                    String token = jwtUtil.generateToken(
+                        user.get().getEmail(),
+                        user.get().getRole(),
+                        user.get().getId(),
+                        "admin"
+                    );
+                    String refreshToken = jwtUtil.generateRefreshToken(
+                        user.get().getEmail(),
+                        user.get().getRole(),
+                        user.get().getId(),
+                        "admin"
+                    );
+                    
                     response.put("success", true);
                     response.put("message", "Login successful");
+                    response.put("token", token);
+                    response.put("refreshToken", refreshToken);
                     response.put("user", Map.of(
                         "id", user.get().getId(),
                         "email", user.get().getEmail(),
@@ -182,8 +202,24 @@ public class AuthController {
             if (employeeService.authenticate(email.trim(), password)) {
                 Optional<Employee> employee = employeeService.findByEmail(email.trim());
                 if (employee.isPresent() && "Active".equals(employee.get().getStatus())) {
+                    // Generate JWT token
+                    String token = jwtUtil.generateToken(
+                        employee.get().getEmail(),
+                        "EMPLOYEE",
+                        employee.get().getId(),
+                        "employee"
+                    );
+                    String refreshToken = jwtUtil.generateRefreshToken(
+                        employee.get().getEmail(),
+                        "EMPLOYEE",
+                        employee.get().getId(),
+                        "employee"
+                    );
+                    
                     response.put("success", true);
                     response.put("message", "Login successful");
+                    response.put("token", token);
+                    response.put("refreshToken", refreshToken);
                     response.put("employee", Map.of(
                         "id", employee.get().getId(),
                         "email", employee.get().getEmail(),
@@ -203,6 +239,46 @@ public class AuthController {
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "Login failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, Object>> refreshToken(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String refreshToken = request.get("refreshToken");
+            
+            if (refreshToken == null || refreshToken.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Refresh token is required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            // Validate refresh token
+            if (!jwtUtil.validateToken(refreshToken)) {
+                response.put("success", false);
+                response.put("message", "Invalid or expired refresh token");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+            
+            // Extract user info from refresh token
+            String email = jwtUtil.extractEmail(refreshToken);
+            String role = jwtUtil.extractRole(refreshToken);
+            Long id = jwtUtil.extractId(refreshToken);
+            String userType = jwtUtil.extractUserType(refreshToken);
+            
+            // Generate new access token
+            String newToken = jwtUtil.generateToken(email, role, id, userType);
+            
+            response.put("success", true);
+            response.put("token", newToken);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Token refresh failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
