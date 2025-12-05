@@ -681,23 +681,61 @@ const LeaveManagement = () => {
                   if (currentUserId) {
                     try {
                       setLoading(true)
-                      const balances = await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                      setLeaveBalances(Array.isArray(balances) ? balances : [])
-                      alert('Leave balances refreshed successfully')
+                      // Initialize leave balances
+                      await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                      // Reload balances after initialization
+                      const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                      setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
+                      
+                      // Show success message with proper styling
+                      const successMsg = document.createElement('div')
+                      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
+                      successMsg.style.opacity = '1'
+                      successMsg.style.transform = 'translateY(0)'
+                      successMsg.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Leave balances refreshed successfully!</span>'
+                      document.body.appendChild(successMsg)
+                      
+                      setTimeout(() => {
+                        successMsg.style.opacity = '0'
+                        successMsg.style.transform = 'translateY(-20px)'
+                        setTimeout(() => {
+                          if (document.body.contains(successMsg)) {
+                            document.body.removeChild(successMsg)
+                          }
+                        }, 300)
+                      }, 3000)
                     } catch (error) {
-                      alert('Error refreshing balances: ' + error.message)
+                      // Show error message with proper styling
+                      const errorMsg = document.createElement('div')
+                      errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
+                      errorMsg.style.opacity = '1'
+                      errorMsg.style.transform = 'translateY(0)'
+                      const errorText = error?.message || error?.error || 'Unknown error'
+                      errorMsg.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg><span>Error refreshing balances: ' + errorText + '</span>'
+                      document.body.appendChild(errorMsg)
+                      
+                      setTimeout(() => {
+                        errorMsg.style.opacity = '0'
+                        errorMsg.style.transform = 'translateY(-20px)'
+                        setTimeout(() => {
+                          if (document.body.contains(errorMsg)) {
+                            document.body.removeChild(errorMsg)
+                          }
+                        }, 300)
+                      }, 4000)
                     } finally {
                       setLoading(false)
                     }
                   }
                 }}
-                className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center gap-2"
+                className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Refresh Leave Balances"
+                disabled={loading}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                {loading ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -819,15 +857,6 @@ const LeaveManagement = () => {
         )
       })()}
       
-      {/* Show message if no balances but leave types exist */}
-      {leaveBalances.length === 0 && leaveTypes.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800">
-            <strong>No leave balances found.</strong> Click "Refresh" in the balance section above, or ask admin to assign leave balances.
-          </p>
-        </div>
-      )}
-
       {/* Leaves List */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
         <div className="overflow-x-auto">
