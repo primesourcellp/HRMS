@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, CheckCircle, XCircle, Calendar, Search, MapPin, Smartphone, Monitor, TrendingUp, CalendarDays, Timer, CheckCircle2, Edit, X, Download, Filter } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Calendar, Search, Smartphone, Monitor, TrendingUp, CalendarDays, Timer, CheckCircle2, Edit, X, Download, Filter, Network } from 'lucide-react'
 import api from '../services/api'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from 'date-fns'
 
@@ -12,7 +12,6 @@ const Attendance = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [loading, setLoading] = useState(false)
-  const [userLocation, setUserLocation] = useState(null)
   const [isEmployee, setIsEmployee] = useState(false)
   const [employeeId, setEmployeeId] = useState(null)
   const [showMarkModal, setShowMarkModal] = useState(false)
@@ -38,7 +37,6 @@ const Attendance = () => {
     setIsEmployee(isEmp)
     setEmployeeId(empId)
     loadData(isEmp, empId)
-    getCurrentLocation()
   }, [selectedDate])
 
   const loadData = async (isEmp = null, empId = null) => {
@@ -55,17 +53,18 @@ const Attendance = () => {
           api.getActiveShifts()
         ])
         // Filter to only show the logged-in employee
-        const currentEmployee = empData.find(emp => emp.id === userEmployeeId)
+        const currentEmployee = Array.isArray(empData) ? empData.find(emp => emp.id === userEmployeeId) : null
         setEmployees(currentEmployee ? [currentEmployee] : [])
-        // Store all attendance records
-        setAllAttendance(attData)
+        // Store all attendance records - ensure it's an array
+        const attendanceArray = Array.isArray(attData) ? attData : []
+        setAllAttendance(attendanceArray)
         // Filter attendance for selected date
-        const dateAttendance = attData.filter(a => {
+        const dateAttendance = attendanceArray.filter(a => {
           const recordDate = typeof a.date === 'string' ? a.date.split('T')[0] : a.date
           return recordDate === selectedDate
         })
         setAttendance(dateAttendance)
-        setShifts(shiftsData)
+        setShifts(Array.isArray(shiftsData) ? shiftsData : [])
       } else {
         // For admins, load all data
       const [empData, attData, shiftsData] = await Promise.all([
@@ -73,30 +72,15 @@ const Attendance = () => {
         api.getAttendanceByDate(selectedDate),
         api.getActiveShifts()
       ])
-      setEmployees(empData)
-      setAttendance(attData)
-      setShifts(shiftsData)
+        setEmployees(Array.isArray(empData) ? empData : [])
+        setAttendance(Array.isArray(attData) ? attData : [])
+        setShifts(Array.isArray(shiftsData) ? shiftsData : [])
       }
     } catch (error) {
       console.error('Error loading data:', error)
     }
   }
 
-  const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          })
-        },
-        (error) => {
-          console.error('Error getting location:', error)
-        }
-      )
-    }
-  }
 
   const getAttendanceStatus = (employeeId) => {
     return attendance.find(a => {
@@ -114,17 +98,29 @@ const Attendance = () => {
         date: selectedDate,
         checkInTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
         shiftId: null,
-        latitude: userLocation?.latitude,
-        longitude: userLocation?.longitude,
-        location: userLocation ? `${userLocation.latitude}, ${userLocation.longitude}` : 'Office',
-        method: userLocation ? 'MOBILE' : 'WEB'
+        method: 'WEB' // Laptops use WEB method, IP address captured automatically by backend
       }
       const response = await api.checkIn(checkInData)
       if (response.success === false) {
         throw new Error(response.message || 'Check-in failed')
       }
       await loadData()
-      alert('Check-in successful')
+      
+      // Show success message
+      const successMsg = document.createElement('div')
+      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
+      successMsg.style.opacity = '1'
+      successMsg.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Check-in successful! Login time and IP address recorded.</span>'
+      document.body.appendChild(successMsg)
+      
+      setTimeout(() => {
+        successMsg.style.opacity = '0'
+        setTimeout(() => {
+          if (document.body.contains(successMsg)) {
+            document.body.removeChild(successMsg)
+          }
+        }, 300)
+      }, 3000)
     } catch (error) {
       setError(error.message || 'Error checking in')
       alert('Error checking in: ' + (error.message || 'Unknown error'))
@@ -141,17 +137,30 @@ const Attendance = () => {
         employeeId,
         date: selectedDate,
         checkOutTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
-        latitude: userLocation?.latitude,
-        longitude: userLocation?.longitude,
-        location: userLocation ? `${userLocation.latitude}, ${userLocation.longitude}` : 'Office',
-        method: userLocation ? 'MOBILE' : 'WEB'
+        method: 'WEB' // Laptops use WEB method, IP address captured automatically by backend
       }
       const response = await api.checkOut(checkOutData)
       if (response.success === false) {
         throw new Error(response.message || 'Check-out failed')
       }
       await loadData()
-      alert('Check-out successful')
+      
+      // Show success message with working hours
+      const workingHours = response.attendance?.workingHours || 0
+      const successMsg = document.createElement('div')
+      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
+      successMsg.style.opacity = '1'
+      successMsg.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Check-out successful! Logout time and IP address recorded. Total working hours: ${workingHours.toFixed(2)}h</span>`
+      document.body.appendChild(successMsg)
+      
+      setTimeout(() => {
+        successMsg.style.opacity = '0'
+        setTimeout(() => {
+          if (document.body.contains(successMsg)) {
+            document.body.removeChild(successMsg)
+          }
+        }, 300)
+      }, 4000)
     } catch (error) {
       setError(error.message || 'Error checking out')
       alert('Error checking out: ' + (error.message || 'Unknown error'))
@@ -231,7 +240,9 @@ const Attendance = () => {
           Employee: employee?.name || 'Unknown',
           Department: employee?.department || 'N/A',
           'Check In': record.checkIn || '-',
+          'Check In IP': record.checkInIpAddress || '-',
           'Check Out': record.checkOut || '-',
+          'Check Out IP': record.checkOutIpAddress || '-',
           'Working Hours': record.workingHours ? `${record.workingHours.toFixed(2)}h` : '-',
           Status: record.status || 'N/A',
           'Overtime Hours': record.overtimeHours ? `${record.overtimeHours.toFixed(2)}h` : '-',
@@ -262,7 +273,7 @@ const Attendance = () => {
 
   const filteredEmployees = employees.filter(emp => {
     const matchesSearch = searchTerm === '' || 
-      emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.department?.toLowerCase().includes(searchTerm.toLowerCase())
     
@@ -276,7 +287,7 @@ const Attendance = () => {
   })
 
   // Get today's attendance record
-  const todayRecord = isEmployee && employeeId 
+  const todayRecord = isEmployee && employeeId && Array.isArray(allAttendance)
     ? allAttendance.find(a => {
         const recordDate = typeof a.date === 'string' ? a.date.split('T')[0] : a.date
         return recordDate === format(new Date(), 'yyyy-MM-dd')
@@ -295,7 +306,7 @@ const Attendance = () => {
     const weekEnd = endOfWeek(today, { weekStartsOn: 1 })
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
 
-    const weekRecords = allAttendance.filter(a => {
+    const weekRecords = Array.isArray(allAttendance) ? allAttendance.filter(a => {
       try {
         const dateStr = typeof a.date === 'string' ? a.date.split('T')[0] : format(new Date(a.date), 'yyyy-MM-dd')
         const recordDate = parseISO(dateStr)
@@ -303,9 +314,9 @@ const Attendance = () => {
       } catch {
         return false
       }
-    })
+    }) : []
 
-    const monthRecords = allAttendance.filter(a => {
+    const monthRecords = Array.isArray(allAttendance) ? allAttendance.filter(a => {
       try {
         const dateStr = typeof a.date === 'string' ? a.date.split('T')[0] : format(new Date(a.date), 'yyyy-MM-dd')
         const recordDate = parseISO(dateStr)
@@ -313,7 +324,7 @@ const Attendance = () => {
       } catch {
         return false
       }
-    })
+    }) : []
 
     const weeklyHours = weekRecords.reduce((sum, a) => sum + (a.workingHours || 0), 0)
     const monthlyPresent = monthRecords.filter(a => a.status === 'Present').length
@@ -338,10 +349,10 @@ const Attendance = () => {
     
     return weekDays.map(day => {
       const dayStr = format(day, 'yyyy-MM-dd')
-      const dayRecord = allAttendance.find(a => {
+      const dayRecord = Array.isArray(allAttendance) ? allAttendance.find(a => {
         const recordDate = typeof a.date === 'string' ? a.date.split('T')[0] : a.date
         return recordDate === dayStr
-      })
+      }) : null
       
       return {
         date: day,
@@ -365,7 +376,7 @@ const Attendance = () => {
             {isEmployee ? 'My Attendance' : 'Attendance Management'}
           </h2>
           <p className="text-gray-600 mt-1 font-medium">
-            {isEmployee ? 'View and manage your attendance' : 'Track and manage employee attendance with GPS'}
+            {isEmployee ? 'View and manage your attendance' : 'Track and manage employee attendance with IP address tracking'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -385,85 +396,84 @@ const Attendance = () => {
       {isEmployee && employeeId && employees.length > 0 && (
         <>
           {/* Check In/Out Card */}
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 border border-gray-200 p-4">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-1">Today's Attendance</h3>
-                <p className="text-gray-500 text-sm">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+                <h3 className="text-lg font-semibold text-gray-800">Today's Attendance</h3>
+                <p className="text-gray-500 text-xs">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
               </div>
-              <div className={`p-3 rounded-full ${todayRecord?.status === 'Present' ? 'bg-green-100' : 'bg-gray-100'}`}>
+              <div className={`p-2 rounded-full ${todayRecord?.status === 'Present' ? 'bg-green-100' : 'bg-gray-100'}`}>
                 {todayRecord?.status === 'Present' ? (
-                  <CheckCircle2 size={32} className="text-green-600" />
+                  <CheckCircle2 size={20} className="text-green-600" />
                 ) : (
-                  <Clock size={32} className="text-gray-400" />
+                  <Clock size={20} className="text-gray-400" />
                 )}
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p className="text-gray-500 text-sm mb-1 font-medium">Check In</p>
-                <p className="text-2xl font-bold text-gray-800">
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-gray-500 text-xs mb-1">Check In</p>
+                <p className="text-lg font-bold text-gray-800">
                   {todayRecord?.checkIn || '--:--'}
                 </p>
                 {todayRecord?.checkInMethod && (
-                  <div className="flex items-center gap-1 mt-2">
+                  <div className="flex items-center gap-1 mt-1">
                     {todayRecord.checkInMethod === 'MOBILE' ? (
-                      <Smartphone size={14} className="text-green-500" />
+                      <Smartphone size={12} className="text-green-500" />
                     ) : (
-                      <Monitor size={14} className="text-blue-500" />
+                      <Monitor size={12} className="text-blue-500" />
                     )}
                     <span className="text-xs text-gray-500">{todayRecord.checkInMethod}</span>
                   </div>
                 )}
               </div>
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p className="text-gray-500 text-sm mb-1 font-medium">Check Out</p>
-                <p className="text-2xl font-bold text-gray-800">
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-gray-500 text-xs mb-1">Check Out</p>
+                <p className="text-lg font-bold text-gray-800">
                   {todayRecord?.checkOut || '--:--'}
                 </p>
                 {todayRecord?.checkOutMethod && (
-                  <div className="flex items-center gap-1 mt-2">
+                  <div className="flex items-center gap-1 mt-1">
                     {todayRecord.checkOutMethod === 'MOBILE' ? (
-                      <Smartphone size={14} className="text-green-500" />
+                      <Smartphone size={12} className="text-green-500" />
                     ) : (
-                      <Monitor size={14} className="text-blue-500" />
+                      <Monitor size={12} className="text-blue-500" />
                     )}
                     <span className="text-xs text-gray-500">{todayRecord.checkOutMethod}</span>
                   </div>
                 )}
               </div>
-            </div>
-
             {todayRecord?.workingHours && (
-              <div className="bg-gray-100 rounded-lg p-4 mb-4 border border-gray-200">
-                <p className="text-blue-600 text-sm mb-1 font-medium">Working Hours</p>
-                <p className="text-2xl font-bold text-gray-800">{todayRecord.workingHours.toFixed(2)}h</p>
+                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                  <p className="text-blue-600 text-xs mb-1">Hours</p>
+                  <p className="text-lg font-bold text-gray-800">{todayRecord.workingHours.toFixed(2)}h</p>
               </div>
             )}
+            </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               {!todayRecord?.checkIn ? (
                 <button
                   onClick={() => handleCheckIn(employeeId)}
                   disabled={loading}
-                  className="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                  className="flex-1 bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                 >
-                  <CheckCircle size={20} />
+                  <CheckCircle size={16} />
                   Check In
                 </button>
               ) : !todayRecord?.checkOut ? (
                 <button
                   onClick={() => handleCheckOut(employeeId)}
                   disabled={loading}
-                  className="flex-1 bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                  className="flex-1 bg-gray-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                 >
-                  <XCircle size={20} />
+                  <XCircle size={16} />
                   Check Out
                 </button>
               ) : (
-                <div className="flex-1 bg-green-500 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 shadow-sm">
-                  <CheckCircle2 size={20} />
+                <div className="flex-1 bg-green-500 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm">
+                  <CheckCircle2 size={16} />
                   Completed
                 </div>
               )}
@@ -634,12 +644,12 @@ const Attendance = () => {
           {/* Search and Filters */}
           <div className="flex gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
                 placeholder="Search by employee name, email, or department..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               {searchTerm && (
@@ -687,13 +697,6 @@ const Attendance = () => {
             </div>
           )}
 
-          {/* Location Status */}
-          {userLocation && (
-            <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 flex items-center gap-2">
-              <MapPin className="text-blue-600" size={20} />
-              <span className="text-sm text-gray-700">GPS Location: {userLocation.latitude.toFixed(4)}, {userLocation.longitude.toFixed(4)}</span>
-            </div>
-          )}
 
           {/* Attendance Table */}
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
@@ -729,6 +732,7 @@ const Attendance = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {record?.checkIn ? (
+                            <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-900">{record.checkIn}</span>
                               {record.checkInMethod === 'MOBILE' ? (
@@ -736,8 +740,11 @@ const Attendance = () => {
                               ) : (
                                 <Monitor className="text-blue-500" size={16} />
                               )}
-                              {record.checkInLocation && (
-                                <MapPin className="text-gray-400" size={14} title={record.checkInLocation} />
+                              </div>
+                              {record.checkInIpAddress && (
+                                <span className="text-xs text-gray-500" title="IP Address">
+                                  IP: {record.checkInIpAddress}
+                                </span>
                               )}
                             </div>
                           ) : (
@@ -746,6 +753,7 @@ const Attendance = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {record?.checkOut ? (
+                            <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-900">{record.checkOut}</span>
                               {record.checkOutMethod === 'MOBILE' ? (
@@ -753,8 +761,11 @@ const Attendance = () => {
                               ) : (
                                 <Monitor className="text-blue-500" size={16} />
                               )}
-                              {record.checkOutLocation && (
-                                <MapPin className="text-gray-400" size={14} title={record.checkOutLocation} />
+                              </div>
+                              {record.checkOutIpAddress && (
+                                <span className="text-xs text-gray-500" title="IP Address">
+                                  IP: {record.checkOutIpAddress}
+                                </span>
                               )}
                             </div>
                           ) : (
@@ -790,26 +801,26 @@ const Attendance = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex gap-2">
+                            <div className="flex gap-2">
                             {isCurrentUser && (
                               <>
-                                {!record?.checkIn ? (
-                                  <button
-                                    onClick={() => handleCheckIn(employee.id)}
-                                    disabled={loading}
+                              {!record?.checkIn ? (
+                                <button
+                                  onClick={() => handleCheckIn(employee.id)}
+                                  disabled={loading}
                                     className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50 text-xs"
-                                  >
-                                    Check In
-                                  </button>
-                                ) : !record?.checkOut ? (
-                                  <button
-                                    onClick={() => handleCheckOut(employee.id)}
-                                    disabled={loading}
+                                >
+                                  Check In
+                                </button>
+                              ) : !record?.checkOut ? (
+                                <button
+                                  onClick={() => handleCheckOut(employee.id)}
+                                  disabled={loading}
                                     className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 disabled:opacity-50 text-xs"
-                                  >
-                                    Check Out
-                                  </button>
-                                ) : (
+                                >
+                                  Check Out
+                                </button>
+                              ) : (
                                   <span className="text-gray-500 text-xs">Completed</span>
                                 )}
                               </>

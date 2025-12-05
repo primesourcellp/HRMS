@@ -338,10 +338,10 @@ const Settings = () => {
       }
       
       // Update localStorage
-      localStorage.setItem('userName', profileData.name)
+    localStorage.setItem('userName', profileData.name)
       localStorage.setItem('userEmail', profileData.email)
       
-      alert('Profile updated successfully!')
+    alert('Profile updated successfully!')
       await loadUserProfile() // Reload to get latest data
     } catch (error) {
       alert('Error updating profile: ' + (error.message || 'Unknown error'))
@@ -487,12 +487,12 @@ const Settings = () => {
                   <span className="ml-3 text-gray-600">Loading profile...</span>
                 </div>
               ) : (
-                <form onSubmit={handleProfileSubmit} className="space-y-6">
+            <form onSubmit={handleProfileSubmit} className="space-y-6">
                   {/* User Avatar and Basic Info */}
                   <div className="flex items-center gap-6 mb-6 pb-6 border-b border-gray-200">
                     <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-semibold shadow-lg">
                       {profileData.name ? profileData.name.charAt(0).toUpperCase() : 'U'}
-                    </div>
+                </div>
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-gray-800">{profileData.name || 'User'}</h3>
                       <p className="text-sm text-gray-600 mt-1">{profileData.position || profileData.role}</p>
@@ -504,7 +504,7 @@ const Settings = () => {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                     <h4 className="text-sm font-semibold text-blue-800 mb-3">Login Credentials</h4>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
+                <div>
                         <label className="block text-xs font-medium text-blue-700 mb-1">Email (Login ID)</label>
                         <div className="px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm text-gray-700">
                           {profileData.email || 'N/A'}
@@ -524,67 +524,67 @@ const Settings = () => {
                         </div>
                         <p className="text-xs text-blue-600 mt-1">Your system access level</p>
                       </div>
-                    </div>
-                  </div>
+                </div>
+              </div>
 
                   {/* Editable Profile Information */}
                   <h4 className="text-sm font-semibold text-gray-800 mb-4">Profile Information</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Full Name <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        value={profileData.name}
-                        onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                  <input
+                    type="text"
+                    value={profileData.name}
+                    onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
-                      />
-                    </div>
-                    <div>
+                  />
+                </div>
+                <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Email <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="email"
-                        value={profileData.email}
-                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                  <input
+                    type="email"
+                    value={profileData.email}
+                    onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
-                      />
+                  />
                       <p className="text-xs text-gray-500 mt-1">Changing email will update your login credentials</p>
-                    </div>
+                </div>
                     {isEmployee && (
                       <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                          <input
-                            type="tel"
-                            value={profileData.phone}
-                            onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <input
+                    type="tel"
+                    value={profileData.phone}
+                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             placeholder="+1 234-567-8900"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                          <input
-                            type="text"
-                            value={profileData.department}
-                            onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                  <input
+                    type="text"
+                    value={profileData.department}
+                    onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                          <input
-                            type="text"
-                            value={profileData.position}
-                            onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
+                  <input
+                    type="text"
+                    value={profileData.position}
+                    onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
+                  />
+                </div>
                       </>
                     )}
                     {isAdmin && (
@@ -613,9 +613,9 @@ const Settings = () => {
                         </div>
                       </>
                     )}
-                  </div>
+              </div>
 
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                     <button
                       type="button"
                       onClick={() => loadUserProfile()}
@@ -623,15 +623,15 @@ const Settings = () => {
                     >
                       Cancel
                     </button>
-                    <button
-                      type="submit"
+                <button
+                  type="submit"
                       disabled={loading}
                       className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
+                >
                       {loading ? 'Saving...' : 'Save Changes'}
-                    </button>
-                  </div>
-                </form>
+                </button>
+              </div>
+            </form>
               )}
             </div>
           )}
@@ -770,7 +770,7 @@ const Settings = () => {
                 <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">Appearance Settings</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Customize how HRMS looks and feels</p>
               </div>
-
+              
               {/* Theme Selection */}
               <div>
                 <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-4">Theme</label>

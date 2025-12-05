@@ -1,8 +1,9 @@
 import { useHRMS } from '../context/HRMSContext'
-import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react'
+import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
 import { format } from 'date-fns'
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 
 const Dashboard = () => {
@@ -10,6 +11,9 @@ const Dashboard = () => {
   const [dashboardStats, setDashboardStats] = useState(null)
   const [isEmployee, setIsEmployee] = useState(false)
   const [employeeId, setEmployeeId] = useState(null)
+  const navigate = useNavigate()
+  const userRole = localStorage.getItem('userRole')
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
 
   useEffect(() => {
     // Check if user is an employee
@@ -210,6 +214,104 @@ const Dashboard = () => {
             </div>
           )
         })}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+        <h3 className="text-xl font-bold text-blue-600 mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {isAdmin ? (
+            <>
+              <button
+                onClick={() => navigate('/employees')}
+                className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-blue-200 hover:border-blue-400 group"
+              >
+                <UserPlus className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Add Employee</span>
+              </button>
+              <button
+                onClick={() => navigate('/attendance')}
+                className="flex flex-col items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
+              >
+                <CheckCircle className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Mark Attendance</span>
+              </button>
+              <button
+                onClick={() => navigate('/leave')}
+                className="flex flex-col items-center justify-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-yellow-200 hover:border-yellow-400 group"
+              >
+                <Calendar className="w-8 h-8 text-yellow-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Approve Leaves</span>
+              </button>
+              <button
+                onClick={() => navigate('/payroll')}
+                className="flex flex-col items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
+              >
+                <DollarSign className="w-8 h-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Process Payroll</span>
+              </button>
+              <button
+                onClick={() => navigate('/shifts')}
+                className="flex flex-col items-center justify-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-indigo-200 hover:border-indigo-400 group"
+              >
+                <Clock className="w-8 h-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Manage Shifts</span>
+              </button>
+              <button
+                onClick={() => navigate('/recruitment')}
+                className="flex flex-col items-center justify-center p-4 bg-pink-50 hover:bg-pink-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-pink-200 hover:border-pink-400 group"
+              >
+                <FileText className="w-8 h-8 text-pink-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Recruitment</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/attendance')}
+                className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-blue-200 hover:border-blue-400 group"
+              >
+                <CheckCircle className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Check In/Out</span>
+              </button>
+              <button
+                onClick={() => navigate('/leave')}
+                className="flex flex-col items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
+              >
+                <PlusCircle className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Apply Leave</span>
+              </button>
+              <button
+                onClick={() => navigate('/payroll')}
+                className="flex flex-col items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
+              >
+                <DollarSign className="w-8 h-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">My Payroll</span>
+              </button>
+              <button
+                onClick={() => navigate('/performance')}
+                className="flex flex-col items-center justify-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-yellow-200 hover:border-yellow-400 group"
+              >
+                <TrendingUp className="w-8 h-8 text-yellow-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">My Performance</span>
+              </button>
+              <button
+                onClick={() => navigate('/hrtickets')}
+                className="flex flex-col items-center justify-center p-4 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-orange-200 hover:border-orange-400 group"
+              >
+                <FileText className="w-8 h-8 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">My Tickets</span>
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="flex flex-col items-center justify-center p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-200 hover:border-gray-400 group"
+              >
+                <Settings className="w-8 h-8 text-gray-600 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Settings</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Charts Row */}

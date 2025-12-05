@@ -1,17 +1,18 @@
 package com.hrms.service;
 
-import com.hrms.entity.Attendance;
-import com.hrms.entity.Shift;
-import com.hrms.repository.AttendanceRepository;
-import com.hrms.repository.ShiftRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.hrms.entity.Attendance;
+import com.hrms.entity.Shift;
+import com.hrms.repository.AttendanceRepository;
+import com.hrms.repository.ShiftRepository;
 
 @Service
 public class AttendanceService {
@@ -31,7 +32,7 @@ public class AttendanceService {
 
     public Attendance checkIn(Long employeeId, LocalDate date, LocalTime checkInTime, 
                              Long shiftId, Double latitude, Double longitude, 
-                             String location, String method) {
+                             String location, String ipAddress, String method) {
         Optional<Attendance> existing = attendanceRepository.findByEmployeeIdAndDate(employeeId, date);
         
         Attendance attendance;
@@ -49,13 +50,15 @@ public class AttendanceService {
         attendance.setCheckInLatitude(latitude);
         attendance.setCheckInLongitude(longitude);
         attendance.setCheckInLocation(location);
+        attendance.setCheckInIpAddress(ipAddress); // Store IP address for laptop/desktop tracking
         attendance.setCheckInMethod(method != null ? method : "WEB");
         
         return attendanceRepository.save(attendance);
     }
 
     public Attendance checkOut(Long employeeId, LocalDate date, LocalTime checkOutTime,
-                              Double latitude, Double longitude, String location, String method) {
+                              Double latitude, Double longitude, String location, 
+                              String ipAddress, String method) {
         Attendance attendance = attendanceRepository.findByEmployeeIdAndDate(employeeId, date)
                 .orElseThrow(() -> new RuntimeException("No check-in found for this date"));
 
@@ -63,9 +66,10 @@ public class AttendanceService {
         attendance.setCheckOutLatitude(latitude);
         attendance.setCheckOutLongitude(longitude);
         attendance.setCheckOutLocation(location);
+        attendance.setCheckOutIpAddress(ipAddress); // Store IP address for laptop/desktop tracking
         attendance.setCheckOutMethod(method != null ? method : "WEB");
 
-        // Calculate working hours, overtime, and undertime
+        // Calculate working hours, overtime, and undertime automatically
         calculateWorkingHours(attendance);
 
         return attendanceRepository.save(attendance);

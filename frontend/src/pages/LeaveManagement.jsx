@@ -134,7 +134,7 @@ const LeaveManagement = () => {
               setLeaveBalances(Array.isArray(balances) ? balances : [])
             } catch (initError) {
               console.error('Error initializing leave balances on error recovery:', initError)
-              setLeaveBalances([])
+          setLeaveBalances([])
             }
           } else {
             setLeaveBalances([])
@@ -257,15 +257,15 @@ const LeaveManagement = () => {
   }
 
   const resetForm = () => {
-    setFormData({
+      setFormData({
       employeeId: isEmployee ? currentUserId : '',
-      leaveTypeId: '',
-      startDate: '',
-      endDate: '',
-      reason: '',
-      halfDay: false,
-      halfDayType: 'FIRST_HALF'
-    })
+        leaveTypeId: '',
+        startDate: '',
+        endDate: '',
+        reason: '',
+        halfDay: false,
+        halfDayType: 'FIRST_HALF'
+      })
     setCalculatedDays(0)
     setValidationError('')
   }
@@ -279,7 +279,6 @@ const LeaveManagement = () => {
     try {
       await api.updateLeaveStatus(leaveId, 'CANCELLED')
       await loadData()
-      alert('Leave application cancelled successfully')
     } catch (error) {
       alert('Error cancelling leave: ' + error.message)
     } finally {
@@ -346,7 +345,6 @@ const LeaveManagement = () => {
       await loadData()
       setShowEditModal(false)
       resetForm()
-      alert('Leave application updated successfully')
     } catch (error) {
       setValidationError(error.message || 'Error updating leave application')
     } finally {
@@ -534,16 +532,15 @@ const LeaveManagement = () => {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black"
           >
             <option value="All">All Leaves</option>
             <option value="PENDING">Pending</option>
             <option value="APPROVED">Approved</option>
             <option value="REJECTED">Rejected</option>
-            <option value="CANCELLED">Cancelled</option>
           </select>
           {isAdmin && (
-            <button
+          <button
               onClick={() => {
                 setBalanceFormData({
                   employeeId: '',
@@ -553,7 +550,7 @@ const LeaveManagement = () => {
                 })
                 setShowBalanceModal(true)
               }}
-              className="bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
               title="Assign Leave Balance to Employee"
             >
               <User size={20} />
@@ -616,7 +613,7 @@ const LeaveManagement = () => {
           <select
             value={employeeFilter}
             onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black"
           >
             <option value="All">All Employees</option>
             {employees.map(emp => (
@@ -669,7 +666,7 @@ const LeaveManagement = () => {
 
         if (uniqueBalances.length === 0) return null
 
-        return (
+              return (
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -832,9 +829,9 @@ const LeaveManagement = () => {
                         ↳ Carried forward: {balance.carriedForward.toFixed(1)} days
                       </p>
                     )}
-                  </div>
-                )
-              })}
+                </div>
+              )
+            })}
             </div>
             {uniqueBalances.some(b => b.balance === 0 && b.totalDays === 0) && (
               <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -850,19 +847,20 @@ const LeaveManagement = () => {
                       Click "Refresh" above to initialize balances from leave type settings, or contact your admin to assign leave balances.
                     </p>
                   </div>
-                </div>
-              </div>
-            )}
+          </div>
+        </div>
+      )}
           </div>
         )
       })()}
-      
+
       {/* Leaves List */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-blue-600 text-white">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">S.No</th>
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Employee</th>
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Leave Type</th>
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Dates</th>
@@ -875,7 +873,7 @@ const LeaveManagement = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredLeaves.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center">
+                  <td colSpan="8" className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center justify-center py-8">
                       <Search className="text-gray-400 mb-3" size={48} />
                       <p className="text-gray-500 font-medium mb-1">
@@ -899,8 +897,11 @@ const LeaveManagement = () => {
                   </td>
                 </tr>
               ) : (
-                filteredLeaves.map((leave) => (
+                filteredLeaves.map((leave, index) => (
                 <tr key={leave.id} className="hover:bg-gray-50 transition-all duration-200 border-b border-gray-100">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm font-medium text-gray-900">{index + 1}</span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <User className="text-gray-400 mr-2" size={18} />
@@ -945,18 +946,18 @@ const LeaveManagement = () => {
                       >
                         <Eye size={16} />
                       </button>
-                      {isAdmin && leave.status === 'PENDING' && (
+                    {isAdmin && leave.status === 'PENDING' && (
                         <>
-                          <button
-                            onClick={() => {
-                              setSelectedLeave(leave)
-                              setShowApprovalModal(true)
-                            }}
+                        <button
+                          onClick={() => {
+                            setSelectedLeave(leave)
+                            setShowApprovalModal(true)
+                          }}
                             className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
                             title="Review"
-                          >
+                        >
                             <CheckCircle size={16} />
-                          </button>
+                        </button>
                           <button
                             onClick={() => openEditModal(leave)}
                             className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
@@ -984,12 +985,12 @@ const LeaveManagement = () => {
                         >
                           <Trash2 size={16} />
                         </button>
-                      )}
-                      {leave.rejectionReason && (
-                        <div className="text-xs text-red-600" title={leave.rejectionReason}>
-                          <AlertCircle size={16} />
-                        </div>
-                      )}
+                    )}
+                    {leave.rejectionReason && (
+                      <div className="text-xs text-red-600" title={leave.rejectionReason}>
+                        <AlertCircle size={16} />
+                      </div>
+                    )}
                     </div>
                   </td>
                 </tr>
@@ -1076,9 +1077,9 @@ const LeaveManagement = () => {
                     {leaveTypes.map(type => {
                       const balance = getLeaveBalance(type.id)
                       return (
-                        <option key={type.id} value={type.id}>
+                      <option key={type.id} value={type.id}>
                           {type.name} {type.maxDays ? `(Max: ${type.maxDays} days)` : ''} (Balance: {balance.toFixed(1)})
-                        </option>
+                      </option>
                       )
                     })}
                   </select>

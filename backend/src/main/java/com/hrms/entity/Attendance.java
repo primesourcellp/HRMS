@@ -1,9 +1,17 @@
 package com.hrms.entity;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "attendance")
@@ -52,10 +60,16 @@ public class Attendance {
     private Double checkOutLongitude;
 
     @Column(name = "check_in_location")
-    private String checkInLocation; // Address from GPS
+    private String checkInLocation; // Address from GPS (optional, for mobile)
 
     @Column(name = "check_out_location")
     private String checkOutLocation;
+
+    @Column(name = "check_in_ip_address")
+    private String checkInIpAddress; // IP address for laptop/desktop tracking
+
+    @Column(name = "check_out_ip_address")
+    private String checkOutIpAddress;
 
     @Column(name = "check_in_method")
     private String checkInMethod; // WEB, MOBILE, BIOMETRIC
@@ -65,10 +79,12 @@ public class Attendance {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Employee employee;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Shift shift;
 
     // Constructors
@@ -79,8 +95,9 @@ public class Attendance {
                      LocalTime checkIn, LocalTime checkOut, Long shiftId, Double workingHours,
                      Double overtimeHours, Double undertimeHours, Double checkInLatitude,
                      Double checkInLongitude, Double checkOutLatitude, Double checkOutLongitude,
-                     String checkInLocation, String checkOutLocation, String checkInMethod,
-                     String checkOutMethod, Employee employee, Shift shift) {
+                     String checkInLocation, String checkOutLocation, String checkInIpAddress,
+                     String checkOutIpAddress, String checkInMethod, String checkOutMethod, 
+                     Employee employee, Shift shift) {
         this.id = id;
         this.employeeId = employeeId;
         this.date = date;
@@ -97,6 +114,8 @@ public class Attendance {
         this.checkOutLongitude = checkOutLongitude;
         this.checkInLocation = checkInLocation;
         this.checkOutLocation = checkOutLocation;
+        this.checkInIpAddress = checkInIpAddress;
+        this.checkOutIpAddress = checkOutIpAddress;
         this.checkInMethod = checkInMethod;
         this.checkOutMethod = checkOutMethod;
         this.employee = employee;
@@ -246,6 +265,22 @@ public class Attendance {
 
     public void setCheckOutMethod(String checkOutMethod) {
         this.checkOutMethod = checkOutMethod;
+    }
+
+    public String getCheckInIpAddress() {
+        return checkInIpAddress;
+    }
+
+    public void setCheckInIpAddress(String checkInIpAddress) {
+        this.checkInIpAddress = checkInIpAddress;
+    }
+
+    public String getCheckOutIpAddress() {
+        return checkOutIpAddress;
+    }
+
+    public void setCheckOutIpAddress(String checkOutIpAddress) {
+        this.checkOutIpAddress = checkOutIpAddress;
     }
 
     public Employee getEmployee() {
