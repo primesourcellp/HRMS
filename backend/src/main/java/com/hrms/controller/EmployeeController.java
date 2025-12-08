@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.hrms.dto.EmployeeDTO;
 import com.hrms.entity.Employee;
+import com.hrms.mapper.DTOMapper;
 import com.hrms.service.EmployeeService;
 
 @RestController
@@ -28,36 +30,42 @@ public class EmployeeController {
     private EmployeeService employeeService;
 
     @GetMapping
-    public ResponseEntity<List<Employee>> getAllEmployees(@RequestParam(required = false) String search) {
+    public ResponseEntity<List<EmployeeDTO>> getAllEmployees(@RequestParam(required = false) String search) {
+        List<Employee> employees;
         if (search != null && !search.isEmpty()) {
-            return ResponseEntity.ok(employeeService.searchEmployees(search));
+            employees = employeeService.searchEmployees(search);
+        } else {
+            employees = employeeService.getAllEmployees();
         }
-        return ResponseEntity.ok(employeeService.getAllEmployees());
+        return ResponseEntity.ok(DTOMapper.toEmployeeDTOList(employees));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Employee> getEmployeeById(@PathVariable Long id) {
+    public ResponseEntity<EmployeeDTO> getEmployeeById(@PathVariable Long id) {
         return employeeService.getEmployeeById(id)
+                .map(DTOMapper::toEmployeeDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<Employee> createEmployee(@RequestBody Employee employee, @RequestParam(required = false) String userRole) {
+    public ResponseEntity<EmployeeDTO> createEmployee(@RequestBody Employee employee, @RequestParam(required = false) String userRole) {
         // Both SUPER_ADMIN and ADMIN can create employees
         if (userRole == null || (!userRole.equals("SUPER_ADMIN") && !userRole.equals("ADMIN"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(employeeService.createEmployee(employee));
+        Employee created = employeeService.createEmployee(employee);
+        return ResponseEntity.status(HttpStatus.CREATED).body(DTOMapper.toEmployeeDTO(created));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @RequestBody Employee employee, @RequestParam(required = false) String userRole) {
+    public ResponseEntity<EmployeeDTO> updateEmployee(@PathVariable Long id, @RequestBody Employee employee, @RequestParam(required = false) String userRole) {
         // Both SUPER_ADMIN and ADMIN can update employees
         if (userRole == null || (!userRole.equals("SUPER_ADMIN") && !userRole.equals("ADMIN"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        return ResponseEntity.ok(employeeService.updateEmployee(id, employee));
+        Employee updated = employeeService.updateEmployee(id, employee);
+        return ResponseEntity.ok(DTOMapper.toEmployeeDTO(updated));
     }
 
     @DeleteMapping("/{id}")

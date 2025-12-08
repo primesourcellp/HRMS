@@ -18,8 +18,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.hrms.dto.PayrollDTO;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.SalaryStructure;
+import com.hrms.mapper.DTOMapper;
 import com.hrms.service.PayrollService;
 import com.hrms.service.SalaryStructureService;
 import com.hrms.util.PDFGeneratorService;
@@ -39,10 +41,13 @@ public class PayrollController {
     private PDFGeneratorService pdfGeneratorService;
 
     @GetMapping
-    public ResponseEntity<List<Payroll>> getAllPayrolls() {
+    public ResponseEntity<List<PayrollDTO>> getAllPayrolls() {
         try {
             List<Payroll> payrolls = payrollService.getAllPayrolls();
-            return ResponseEntity.ok(payrolls != null ? payrolls : List.of());
+            if (payrolls == null) {
+                return ResponseEntity.ok(List.of());
+            }
+            return ResponseEntity.ok(DTOMapper.toPayrollDTOList(payrolls));
         } catch (Exception e) {
             e.printStackTrace();
             // Return empty list instead of error to prevent frontend crashes
@@ -51,10 +56,13 @@ public class PayrollController {
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<Payroll>> getEmployeePayrolls(@PathVariable Long employeeId) {
+    public ResponseEntity<List<PayrollDTO>> getEmployeePayrolls(@PathVariable Long employeeId) {
         try {
             List<Payroll> payrolls = payrollService.getPayrollsByEmployeeId(employeeId);
-            return ResponseEntity.ok(payrolls != null ? payrolls : List.of());
+            if (payrolls == null) {
+                return ResponseEntity.ok(List.of());
+            }
+            return ResponseEntity.ok(DTOMapper.toPayrollDTOList(payrolls));
         } catch (Exception e) {
             e.printStackTrace();
             // Return empty list instead of error to prevent frontend crashes
@@ -72,7 +80,7 @@ public class PayrollController {
             Payroll payroll = payrollService.generatePayroll(employeeId, month, year);
             response.put("success", true);
             response.put("message", "Payroll generated successfully");
-            response.put("payroll", payroll);
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             response.put("success", false);
@@ -95,7 +103,7 @@ public class PayrollController {
             List<Payroll> payrolls = payrollService.processPayrollForAllEmployees(start, end);
             response.put("success", true);
             response.put("message", "Payroll processed for " + payrolls.size() + " employees");
-            response.put("payrolls", payrolls);
+            response.put("payrolls", DTOMapper.toPayrollDTOList(payrolls));
             response.put("count", payrolls.size());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -116,7 +124,7 @@ public class PayrollController {
             Payroll payroll = payrollService.approvePayroll(id);
             response.put("success", true);
             response.put("message", "Payroll approved successfully");
-            response.put("payroll", payroll);
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             response.put("success", false);
@@ -135,7 +143,7 @@ public class PayrollController {
             Payroll payroll = payrollService.finalizePayroll(id);
             response.put("success", true);
             response.put("message", "Payroll finalized successfully");
-            response.put("payroll", payroll);
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             response.put("success", false);
@@ -156,7 +164,7 @@ public class PayrollController {
             List<Payroll> payrolls = payrollService.finalizeAllApprovedPayrolls(month, year);
             response.put("success", true);
             response.put("message", "Finalized " + payrolls.size() + " payrolls");
-            response.put("payrolls", payrolls);
+            response.put("payrolls", DTOMapper.toPayrollDTOList(payrolls));
             response.put("count", payrolls.size());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -176,7 +184,7 @@ public class PayrollController {
             Payroll payroll = payrollService.markPayrollAsPaid(id);
             response.put("success", true);
             response.put("message", "Payroll marked as paid");
-            response.put("payroll", payroll);
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             response.put("success", false);
