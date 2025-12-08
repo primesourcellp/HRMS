@@ -1,5 +1,7 @@
 package com.hrms.entity;
 
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -26,6 +28,12 @@ public class Payroll {
     @Column
     private Integer year;
 
+    @Column(name = "start_date", nullable = true)
+    private LocalDate startDate; // Payroll period start date
+
+    @Column(name = "end_date", nullable = true)
+    private LocalDate endDate; // Payroll period end date
+
     @Column(name = "base_salary", nullable = false)
     private Double baseSalary;
 
@@ -45,7 +53,7 @@ public class Payroll {
     private Double netSalary; // Net salary after all deductions
 
     @Column(nullable = false)
-    private String status = "PENDING"; // PENDING, PAID, PROCESSING
+    private String status = "DRAFT"; // DRAFT, PENDING_APPROVAL, APPROVED, FINALIZED, PAID
 
     @Column(columnDefinition = "TEXT")
     private String notes;
@@ -58,20 +66,22 @@ public class Payroll {
     public Payroll() {
     }
 
-    public Payroll(Long id, Long employeeId, String month, Integer year, Double baseSalary, 
-                  Double allowances, Double deductions, Double bonus, Double amount, 
+    public Payroll(Long id, Long employeeId, String month, Integer year, LocalDate startDate, LocalDate endDate,
+                  Double baseSalary, Double allowances, Double deductions, Double bonus, Double amount, 
                   Double netSalary, String status, String notes, Employee employee) {
         this.id = id;
         this.employeeId = employeeId;
         this.month = month;
         this.year = year;
+        this.startDate = startDate;
+        this.endDate = endDate;
         this.baseSalary = baseSalary;
         this.allowances = allowances;
         this.deductions = deductions;
         this.bonus = bonus;
         this.amount = amount;
         this.netSalary = netSalary;
-        this.status = status != null ? status : "PENDING";
+        this.status = status != null ? status : "DRAFT";
         this.notes = notes;
         this.employee = employee;
     }
@@ -179,5 +189,21 @@ public class Payroll {
 
     public void setEmployee(Employee employee) {
         this.employee = employee;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 }

@@ -521,106 +521,113 @@ const LeaveManagement = () => {
 
   return (
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-blue-600">Leave Management</h2>
-          <p className="text-gray-600 mt-1 font-medium">
-            {isEmployee ? 'View and manage your leave applications' : 'Manage leave applications and approvals'}
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black"
-          >
-            <option value="All">All Leaves</option>
-            <option value="PENDING">Pending</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
-          {isAdmin && (
-          <button
-              onClick={() => {
-                setBalanceFormData({
-                  employeeId: '',
-                  leaveTypeId: '',
-                  totalDays: '',
-                  year: new Date().getFullYear()
-                })
-                setShowBalanceModal(true)
-              }}
-              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-              title="Assign Leave Balance to Employee"
+      {/* Header Section */}
+      <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-blue-600 mb-2">Leave Management</h2>
+            <p className="text-gray-600 font-medium">
+              {isEmployee ? 'View and manage your leave applications' : 'Manage leave applications and approvals'}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="px-5 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black font-medium"
             >
-              <User size={20} />
-              Assign Balance
-            </button>
-          )}
-          <button
-            onClick={async () => {
-              resetForm()
-              // Refresh balances before opening modal to ensure they're up to date
-              if (currentUserId) {
-                try {
-                  const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                  setLeaveBalances(Array.isArray(balances) ? balances : [])
-                  // If balances are empty or all 0, try to initialize
-                  const balancesArray = Array.isArray(balances) ? balances : []
-                  if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
-                    if (leaveTypes.length > 0) {
-                      await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                      const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                      setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
+              <option value="All">All Leaves</option>
+              <option value="PENDING">Pending</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setBalanceFormData({
+                    employeeId: '',
+                    leaveTypeId: '',
+                    totalDays: '',
+                    year: new Date().getFullYear()
+                  })
+                  setShowBalanceModal(true)
+                }}
+                className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                title="Assign Leave Balance to Employee"
+              >
+                <User size={20} />
+                Assign Balance
+              </button>
+            )}
+            {isEmployee && (
+              <button
+                onClick={async () => {
+                  resetForm()
+                  // Refresh balances before opening modal to ensure they're up to date
+                  if (currentUserId) {
+                    try {
+                      const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                      setLeaveBalances(Array.isArray(balances) ? balances : [])
+                      // If balances are empty or all 0, try to initialize
+                      const balancesArray = Array.isArray(balances) ? balances : []
+                      if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
+                        if (leaveTypes.length > 0) {
+                          await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                          const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                          setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error refreshing balances:', error)
                     }
                   }
-                } catch (error) {
-                  console.error('Error refreshing balances:', error)
-                }
-              }
-              setShowModal(true)
-            }}
-            className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-          >
-            <Calendar size={20} />
-            Apply Leave
-          </button>
+                  setShowModal(true)
+                }}
+                className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              >
+                <Calendar size={20} />
+                Apply Leave
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search by employee, leave type, reason, date, status, or days..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Clear search"
+      {/* Search and Filters - Redesigned */}
+      <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
+        <div className="flex gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search by employee, leave type, reason, date, status, or days..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Clear search"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+          {isAdmin && (
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
             >
-              <X size={18} />
-            </button>
+              <option value="All">All Employees</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id.toString()}>{emp.name}</option>
+              ))}
+            </select>
           )}
         </div>
-        {isAdmin && (
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black"
-          >
-            <option value="All">All Employees</option>
-            {employees.map(emp => (
-              <option key={emp.id} value={emp.id.toString()}>{emp.name}</option>
-            ))}
-          </select>
-        )}
       </div>
 
       {/* Error Message */}
@@ -645,8 +652,8 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Leave Balances */}
-      {(() => {
+      {/* Leave Balances - Only visible to employees */}
+      {isEmployee && (() => {
         // Remove duplicates by grouping by leaveTypeId (keep the one with highest totalDays or most recent)
         const uniqueBalances = leaveBalances.reduce((acc, balance) => {
           const typeId = balance.leaveTypeId
@@ -670,8 +677,8 @@ const LeaveManagement = () => {
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-gray-800">Your Leave Balance</h3>
-                <p className="text-sm text-gray-500 mt-1">Year {new Date().getFullYear()}</p>
+                <h3 className="text-2xl font-bold text-gray-800 mb-1">Your Leave Balance</h3>
+                <p className="text-sm text-gray-500 font-medium">Year {new Date().getFullYear()}</p>
               </div>
               <button
                 onClick={async () => {
@@ -725,7 +732,7 @@ const LeaveManagement = () => {
                     }
                   }
                 }}
-                className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors text-sm font-semibold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
                 title="Refresh Leave Balances"
                 disabled={loading}
               >
@@ -735,7 +742,7 @@ const LeaveManagement = () => {
                 {loading ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {uniqueBalances.map((balance) => {
                 const type = leaveTypes.find(t => {
                   const typeId = typeof t.id === 'string' ? parseInt(t.id) : t.id
@@ -749,17 +756,17 @@ const LeaveManagement = () => {
                 return (
                   <div 
                     key={`${balance.leaveTypeId}-${balance.id}`} 
-                    className={`rounded-xl p-5 shadow-md hover:shadow-lg transition-all duration-300 border-2 ${
+                    className={`rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-2 transform hover:scale-105 ${
                       hasZeroBalance 
-                        ? 'bg-yellow-50 border-yellow-200' 
+                        ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-300' 
                         : isLowBalance
-                        ? 'bg-orange-50 border-orange-200'
-                        : 'bg-blue-50 border-blue-200'
+                        ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300'
+                        : 'bg-gradient-to-br from-blue-50 to-white border-blue-300'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className={`text-sm font-semibold mb-1 ${
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <p className={`text-base font-bold mb-1 ${
                           hasZeroBalance ? 'text-yellow-800' : 
                           isLowBalance ? 'text-orange-800' : 
                           'text-blue-800'
@@ -767,7 +774,7 @@ const LeaveManagement = () => {
                           {type?.name || 'Unknown Leave Type'}
                         </p>
                         {type?.code && (
-                          <p className={`text-xs ${
+                          <p className={`text-xs font-medium ${
                             hasZeroBalance ? 'text-yellow-600' : 
                             isLowBalance ? 'text-orange-600' : 
                             'text-blue-600'
@@ -775,44 +782,44 @@ const LeaveManagement = () => {
                         )}
                       </div>
                       {hasZeroBalance && type && type.maxDays && (
-                        <span className={`text-xs ${
-                          hasZeroBalance ? 'bg-yellow-100 text-yellow-800' : 
-                          isLowBalance ? 'bg-orange-100 text-orange-800' : 
-                          'bg-blue-100 text-blue-800'
-                        } px-2 py-1 rounded-full font-medium`}>
+                        <span className={`text-xs font-bold ${
+                          hasZeroBalance ? 'bg-yellow-200 text-yellow-800' : 
+                          isLowBalance ? 'bg-orange-200 text-orange-800' : 
+                          'bg-blue-200 text-blue-800'
+                        } px-3 py-1.5 rounded-full`}>
                           Max: {type.maxDays}
                         </span>
                       )}
                     </div>
                     
-                    <div className="mb-3">
-                      <p className={`text-4xl font-bold mb-1 ${
+                    <div className="mb-4">
+                      <p className={`text-5xl font-bold mb-2 ${
                         hasZeroBalance ? 'text-yellow-700' : 
                         isLowBalance ? 'text-orange-700' : 
                         'text-blue-700'
                       }`}>
                         {balance.balance.toFixed(1)}
-                        <span className="text-lg font-normal ml-1 text-gray-600">days</span>
+                        <span className="text-xl font-normal ml-2 text-gray-600">days</span>
                       </p>
-                      <p className="text-xs text-gray-600">
-                        Available
+                      <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">
+                        Available Balance
                       </p>
                     </div>
 
                     {/* Progress Bar */}
                     {balance.totalDays > 0 && (
-                      <div className="mb-3">
-                        <div className={`flex items-center justify-between text-xs mb-1 ${
+                      <div className="mb-4">
+                        <div className={`flex items-center justify-between text-xs font-semibold mb-2 ${
                           hasZeroBalance ? 'text-yellow-700' : 
                           isLowBalance ? 'text-orange-700' : 
                           'text-blue-700'
                         }`}>
                           <span>Used: {balance.usedDays.toFixed(1)} / {balance.totalDays.toFixed(1)} days</span>
-                          <span>{usagePercentage.toFixed(0)}%</span>
+                          <span className="font-bold">{usagePercentage.toFixed(0)}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
                           <div 
-                            className={`h-full rounded-full transition-all duration-500 ${
+                            className={`h-full rounded-full transition-all duration-500 shadow-md ${
                               usagePercentage >= 80 ? 'bg-red-500' : 
                               usagePercentage >= 50 ? 'bg-orange-500' : 
                               'bg-green-500'
@@ -847,27 +854,27 @@ const LeaveManagement = () => {
                       Click "Refresh" above to initialize balances from leave type settings, or contact your admin to assign leave balances.
                     </p>
                   </div>
-          </div>
-        </div>
-      )}
+                </div>
+              </div>
+            )}
           </div>
         )
       })()}
 
-      {/* Leaves List */}
+      {/* Leaves List - Redesigned */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-blue-600 text-white">
+            <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">S.No</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Leave Type</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Dates</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Days</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Reason</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase">Actions</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">S.No</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Employee</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Leave Type</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Dates</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Days</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Reason</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -904,8 +911,10 @@ const LeaveManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <User className="text-gray-400 mr-2" size={18} />
-                      <span className="text-sm font-medium text-gray-900">{getEmployeeName(leave.employeeId)}</span>
+                      <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold mr-3 shadow-md">
+                        {getEmployeeName(leave.employeeId)?.charAt(0) || 'E'}
+                      </div>
+                      <span className="text-sm font-bold text-gray-900">{getEmployeeName(leave.employeeId)}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -926,10 +935,10 @@ const LeaveManagement = () => {
                     <span className="text-sm text-gray-600">{leave.reason}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      leave.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                      leave.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
+                    <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
+                      leave.status === 'APPROVED' ? 'bg-green-100 text-green-800 border border-green-200' :
+                      leave.status === 'REJECTED' ? 'bg-red-100 text-red-800 border border-red-200' :
+                      'bg-yellow-100 text-yellow-800 border border-yellow-200'
                     }`}>
                       {leave.status}
                     </span>
@@ -941,10 +950,10 @@ const LeaveManagement = () => {
                           setSelectedLeave(leave)
                           setShowDetailsModal(true)
                         }}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                        className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
                         title="View Details"
                       >
-                        <Eye size={16} />
+                        <Eye size={18} />
                       </button>
                     {isAdmin && leave.status === 'PENDING' && (
                         <>
@@ -953,17 +962,17 @@ const LeaveManagement = () => {
                             setSelectedLeave(leave)
                             setShowApprovalModal(true)
                           }}
-                            className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
+                            className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors"
                             title="Review"
                         >
-                            <CheckCircle size={16} />
+                            <CheckCircle size={18} />
                         </button>
                           <button
                             onClick={() => openEditModal(leave)}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
                             title="Edit"
                           >
-                            <Edit size={16} />
+                            <Edit size={18} />
                           </button>
                         </>
                       )}
@@ -971,19 +980,19 @@ const LeaveManagement = () => {
                        leave.status === 'PENDING' && (
                         <button
                           onClick={() => handleCancelLeave(leave.id)}
-                          className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-50"
+                          className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-50 transition-colors"
                           title="Cancel"
                         >
-                          <X size={16} />
+                          <X size={18} />
                         </button>
                       )}
                       {isAdmin && leave.status !== 'APPROVED' && (
                         <button
                           onClick={() => handleDeleteLeave(leave.id)}
-                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                          className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
                           title="Delete"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={18} />
                         </button>
                     )}
                     {leave.rejectionReason && (
@@ -1000,12 +1009,15 @@ const LeaveManagement = () => {
         </div>
       </div>
 
-      {/* Apply Leave Modal */}
+      {/* Apply Leave Modal - Redesigned */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-blue-600">Apply for Leave</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Calendar size={24} className="text-blue-600" />
+                Apply for Leave
+              </h3>
               <button
                 onClick={() => {
                   setShowModal(false)
@@ -1021,15 +1033,15 @@ const LeaveManagement = () => {
                 <p className="text-red-800 text-sm">{validationError}</p>
               </div>
             )}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 {isAdmin && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
                     <select
                       value={formData.employeeId}
                       onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                       required
                     >
                       <option value="">Select Employee</option>
@@ -1040,7 +1052,7 @@ const LeaveManagement = () => {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Leave Type *</label>
                   <select
                     value={formData.leaveTypeId}
                     onChange={async (e) => {
@@ -1067,7 +1079,7 @@ const LeaveManagement = () => {
                         }
                       }
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     required
                     disabled={leaveTypes.length === 0}
                   >
@@ -1084,28 +1096,28 @@ const LeaveManagement = () => {
                     })}
                   </select>
                   {leaveTypes.length === 0 && (
-                    <p className="text-xs text-red-600 mt-1">
+                    <p className="text-xs text-red-600 mt-1 font-medium">
                       Please create leave types in Settings page first
                     </p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Half Day</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Half Day</label>
                   <div className="flex items-center gap-4 mt-2">
-                    <label className="flex items-center">
+                    <label className="flex items-center cursor-pointer">
                       <input
                         type="checkbox"
                         checked={formData.halfDay}
                         onChange={(e) => setFormData({ ...formData, halfDay: e.target.checked })}
-                        className="mr-2"
+                        className="mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                      <span className="text-sm">Half Day</span>
+                      <span className="text-sm font-medium">Half Day</span>
                     </label>
                     {formData.halfDay && (
                       <select
                         value={formData.halfDayType}
                         onChange={(e) => setFormData({ ...formData, halfDayType: e.target.value })}
-                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                        className="px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="FIRST_HALF">First Half</option>
                         <option value="SECOND_HALF">Second Half</option>
@@ -1114,67 +1126,71 @@ const LeaveManagement = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
                   <input
                     type="date"
                     value={formData.startDate}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
                   <input
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                     min={formData.startDate || undefined}
                   />
                 </div>
               </div>
               {calculatedDays > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-800">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar size={18} className="text-blue-600" />
+                    <p className="text-sm font-bold text-blue-800 uppercase tracking-wide">Leave Summary</p>
+                  </div>
+                  <p className="text-base text-blue-900 font-semibold">
                     <strong>Total Days:</strong> {calculatedDays} {calculatedDays === 1 ? 'day' : 'days'}
                     {formData.leaveTypeId && (
-                      <span className="ml-2">
-                        (Available Balance: {getLeaveBalance(parseInt(formData.leaveTypeId)).toFixed(1)} days)
+                      <span className="ml-3 text-sm">
+                        (Available Balance: <span className="font-bold">{getLeaveBalance(parseInt(formData.leaveTypeId)).toFixed(1)} days</span>)
                       </span>
                     )}
                   </p>
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Reason *</label>
                 <textarea
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  rows={4}
                   required
                   placeholder="Please provide a reason for your leave application..."
                 />
               </div>
-              <div className="flex gap-3 justify-end">
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false)
                     resetForm()
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
                 >
-                  {loading ? 'Submitting...' : 'Submit'}
+                  {loading ? 'Submitting...' : 'Submit Application'}
                 </button>
               </div>
             </form>
@@ -1182,11 +1198,16 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Approval Modal */}
+      {/* Approval Modal - Redesigned */}
       {showApprovalModal && selectedLeave && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
-            <h3 className="text-xl font-bold mb-4">Review Leave Application</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <CheckCircle size={24} className="text-blue-600" />
+                Review Leave Application
+              </h3>
+            </div>
             <div className="space-y-3 mb-4">
               <p><strong>Employee:</strong> {getEmployeeName(selectedLeave.employeeId)}</p>
               <p><strong>Leave Type:</strong> {getLeaveTypeName(selectedLeave.leaveTypeId)}</p>
@@ -1204,18 +1225,18 @@ const LeaveManagement = () => {
                 placeholder="Optional"
               />
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
               <button
                 onClick={() => handleReject(selectedLeave.id)}
                 disabled={loading}
-                className="flex-1 bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                className="flex-1 bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
               >
                 Reject
               </button>
               <button
                 onClick={() => handleApprove(selectedLeave.id)}
                 disabled={loading}
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
               >
                 Approve
               </button>
@@ -1226,7 +1247,7 @@ const LeaveManagement = () => {
                 setSelectedLeave(null)
                 setRejectionReason('')
               }}
-              className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="w-full mt-3 px-4 py-2 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
             >
               Cancel
             </button>
@@ -1234,12 +1255,15 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Edit Leave Modal */}
+      {/* Edit Leave Modal - Redesigned */}
       {showEditModal && selectedLeave && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-blue-600">Edit Leave Application</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Edit size={24} className="text-blue-600" />
+                Edit Leave Application
+              </h3>
               <button
                 onClick={() => {
                   setShowEditModal(false)
@@ -1374,12 +1398,15 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* View Details Modal */}
+      {/* View Details Modal - Redesigned */}
       {showDetailsModal && selectedLeave && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-blue-600">Leave Application Details</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Eye size={24} className="text-blue-600" />
+                Leave Application Details
+              </h3>
               <button
                 onClick={() => {
                   setShowDetailsModal(false)
@@ -1460,26 +1487,29 @@ const LeaveManagement = () => {
               )}
             </div>
             <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowDetailsModal(false)
-                  setSelectedLeave(null)
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-              >
-                Close
-              </button>
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false)
+                    setSelectedLeave(null)
+                  }}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  Close
+                </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Assign Leave Balance Modal (Admin Only) */}
+      {/* Assign Leave Balance Modal (Admin Only) - Redesigned */}
       {showBalanceModal && isAdmin && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-blue-600">Assign Leave Balance</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <User size={24} className="text-blue-600" />
+                Assign Leave Balance
+              </h3>
               <button
                 onClick={() => {
                   setShowBalanceModal(false)
@@ -1596,7 +1626,7 @@ const LeaveManagement = () => {
                   disabled={loading}
                   className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
                 >
-                  {loading ? 'Assigning...' : 'Assign'}
+                  {loading ? 'Assigning...' : 'Assign Balance'}
                 </button>
               </div>
             </form>

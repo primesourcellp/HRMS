@@ -101,18 +101,21 @@ const Performance = () => {
 
   return (
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-blue-600">Performance Reviews</h2>
-          <p className="text-gray-600 mt-1 font-medium">Track and manage employee performance</p>
+      {/* Header Section */}
+      <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-blue-600 mb-2">Performance Reviews</h2>
+            <p className="text-gray-600 font-medium">Track and manage employee performance</p>
+          </div>
+          <button
+            onClick={handleOpenModal}
+            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+          >
+            <Plus size={20} />
+            Add Review
+          </button>
         </div>
-        <button
-          onClick={handleOpenModal}
-          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-        >
-          <Plus size={20} />
-          Add Review
-        </button>
       </div>
 
       {/* Error Message */}
@@ -161,16 +164,16 @@ const Performance = () => {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-4">
+      {/* Search Bar - Redesigned */}
+      <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
             placeholder="Search performance reviews..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
           />
         </div>
       </div>
@@ -230,22 +233,33 @@ const Performance = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal - Redesigned */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-800">Add Performance Review</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b-2 border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                  <Plus size={24} className="text-blue-600" />
+                  Add Performance Review
+                </h3>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
                   <select
                     required
                     value={formData.employeeId}
                     onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select Employee</option>
                     {employees.map(emp => (
@@ -254,22 +268,22 @@ const Performance = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Review Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Review Date *</label>
                   <input
                     type="date"
                     required
                     value={formData.reviewDate}
                     onChange={(e) => setFormData({ ...formData, reviewDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Period</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Period *</label>
                   <select
                     required
                     value={formData.period}
                     onChange={(e) => setFormData({ ...formData, period: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="Q1 2024">Q1 2024</option>
                     <option value="Q2 2024">Q2 2024</option>
@@ -279,12 +293,12 @@ const Performance = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Rating (1-5)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Rating (1-5) *</label>
                   <select
                     required
                     value={formData.rating}
                     onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="1">1 - Poor</option>
                     <option value="2">2 - Below Average</option>
@@ -295,56 +309,56 @@ const Performance = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Goals</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Goals</label>
                 <textarea
                   value={formData.goals}
                   onChange={(e) => setFormData({ ...formData, goals: e.target.value })}
-                  rows={2}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                   placeholder="Enter goals..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Achievements</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Achievements</label>
                 <textarea
                   value={formData.achievements}
                   onChange={(e) => setFormData({ ...formData, achievements: e.target.value })}
-                  rows={2}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                   placeholder="Enter achievements..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Feedback</label>
                 <textarea
                   value={formData.feedback}
                   onChange={(e) => setFormData({ ...formData, feedback: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  rows={4}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                   placeholder="Enter feedback..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Areas for Improvement</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Areas for Improvement</label>
                 <textarea
                   value={formData.areasForImprovement}
                   onChange={(e) => setFormData({ ...formData, areasForImprovement: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  rows={4}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                   placeholder="Enter areas for improvement..."
                 />
               </div>
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t-2 border-gray-200">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all font-semibold"
                 >
                   Add Review
                 </button>

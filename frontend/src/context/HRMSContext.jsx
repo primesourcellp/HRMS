@@ -27,20 +27,35 @@ export const HRMSProvider = ({ children }) => {
   const loadAllData = async () => {
     try {
       setLoading(true)
-      const [empData, attData, leaveData, payrollData, perfData] = await Promise.all([
+      const [empData, attData, leaveData, payrollData, perfData] = await Promise.allSettled([
         api.getEmployees(),
         api.getAttendance(),
         api.getLeaves(),
         api.getPayrolls(),
         api.getPerformance()
       ])
-      setEmployees(empData)
-      setAttendance(attData)
-      setLeaves(leaveData)
-      setPayrolls(payrollData)
-      setPerformance(perfData)
+      
+      // Safely handle each response, defaulting to empty array if failed
+      setEmployees(Array.isArray(empData.value) ? empData.value : (empData.status === 'fulfilled' ? [] : []))
+      setAttendance(Array.isArray(attData.value) ? attData.value : (attData.status === 'fulfilled' ? [] : []))
+      setLeaves(Array.isArray(leaveData.value) ? leaveData.value : (leaveData.status === 'fulfilled' ? [] : []))
+      setPayrolls(Array.isArray(payrollData.value) ? payrollData.value : (payrollData.status === 'fulfilled' ? [] : []))
+      setPerformance(Array.isArray(perfData.value) ? perfData.value : (perfData.status === 'fulfilled' ? [] : []))
+      
+      // Log any errors
+      if (empData.status === 'rejected') console.error('Error loading employees:', empData.reason)
+      if (attData.status === 'rejected') console.error('Error loading attendance:', attData.reason)
+      if (leaveData.status === 'rejected') console.error('Error loading leaves:', leaveData.reason)
+      if (payrollData.status === 'rejected') console.error('Error loading payrolls:', payrollData.reason)
+      if (perfData.status === 'rejected') console.error('Error loading performance:', perfData.reason)
     } catch (error) {
       console.error('Error loading data:', error)
+      // Ensure arrays are set even on error
+      setEmployees([])
+      setAttendance([])
+      setLeaves([])
+      setPayrolls([])
+      setPerformance([])
     } finally {
       setLoading(false)
     }

@@ -221,7 +221,13 @@ public class DashboardController {
             }
             
         } catch (Exception e) {
-            stats.put("error", "Error calculating dashboard statistics: " + e.getMessage());
+            e.printStackTrace();
+            stats.put("error", "Error calculating dashboard statistics: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+            // Return empty/default values to prevent frontend errors
+            if (!stats.containsKey("totalEmployees")) stats.put("totalEmployees", 0);
+            if (!stats.containsKey("presentToday")) stats.put("presentToday", 0);
+            if (!stats.containsKey("pendingLeaves")) stats.put("pendingLeaves", 0);
+            if (!stats.containsKey("totalPayroll")) stats.put("totalPayroll", 0.0);
         }
         
         return ResponseEntity.ok(stats);

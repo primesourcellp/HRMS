@@ -124,21 +124,25 @@ const Layout = () => {
               {menuItems.find(item => item.path === location.pathname)?.label || 'HRMS'}
             </h2>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold">
+              <button
+                onClick={() => navigate('/settings')}
+                className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-3 py-2 transition-all duration-200 cursor-pointer group"
+                title="Go to Settings"
+              >
+                <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold group-hover:bg-primary-600 transition-colors">
                   {localStorage.getItem('userName')?.charAt(0) || 'A'}
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-800">
+                  <p className="text-sm font-medium text-gray-800 group-hover:text-primary-600 transition-colors">
                     {localStorage.getItem('userName') || (isEmployee ? 'Employee' : 'Admin')}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 group-hover:text-gray-600 transition-colors">
                     {isEmployee 
                       ? `${localStorage.getItem('employeePosition') || 'Employee'} - ${localStorage.getItem('employeeDepartment') || ''}`
                       : userRole === 'SUPER_ADMIN' ? 'Super Administrator' : 'Administrator'}
                   </p>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         </header>

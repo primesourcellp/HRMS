@@ -40,12 +40,26 @@ public class PayrollController {
 
     @GetMapping
     public ResponseEntity<List<Payroll>> getAllPayrolls() {
-        return ResponseEntity.ok(payrollService.getAllPayrolls());
+        try {
+            List<Payroll> payrolls = payrollService.getAllPayrolls();
+            return ResponseEntity.ok(payrolls != null ? payrolls : List.of());
+        } catch (Exception e) {
+            e.printStackTrace();
+            // Return empty list instead of error to prevent frontend crashes
+            return ResponseEntity.ok(List.of());
+        }
     }
 
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<List<Payroll>> getEmployeePayrolls(@PathVariable Long employeeId) {
-        return ResponseEntity.ok(payrollService.getPayrollsByEmployeeId(employeeId));
+        try {
+            List<Payroll> payrolls = payrollService.getPayrollsByEmployeeId(employeeId);
+            return ResponseEntity.ok(payrolls != null ? payrolls : List.of());
+        } catch (Exception e) {
+            e.printStackTrace();
+            // Return empty list instead of error to prevent frontend crashes
+            return ResponseEntity.ok(List.of());
+        }
     }
 
     @PostMapping("/generate")
@@ -58,6 +72,110 @@ public class PayrollController {
             Payroll payroll = payrollService.generatePayroll(employeeId, month, year);
             response.put("success", true);
             response.put("message", "Payroll generated successfully");
+            response.put("payroll", payroll);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Process payroll for all employees for a given period
+     */
+    @PostMapping("/process")
+    public ResponseEntity<Map<String, Object>> processPayrollForAllEmployees(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+            List<Payroll> payrolls = payrollService.processPayrollForAllEmployees(start, end);
+            response.put("success", true);
+            response.put("message", "Payroll processed for " + payrolls.size() + " employees");
+            response.put("payrolls", payrolls);
+            response.put("count", payrolls.size());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Approve a payroll
+     */
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<Map<String, Object>> approvePayroll(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.approvePayroll(id);
+            response.put("success", true);
+            response.put("message", "Payroll approved successfully");
+            response.put("payroll", payroll);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Finalize a payroll
+     */
+    @PostMapping("/{id}/finalize")
+    public ResponseEntity<Map<String, Object>> finalizePayroll(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.finalizePayroll(id);
+            response.put("success", true);
+            response.put("message", "Payroll finalized successfully");
+            response.put("payroll", payroll);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Finalize all approved payrolls for a period
+     */
+    @PostMapping("/finalize-all")
+    public ResponseEntity<Map<String, Object>> finalizeAllApprovedPayrolls(
+            @RequestParam String month,
+            @RequestParam Integer year) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            List<Payroll> payrolls = payrollService.finalizeAllApprovedPayrolls(month, year);
+            response.put("success", true);
+            response.put("message", "Finalized " + payrolls.size() + " payrolls");
+            response.put("payrolls", payrolls);
+            response.put("count", payrolls.size());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Mark payroll as paid
+     */
+    @PostMapping("/{id}/mark-paid")
+    public ResponseEntity<Map<String, Object>> markPayrollAsPaid(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.markPayrollAsPaid(id);
+            response.put("success", true);
+            response.put("message", "Payroll marked as paid");
             response.put("payroll", payroll);
             return ResponseEntity.ok(response);
         } catch (Exception e) {

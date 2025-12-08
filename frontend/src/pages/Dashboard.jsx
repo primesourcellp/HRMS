@@ -115,7 +115,7 @@ const Dashboard = () => {
     },
     {
       title: 'Total Payroll',
-      value: `$${dashboardStats?.totalPayroll?.toLocaleString() || payrolls.reduce((sum, p) => sum + (p.amount || 0), 0).toLocaleString()}`,
+      value: `$${dashboardStats?.totalPayroll?.toLocaleString() || (Array.isArray(payrolls) ? payrolls.reduce((sum, p) => sum + (p.amount || p.netSalary || 0), 0).toLocaleString() : '0')}`,
       change: '+8%',
       trend: 'up',
       icon: DollarSign,
@@ -216,7 +216,77 @@ const Dashboard = () => {
         })}
       </div>
 
-      {/* Quick Actions */}
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Attendance Chart */}
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+          <h3 className="text-xl font-bold text-blue-600 mb-4">
+            {isEmployee ? 'My Weekly Attendance' : 'Weekly Attendance'}
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={attendanceData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="present" fill="#10b981" name="Present" />
+              <Bar dataKey="absent" fill="#ef4444" name="Absent" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Department Distribution - Only show for admin */}
+        {!isEmployee && (
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-4">Department Distribution</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Employee Info Card - Only show for employee */}
+        {isEmployee && dashboardStats && (
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-4">My Information</h3>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600">Department</p>
+                <p className="text-lg font-semibold text-gray-800">{dashboardStats.department || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Attendance Rate (Last 30 Days)</p>
+                <p className="text-lg font-semibold text-gray-800">{dashboardStats.attendanceRate?.toFixed(1) || 0}%</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Monthly Payroll</p>
+                <p className="text-lg font-semibold text-gray-800">
+                  ${dashboardStats.monthlyPayroll?.toLocaleString() || '0.00'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Actions - Moved to Bottom */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
         <h3 className="text-xl font-bold text-blue-600 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -312,76 +382,6 @@ const Dashboard = () => {
             </>
           )}
         </div>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Attendance Chart */}
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-          <h3 className="text-xl font-bold text-blue-600 mb-4">
-            {isEmployee ? 'My Weekly Attendance' : 'Weekly Attendance'}
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={attendanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="present" fill="#10b981" name="Present" />
-              <Bar dataKey="absent" fill="#ef4444" name="Absent" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Department Distribution - Only show for admin */}
-        {!isEmployee && (
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-4">Department Distribution</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* Employee Info Card - Only show for employee */}
-        {isEmployee && dashboardStats && (
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-4">My Information</h3>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-600">Department</p>
-                <p className="text-lg font-semibold text-gray-800">{dashboardStats.department || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Attendance Rate (Last 30 Days)</p>
-                <p className="text-lg font-semibold text-gray-800">{dashboardStats.attendanceRate?.toFixed(1) || 0}%</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Monthly Payroll</p>
-                <p className="text-lg font-semibold text-gray-800">
-                  ${dashboardStats.monthlyPayroll?.toLocaleString() || '0.00'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
     </div>

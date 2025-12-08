@@ -98,23 +98,26 @@ const Analytics = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-blue-600">Analytics & Reports</h2>
-          <p className="text-gray-600 mt-1">Comprehensive insights and analytics</p>
-        </div>
-        <div className="flex gap-3">
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="week">Last Week</option>
-            <option value="month">Last Month</option>
-            <option value="quarter">Last Quarter</option>
-            <option value="year">Last Year</option>
-          </select>
+    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
+      {/* Header Section */}
+      <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-blue-600 mb-2">Analytics & Reports</h2>
+            <p className="text-gray-600 font-medium">Comprehensive insights and analytics</p>
+          </div>
+          <div className="flex gap-3">
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="px-5 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
+            >
+              <option value="week">Last Week</option>
+              <option value="month">Last Month</option>
+              <option value="quarter">Last Quarter</option>
+              <option value="year">Last Year</option>
+            </select>
+          </div>
         </div>
       </div>
 

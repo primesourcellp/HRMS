@@ -370,24 +370,27 @@ const Attendance = () => {
 
   return (
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
+      {/* Header Section */}
+      <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-blue-600">
+            <h2 className="text-3xl font-bold text-blue-600 mb-2">
             {isEmployee ? 'My Attendance' : 'Attendance Management'}
           </h2>
-          <p className="text-gray-600 mt-1 font-medium">
-            {isEmployee ? 'View and manage your attendance' : 'Track and manage employee attendance with IP address tracking'}
+            <p className="text-gray-600 font-medium">
+              {isEmployee ? 'View and manage your daily attendance records' : 'Track and manage employee attendance with IP address tracking'}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
-            <Calendar size={20} className="text-gray-500" />
+            <div className="flex items-center gap-2 bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-200">
+              <Calendar size={20} className="text-blue-600" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="border-none outline-none text-gray-700"
+                className="border-none outline-none bg-transparent text-gray-700 font-medium cursor-pointer"
             />
+            </div>
           </div>
         </div>
       </div>
@@ -395,88 +398,99 @@ const Attendance = () => {
       {/* Employee View - Modern Card Design */}
       {isEmployee && employeeId && employees.length > 0 && (
         <>
-          {/* Check In/Out Card */}
-          <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-4">
+          {/* Check In/Out Card - Redesigned */}
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6 relative">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">Today's Attendance</h3>
-                <p className="text-gray-500 text-xs">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+                <h3 className="text-xl font-bold text-gray-800 mb-1">Today's Attendance</h3>
+                <p className="text-gray-500 text-sm font-medium">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
               </div>
-              <div className={`p-2 rounded-full ${todayRecord?.status === 'Present' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                {todayRecord?.status === 'Present' ? (
-                  <CheckCircle2 size={20} className="text-green-600" />
-                ) : (
-                  <Clock size={20} className="text-gray-400" />
-                )}
-              </div>
+              {todayRecord?.checkIn && todayRecord?.checkOut && (
+                <span className="bg-green-500 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
+                  <CheckCircle2 size={14} />
+                  Completed
+                </span>
+              )}
             </div>
             
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                <p className="text-gray-500 text-xs mb-1">Check In</p>
-                <p className="text-lg font-bold text-gray-800">
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock size={18} className="text-blue-600" />
+                  <p className="text-gray-600 text-xs font-semibold uppercase">Check In</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-800 mb-2">
                   {todayRecord?.checkIn || '--:--'}
                 </p>
                 {todayRecord?.checkInMethod && (
-                  <div className="flex items-center gap-1 mt-1">
+                  <div className="flex items-center gap-1">
                     {todayRecord.checkInMethod === 'MOBILE' ? (
-                      <Smartphone size={12} className="text-green-500" />
+                      <Smartphone size={14} className="text-green-500" />
                     ) : (
-                      <Monitor size={12} className="text-blue-500" />
+                      <Monitor size={14} className="text-blue-500" />
                     )}
-                    <span className="text-xs text-gray-500">{todayRecord.checkInMethod}</span>
+                    <span className="text-xs text-gray-500 font-medium">{todayRecord.checkInMethod}</span>
                   </div>
                 )}
               </div>
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                <p className="text-gray-500 text-xs mb-1">Check Out</p>
-                <p className="text-lg font-bold text-gray-800">
+              <div className="bg-gray-50 rounded-xl p-4 border-2 border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <XCircle size={18} className="text-gray-600" />
+                  <p className="text-gray-600 text-xs font-semibold uppercase">Check Out</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-800 mb-2">
                   {todayRecord?.checkOut || '--:--'}
                 </p>
                 {todayRecord?.checkOutMethod && (
-                  <div className="flex items-center gap-1 mt-1">
+                  <div className="flex items-center gap-1">
                     {todayRecord.checkOutMethod === 'MOBILE' ? (
-                      <Smartphone size={12} className="text-green-500" />
+                      <Smartphone size={14} className="text-green-500" />
                     ) : (
-                      <Monitor size={12} className="text-blue-500" />
+                      <Monitor size={14} className="text-blue-500" />
                     )}
-                    <span className="text-xs text-gray-500">{todayRecord.checkOutMethod}</span>
+                    <span className="text-xs text-gray-500 font-medium">{todayRecord.checkOutMethod}</span>
                   </div>
                 )}
               </div>
-            {todayRecord?.workingHours && (
-                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                  <p className="text-blue-600 text-xs mb-1">Hours</p>
-                  <p className="text-lg font-bold text-gray-800">{todayRecord.workingHours.toFixed(2)}h</p>
+              {todayRecord?.workingHours ? (
+                <div className="bg-blue-600 rounded-xl p-4 border-2 border-blue-500 text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Timer size={18} className="text-blue-100" />
+                    <p className="text-blue-100 text-xs font-semibold uppercase">Hours</p>
+            </div>
+                  <p className="text-2xl font-bold">{todayRecord.workingHours.toFixed(2)}h</p>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4 border-2 border-gray-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Timer size={18} className="text-gray-400" />
+                    <p className="text-gray-400 text-xs font-semibold uppercase">Hours</p>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-300">--:--</p>
               </div>
             )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {!todayRecord?.checkIn ? (
                 <button
                   onClick={() => handleCheckIn(employeeId)}
                   disabled={loading}
-                  className="flex-1 bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  className="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
-                  <CheckCircle size={16} />
+                  <CheckCircle size={18} />
                   Check In
                 </button>
               ) : !todayRecord?.checkOut ? (
                 <button
                   onClick={() => handleCheckOut(employeeId)}
                   disabled={loading}
-                  className="flex-1 bg-gray-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  className="flex-1 bg-gray-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
-                  <XCircle size={16} />
+                  <XCircle size={18} />
                   Check Out
                 </button>
-              ) : (
-                <div className="flex-1 bg-green-500 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm">
-                  <CheckCircle2 size={16} />
-                  Completed
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -515,44 +529,80 @@ const Attendance = () => {
             </div>
           )}
 
-          {/* Weekly Calendar */}
+          {/* Weekly Calendar - List Design */}
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <CalendarDays size={20} className="text-gray-600" />
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <CalendarDays size={22} className="text-blue-600" />
+                </div>
               This Week
             </h3>
-            <div className="grid grid-cols-7 gap-3">
+            </div>
+            <div className="space-y-3">
               {weeklyCalendar.map((day, index) => (
                 <div
                   key={index}
-                  className={`p-4 rounded-lg border transition-all ${
+                  className={`p-4 rounded-xl border-2 transition-all hover:shadow-md ${
                     day.isToday
-                      ? 'border-blue-300 bg-blue-50 shadow-sm'
+                      ? 'border-blue-400 bg-blue-50 shadow-md'
                       : day.record?.status === 'Present'
-                      ? 'border-gray-200 bg-gray-50'
+                      ? 'border-green-200 bg-green-50'
                       : day.record?.status === 'Absent'
-                      ? 'border-gray-200 bg-gray-100'
+                      ? 'border-red-200 bg-red-50'
                       : 'border-gray-200 bg-gray-50'
                   }`}
                 >
-                  <p className="text-xs text-gray-500 mb-1 font-medium">{day.dayName}</p>
-                  <p className={`text-lg font-bold mb-2 ${day.isToday ? 'text-blue-600' : 'text-gray-800'}`}>
-                    {day.dayNumber}
-                  </p>
-                  <div className="flex flex-col gap-1">
-                    {day.record?.checkIn && (
-                      <span className="text-xs text-gray-600 font-medium">{day.record.checkIn}</span>
-                    )}
-                    {day.record?.checkOut && (
-                      <span className="text-xs text-gray-600 font-medium">{day.record.checkOut}</span>
-                    )}
-                    <span className={`text-xs font-semibold mt-1 ${
-                      day.record?.status === 'Present' ? 'text-green-600' :
-                      day.record?.status === 'Absent' ? 'text-red-600' :
-                      'text-gray-400'
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className={`w-16 h-16 rounded-xl flex flex-col items-center justify-center ${
+                        day.isToday
+                          ? 'bg-blue-600 text-white'
+                          : day.record?.status === 'Present'
+                          ? 'bg-green-500 text-white'
+                          : day.record?.status === 'Absent'
+                          ? 'bg-red-500 text-white'
+                          : 'bg-gray-300 text-gray-600'
+                      }`}>
+                        <p className="text-xs font-bold uppercase">{day.dayName}</p>
+                        <p className="text-xl font-bold">{day.dayNumber}</p>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-2">
+                          {day.record?.checkIn ? (
+                            <div className="flex items-center gap-2">
+                              <Clock size={16} className="text-blue-500" />
+                              <span className="text-sm font-semibold text-gray-700">Check In: {day.record.checkIn}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">No check-in</span>
+                          )}
+                          {day.record?.checkOut ? (
+                            <div className="flex items-center gap-2">
+                              <XCircle size={16} className="text-gray-500" />
+                              <span className="text-sm font-semibold text-gray-700">Check Out: {day.record.checkOut}</span>
+                            </div>
+                          ) : day.record?.checkIn ? (
+                            <span className="text-sm text-gray-400">No check-out</span>
+                          ) : null}
+                        </div>
+                        {day.record?.workingHours && (
+                          <div className="flex items-center gap-2">
+                            <Timer size={14} className="text-blue-500" />
+                            <span className="text-xs text-gray-600 font-medium">Working Hours: {day.record.workingHours.toFixed(2)}h</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="ml-4">
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                        day.record?.status === 'Present' ? 'bg-green-100 text-green-700' :
+                        day.record?.status === 'Absent' ? 'bg-red-100 text-red-700' :
+                        'bg-gray-100 text-gray-500'
                     }`}>
                       {day.status}
                     </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -561,18 +611,23 @@ const Attendance = () => {
 
           {/* Recent Attendance History */}
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">Recent Attendance</h3>
+            <div className="p-6 border-b-2 border-gray-200 bg-gray-50">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Calendar size={20} className="text-blue-600" />
+                </div>
+                Recent Attendance History
+              </h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-blue-600 text-white">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Check In</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Check Out</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Hours</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Check In</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Check Out</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Hours</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Status</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
@@ -641,47 +696,49 @@ const Attendance = () => {
       {/* Admin View - Enhanced with full functionality */}
       {!isEmployee && (
         <>
-          {/* Search and Filters */}
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          {/* Search and Filters - Redesigned */}
+          <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
+            <div className="flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-                placeholder="Search by employee name, email, or department..."
+                  placeholder="Search by employee name, email, or department..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {searchTerm && (
+                  className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Clear search"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
+              >
+                <option value="All">All Status</option>
+                <option value="Present">Present</option>
+                <option value="Absent">Absent</option>
+                <option value="Not Marked">Not Marked</option>
+              </select>
+              {isAdmin && (
                 <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  title="Clear search"
+                  onClick={handleExportAttendance}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all font-semibold"
+                  title="Export Attendance"
                 >
-                  <X size={18} />
+                  <Download size={18} />
+                  Export CSV
                 </button>
               )}
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="All">All Status</option>
-              <option value="Present">Present</option>
-              <option value="Absent">Absent</option>
-              <option value="Not Marked">Not Marked</option>
-            </select>
-            {isAdmin && (
-              <button
-                onClick={handleExportAttendance}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                title="Export Attendance"
-              >
-                <Download size={18} />
-                Export
-              </button>
-            )}
           </div>
 
           {/* Error Message */}
@@ -698,18 +755,18 @@ const Attendance = () => {
           )}
 
 
-          {/* Attendance Table */}
+          {/* Attendance Table - Redesigned */}
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-blue-600 text-white">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check In</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check Out</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Check In</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Check Out</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Hours</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -721,12 +778,12 @@ const Attendance = () => {
                       <tr key={employee.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold mr-3">
+                            <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg mr-4 shadow-md">
                               {employee.name?.charAt(0) || 'E'}
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{employee.name}</div>
-                              <div className="text-sm text-gray-500">{employee.department}</div>
+                              <div className="text-sm font-bold text-gray-900">{employee.name}</div>
+                              <div className="text-xs text-gray-500 font-medium">{employee.department}</div>
                             </div>
                           </div>
                         </td>
@@ -808,7 +865,7 @@ const Attendance = () => {
                                 <button
                                   onClick={() => handleCheckIn(employee.id)}
                                   disabled={loading}
-                                    className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50 text-xs"
+                                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-xs font-semibold shadow-md hover:shadow-lg transition-all"
                                 >
                                   Check In
                                 </button>
@@ -816,13 +873,13 @@ const Attendance = () => {
                                 <button
                                   onClick={() => handleCheckOut(employee.id)}
                                   disabled={loading}
-                                    className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 disabled:opacity-50 text-xs"
+                                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 text-xs font-semibold shadow-md hover:shadow-lg transition-all"
                                 >
                                   Check Out
                                 </button>
                               ) : (
-                                  <span className="text-gray-500 text-xs">Completed</span>
-                                )}
+                                <span className="text-green-600 text-xs font-semibold bg-green-50 px-3 py-1.5 rounded-lg">Completed</span>
+                              )}
                               </>
                             )}
                             {isAdmin && (
@@ -838,10 +895,10 @@ const Attendance = () => {
                                       })
                                       setShowEditModal(true)
                                     }}
-                                    className="text-blue-600 hover:text-blue-800 p-1"
+                                    className="text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
                                     title="Edit Attendance"
                                   >
-                                    <Edit size={16} />
+                                    <Edit size={18} />
                                   </button>
                                 ) : (
                                   <button
@@ -850,7 +907,7 @@ const Attendance = () => {
                                       setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
                                       setShowMarkModal(true)
                                     }}
-                                    className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-xs"
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-xs font-semibold shadow-md hover:shadow-lg transition-all"
                                     title="Mark Attendance"
                                   >
                                     Mark
@@ -896,12 +953,15 @@ const Attendance = () => {
         </>
       )}
 
-      {/* Mark Attendance Modal (Admin) */}
+      {/* Mark Attendance Modal (Admin) - Redesigned */}
       {showMarkModal && isAdmin && selectedEmployee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-blue-600">Mark Attendance</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-2">
+                <CheckCircle size={24} className="text-blue-600" />
+                Mark Attendance
+              </h3>
               <button
                 onClick={() => {
                   setShowMarkModal(false)
@@ -977,7 +1037,7 @@ const Attendance = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-semibold shadow-md hover:shadow-lg transition-all"
                 >
                   {loading ? 'Saving...' : 'Mark Attendance'}
                 </button>
@@ -987,12 +1047,15 @@ const Attendance = () => {
         </div>
       )}
 
-      {/* Edit Attendance Modal (Admin) */}
+      {/* Edit Attendance Modal (Admin) - Redesigned */}
       {showEditModal && isAdmin && selectedRecord && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-blue-600">Edit Attendance</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-2">
+                <Edit size={24} className="text-blue-600" />
+                Edit Attendance
+              </h3>
               <button
                 onClick={() => {
                   setShowEditModal(false)
@@ -1068,7 +1131,7 @@ const Attendance = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-semibold shadow-md hover:shadow-lg transition-all"
                 >
                   {loading ? 'Updating...' : 'Update Attendance'}
                 </button>
