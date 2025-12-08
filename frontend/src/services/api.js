@@ -232,25 +232,6 @@ const api = {
   }).then(res => res.json()),
 
   // Dashboard
-<<<<<<< Updated upstream
-  getDashboardStats: async (date, employeeId) => {
-    try {
-      let url = `${API_BASE_URL}/dashboard/stats`
-      const params = new URLSearchParams()
-      if (date) params.append('date', date)
-      if (employeeId) params.append('employeeId', employeeId)
-      if (params.toString()) url += `?${params.toString()}`
-      const response = await fetch(url)
-      if (!response.ok) {
-        console.error('Dashboard Stats API error:', response.status, response.statusText)
-        return {}
-      }
-      return await response.json()
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error)
-      return {}
-    }
-=======
   getDashboardStats: (date, employeeId) => {
     let url = `${API_BASE_URL}/dashboard/stats`
     const params = new URLSearchParams()
@@ -258,16 +239,6 @@ const api = {
     if (employeeId) params.append('employeeId', employeeId)
     if (params.toString()) url += `?${params.toString()}`
     return fetchWithAuth(url).then(res => res.json())
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
   },
 
   // Documents
@@ -391,39 +362,9 @@ const api = {
   }).then(res => res.json()),
 
   // Payroll
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-  getPayrolls: async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/payroll`)
-      if (!response.ok) {
-        console.error('Payroll API error:', response.status, response.statusText)
-        return []
-      }
-      const data = await response.json()
-      return Array.isArray(data) ? data : []
-    } catch (error) {
-      console.error('Error fetching payrolls:', error)
-      return []
-    }
-  },
-  getEmployeePayrolls: async (employeeId) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/payroll/employee/${employeeId}`)
-      if (!response.ok) {
-        console.error('Employee Payroll API error:', response.status, response.statusText)
-        return []
-      }
-      const data = await response.json()
-      return Array.isArray(data) ? data : []
-    } catch (error) {
-      console.error('Error fetching employee payrolls:', error)
-      return []
-    }
-  },
-  generatePayroll: (employeeId, month, year) => fetch(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
+  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
+  getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
+  generatePayroll: (employeeId, month, year) => fetchWithAuth(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
     method: 'POST'
   }).then(res => res.json()),
   processPayrollForAll: async (startDate, endDate) => {
@@ -481,44 +422,8 @@ const api = {
       return { success: false, message: error.message }
     }
   },
-  downloadPayslip: (id) => fetch(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
-  downloadForm16: (employeeId, assessmentYear) => fetch(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
-=======
-  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
-  getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
-  generatePayroll: (employeeId, month, year) => fetchWithAuth(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
-    method: 'POST'
-  }).then(res => res.json()),
   downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
   downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
->>>>>>> Stashed changes
-=======
-  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
-  getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
-  generatePayroll: (employeeId, month, year) => fetchWithAuth(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
-    method: 'POST'
-  }).then(res => res.json()),
-  downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
-  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
->>>>>>> Stashed changes
-=======
-  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
-  getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
-  generatePayroll: (employeeId, month, year) => fetchWithAuth(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
-    method: 'POST'
-  }).then(res => res.json()),
-  downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
-  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
->>>>>>> Stashed changes
-=======
-  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
-  getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
-  generatePayroll: (employeeId, month, year) => fetchWithAuth(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
-    method: 'POST'
-  }).then(res => res.json()),
-  downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
-  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
->>>>>>> Stashed changes
 }
 
 export default api
