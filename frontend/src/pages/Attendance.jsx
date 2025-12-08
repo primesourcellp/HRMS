@@ -859,7 +859,7 @@ const Attendance = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex gap-2">
-                            {isCurrentUser && (
+                            {isCurrentUser && !isAdmin && (
                               <>
                               {!record?.checkIn ? (
                                 <button
@@ -882,38 +882,22 @@ const Attendance = () => {
                               )}
                               </>
                             )}
-                            {isAdmin && (
-                              <>
-                                {record ? (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedRecord(record)
-                                      setMarkFormData({
-                                        status: record.status || 'Present',
-                                        checkIn: record.checkIn || '',
-                                        checkOut: record.checkOut || ''
-                                      })
-                                      setShowEditModal(true)
-                                    }}
-                                    className="text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
-                                    title="Edit Attendance"
-                                  >
-                                    <Edit size={18} />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedEmployee(employee)
-                                      setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
-                                      setShowMarkModal(true)
-                                    }}
-                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-xs font-semibold shadow-md hover:shadow-lg transition-all"
-                                    title="Mark Attendance"
-                                  >
-                                    Mark
-                                  </button>
-                                )}
-                              </>
+                            {isAdmin && record && (
+                              <button
+                                onClick={() => {
+                                  setSelectedRecord(record)
+                                  setMarkFormData({
+                                    status: record.status || 'Present',
+                                    checkIn: record.checkIn || '',
+                                    checkOut: record.checkOut || ''
+                                  })
+                                  setShowEditModal(true)
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Edit Attendance"
+                              >
+                                <Edit size={18} />
+                              </button>
                             )}
                           </div>
                         </td>

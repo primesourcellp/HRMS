@@ -51,6 +51,10 @@ const Login = () => {
       if (loginType === 'admin') {
         response = await api.login(email, password)
         if (response && response.success) {
+          // Clear redirect flag on successful login
+          try {
+            sessionStorage.removeItem('isRedirecting')
+          } catch {}
           // Tokens are now stored in HttpOnly cookies by backend
           // Only store user info in localStorage
           localStorage.setItem('isAuthenticated', 'true')
@@ -67,6 +71,10 @@ const Login = () => {
         // Employee login
         response = await api.employeeLogin(email, password)
         if (response && response.success) {
+          // Clear redirect flag on successful login
+          try {
+            sessionStorage.removeItem('isRedirecting')
+          } catch {}
           // Tokens are now stored in HttpOnly cookies by backend
           // Only store employee info in localStorage
           localStorage.setItem('isAuthenticated', 'true')

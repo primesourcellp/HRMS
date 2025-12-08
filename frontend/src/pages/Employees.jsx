@@ -28,7 +28,8 @@ const Employees = () => {
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [editingEmployee, setEditingEmployee] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -54,10 +55,38 @@ const Employees = () => {
 
   const loadEmployees = async () => {
     try {
+      setLoading(true)
+      setError(null)
+      
+      // Check if user is authenticated before making API call
+      const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
+      if (!isAuthenticated) {
+        setError('Please login to view employees')
+        setEmployees([])
+        setLoading(false)
+        return
+      }
+      
       const data = await api.getEmployees()
-      setEmployees(data)
+      console.log('Employees loaded:', data, 'Type:', typeof data, 'IsArray:', Array.isArray(data))
+      
+      if (Array.isArray(data)) {
+        setEmployees(data)
+        if (data.length === 0) {
+          // Only show "no employees" message if we successfully loaded (not an auth error)
+          setError(null) // Clear error - empty list is valid
+        }
+      } else {
+        console.error('Invalid data format:', data)
+        setEmployees([])
+        setError('Failed to load employees. Invalid data format received.')
+      }
     } catch (error) {
       console.error('Error loading employees:', error)
+      setError('Failed to load employees: ' + (error.message || 'Unknown error'))
+      setEmployees([])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -75,7 +104,7 @@ const Employees = () => {
     }
   }
 
-  const filteredEmployees = employees.filter(emp => {
+  const filteredEmployees = (Array.isArray(employees) ? employees : []).filter(emp => {
     const matchesSearch = emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          emp.department?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -347,6 +376,17 @@ const Employees = () => {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-6 bg-gray-50 min-h-screen p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">Loading employees...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       {/* Header Section */}
@@ -499,7 +539,29 @@ const Employees = () => {
         </div>
         {filteredEmployees.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No employees found</p>
+            {error ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-800 font-semibold">{error}</p>
+                <button
+                  onClick={loadEmployees}
+                  className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : searchTerm || statusFilter !== 'All' ? (
+              <p className="text-gray-500">No employees match your search criteria</p>
+            ) : (
+              <div>
+                <p className="text-gray-500 mb-4">No employees found</p>
+                <button
+                  onClick={() => handleOpenModal()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Add First Employee
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
