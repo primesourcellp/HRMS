@@ -258,6 +258,9 @@ const api = {
     if (employeeId) params.append('employeeId', employeeId)
     if (params.toString()) url += `?${params.toString()}`
     return fetchWithAuth(url).then(res => res.json())
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
   },
 
@@ -383,6 +386,7 @@ const api = {
 
   // Payroll
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   getPayrolls: async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/payroll`)
@@ -471,6 +475,15 @@ const api = {
   },
   downloadPayslip: (id) => fetch(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
   downloadForm16: (employeeId, assessmentYear) => fetch(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
+=======
+  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
+  getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
+  generatePayroll: (employeeId, month, year) => fetchWithAuth(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
+    method: 'POST'
+  }).then(res => res.json()),
+  downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
+  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
+>>>>>>> Stashed changes
 =======
   getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
   getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
