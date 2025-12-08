@@ -53,6 +53,40 @@ const Employees = () => {
     loadEmployees()
   }, [])
 
+  // Update form data when editingEmployee changes
+  useEffect(() => {
+    if (showModal && editingEmployee) {
+      const formattedJoinDate = formatDateForInput(editingEmployee.joinDate)
+      setFormData(prev => ({
+        ...prev,
+        name: editingEmployee.name || '',
+        email: editingEmployee.email || '', // Show employee's email when editing
+        phone: editingEmployee.phone || '',
+        department: editingEmployee.department || '',
+        position: editingEmployee.position || '',
+        salary: editingEmployee.salary ? String(editingEmployee.salary) : '',
+        joinDate: formattedJoinDate,
+        status: editingEmployee.status || 'Active',
+        shiftId: editingEmployee.shiftId || null,
+        password: '' // Always empty for security - never show existing password
+      }))
+    } else if (showModal && !editingEmployee) {
+      // Ensure form is empty when adding new employee
+      setFormData({
+        name: '',
+        email: '', // Always empty for new employee
+        phone: '',
+        department: '',
+        position: '',
+        salary: '',
+        joinDate: '',
+        status: 'Active',
+        shiftId: null,
+        password: '' // Always empty
+      })
+    }
+  }, [editingEmployee, showModal])
+
   const loadEmployees = async () => {
     try {
       setLoading(true)
@@ -112,26 +146,89 @@ const Employees = () => {
     return matchesSearch && matchesStatus
   })
 
-  const handleOpenModal = (employee = null) => {
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return ''
+    // If already in YYYY-MM-DD format, return as is
+    if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+      return dateString.split('T')[0] // Remove time part if present
+    }
+    // Try to parse and format the date
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return ''
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    } catch (e) {
+      console.error('Error formatting date:', e)
+      return ''
+    }
+  }
+
+  const handleOpenModal = async (employee = null) => {
     if (employee) {
-      setEditingEmployee(employee)
-      setFormData({
-        name: employee.name || '',
-        email: employee.email || '',
-        phone: employee.phone || '',
-        department: employee.department || '',
-        position: employee.position || '',
-        salary: employee.salary || '',
-        joinDate: employee.joinDate || '',
-        status: employee.status || 'Active',
-        shiftId: employee.shiftId || null,
-        password: '' // Don't show existing password
-      })
+      // Fetch full employee details to ensure we have all fields
+      try {
+        const fullEmployee = await api.getEmployee(employee.id)
+        if (fullEmployee) {
+          setEditingEmployee(fullEmployee)
+          // Format the date properly for the date input
+          const formattedJoinDate = formatDateForInput(fullEmployee.joinDate)
+          
+          setFormData({
+            name: fullEmployee.name || '',
+            email: fullEmployee.email || '',
+            phone: fullEmployee.phone || '',
+            department: fullEmployee.department || '',
+            position: fullEmployee.position || '',
+            salary: fullEmployee.salary ? String(fullEmployee.salary) : '',
+            joinDate: formattedJoinDate,
+            status: fullEmployee.status || 'Active',
+            shiftId: fullEmployee.shiftId || null,
+            password: '' // Don't show existing password
+          })
+        } else {
+          // Fallback to the employee object passed
+          setEditingEmployee(employee)
+          const formattedJoinDate = formatDateForInput(employee.joinDate)
+          setFormData({
+            name: employee.name || '',
+            email: employee.email || '',
+            phone: employee.phone || '',
+            department: employee.department || '',
+            position: employee.position || '',
+            salary: employee.salary ? String(employee.salary) : '',
+            joinDate: formattedJoinDate,
+            status: employee.status || 'Active',
+            shiftId: employee.shiftId || null,
+            password: ''
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching employee details:', error)
+        // Fallback to the employee object passed
+        setEditingEmployee(employee)
+        const formattedJoinDate = formatDateForInput(employee.joinDate)
+        setFormData({
+          name: employee.name || '',
+          email: employee.email || '',
+          phone: employee.phone || '',
+          department: employee.department || '',
+          position: employee.position || '',
+          salary: employee.salary ? String(employee.salary) : '',
+          joinDate: formattedJoinDate,
+          status: employee.status || 'Active',
+          shiftId: employee.shiftId || null,
+          password: '' // Always empty for security
+        })
+      }
     } else {
+      // Adding new employee - ensure all fields are empty
       setEditingEmployee(null)
       setFormData({
         name: '',
-        email: '',
+        email: '', // Always empty for new employee
         phone: '',
         department: '',
         position: '',
@@ -139,7 +236,7 @@ const Employees = () => {
         joinDate: '',
         status: 'Active',
         shiftId: null,
-        password: ''
+        password: '' // Always empty
       })
     }
     setShowModal(true)
@@ -156,6 +253,20 @@ const Employees = () => {
       }
       await loadEmployees()
       setShowModal(false)
+      // Reset form after successful save
+      setEditingEmployee(null)
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        department: '',
+        position: '',
+        salary: '',
+        joinDate: '',
+        status: 'Active',
+        shiftId: null,
+        password: ''
+      })
     } catch (error) {
       alert('Error saving employee: ' + error.message)
     } finally {
@@ -576,7 +687,23 @@ const Employees = () => {
                 {editingEmployee ? 'Edit' : 'Add'} Employee
               </h3>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false)
+                  // Reset form when closing
+                  setEditingEmployee(null)
+                  setFormData({
+                    name: '',
+                    email: '',
+                    phone: '',
+                    department: '',
+                    position: '',
+                    salary: '',
+                    joinDate: '',
+                    status: 'Active',
+                    shiftId: null,
+                    password: ''
+                  })
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <span className="text-2xl">×</span>
@@ -598,10 +725,12 @@ const Employees = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Email *</label>
                   <input
                     type="email"
-                    value={formData.email}
+                    value={formData.email || ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
+                    placeholder="Enter employee email"
+                    autoComplete="off"
                   />
                 </div>
                 <div>
@@ -610,11 +739,12 @@ const Employees = () => {
                   </label>
                   <input
                     type="password"
-                    value={formData.password}
+                    value={formData.password || ''}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required={!editingEmployee}
                     placeholder={editingEmployee ? "Enter new password to change" : "Enter password"}
+                    autoComplete="new-password"
                   />
                 </div>
                 <div>
@@ -686,7 +816,23 @@ const Employees = () => {
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false)
+                    // Reset form when canceling
+                    setEditingEmployee(null)
+                    setFormData({
+                      name: '',
+                      email: '',
+                      phone: '',
+                      department: '',
+                      position: '',
+                      salary: '',
+                      joinDate: '',
+                      status: 'Active',
+                      shiftId: null,
+                      password: ''
+                    })
+                  }}
                   className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
                 >
                   Cancel

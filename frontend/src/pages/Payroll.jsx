@@ -184,19 +184,54 @@ const Payroll = () => {
     }
   }
 
-  const handleDownloadPayslip = async (payrollId) => {
+  const handleDownloadPayslip = async (payrollId, openInNewTab = false) => {
     try {
       const blob = await api.downloadPayslip(payrollId)
+      
+      // Check if response is a blob
+      if (!(blob instanceof Blob)) {
+        throw new Error('Invalid response format. Expected PDF blob.')
+      }
+      
+      // Check if blob is empty
+      if (blob.size === 0) {
+        throw new Error('Payslip PDF is empty. Please ensure payroll is finalized and salary structure exists.')
+      }
+      
+      // Create blob URL
       const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `payslip_${payrollId}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      
+      if (openInNewTab) {
+        // Open in new tab
+        const newWindow = window.open(url, '_blank')
+        if (!newWindow) {
+          alert('Popup blocked. Please allow popups for this site to view the payslip.')
+          // Fallback to download
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `payslip_${payrollId}.pdf`
+          a.style.display = 'none'
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+        }
+        // Clean up URL after a delay
+        setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+      } else {
+        // Download directly
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `payslip_${payrollId}.pdf`
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        // Clean up URL after a delay
+        setTimeout(() => window.URL.revokeObjectURL(url), 100)
+      }
     } catch (error) {
-      alert('Error downloading payslip: ' + error.message)
+      console.error('Error downloading payslip:', error)
+      alert('Error downloading payslip: ' + (error.message || 'Unknown error. Please check if payroll is finalized and salary structure exists.'))
     }
   }
 
@@ -228,8 +263,23 @@ const Payroll = () => {
 
   const handleSaveEdit = async () => {
     if (!editingPayroll) return
+    
+    // Validate base salary
+    if (!editingPayroll.baseSalary || editingPayroll.baseSalary <= 0) {
+      alert('Please enter a valid base salary')
+      return
+    }
+    
     try {
-      const result = await api.updatePayroll(editingPayroll.id, editingPayroll)
+      // Calculate amount and net salary before sending
+      const amount = (editingPayroll.baseSalary || 0) + (editingPayroll.allowances || 0) + (editingPayroll.bonus || 0) - (editingPayroll.deductions || 0)
+      const payrollData = {
+        ...editingPayroll,
+        amount: amount,
+        netSalary: amount // Net salary is same as amount for now
+      }
+      
+      const result = await api.updatePayroll(editingPayroll.id, payrollData)
       if (result.success || result.id) {
         alert('Payroll updated successfully')
         setShowEditModal(false)
@@ -665,22 +715,13 @@ const Payroll = () => {
                           </button>
                         )}
                         {(payroll.status === 'FINALIZED' || payroll.status === 'PAID') && (
-                          <>
-                            <button
-                              onClick={() => handleDownloadPayslip(payroll.id)}
-                              className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                              title="Download Payslip"
-                            >
-                              <Download size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDownloadForm16(payroll.employeeId, payroll.year)}
-                              className="text-gray-700 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-                              title="Download Form 16"
-                            >
-                              <FileText size={18} />
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleDownloadPayslip(payroll.id, false)}
+                            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                            title="Download Payslip"
+                          >
+                            <Download size={18} />
+                          </button>
                         )}
                       </div>
                     </td>
@@ -1023,8 +1064,7 @@ const Payroll = () => {
                     {(selectedPayroll.status === 'FINALIZED' || selectedPayroll.status === 'PAID') && (
                       <button
                         onClick={() => {
-                          handleDownloadPayslip(selectedPayroll.id)
-                          setShowDetailModal(false)
+                          handleDownloadPayslip(selectedPayroll.id, false)
                         }}
                         className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold flex items-center gap-2"
                       >
@@ -1041,101 +1081,250 @@ const Payroll = () => {
       )}
 
       {/* Edit Payroll Modal */}
-      {showEditModal && editingPayroll && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-orange-600 flex items-center gap-3">
-                <Edit size={24} />
-                Edit Payroll
-              </h3>
-              <button
-                onClick={() => {
-                  setShowEditModal(false)
-                  setEditingPayroll(null)
-                }}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Base Salary</label>
-                <input
-                  type="number"
-                  value={editingPayroll.baseSalary || 0}
-                  onChange={(e) => setEditingPayroll({ ...editingPayroll, baseSalary: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Allowances</label>
-                <input
-                  type="number"
-                  value={editingPayroll.allowances || 0}
-                  onChange={(e) => setEditingPayroll({ ...editingPayroll, allowances: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Bonus</label>
-                <input
-                  type="number"
-                  value={editingPayroll.bonus || 0}
-                  onChange={(e) => setEditingPayroll({ ...editingPayroll, bonus: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Deductions</label>
-                <input
-                  type="number"
-                  value={editingPayroll.deductions || 0}
-                  onChange={(e) => setEditingPayroll({ ...editingPayroll, deductions: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
-                <textarea
-                  value={editingPayroll.notes || ''}
-                  onChange={(e) => setEditingPayroll({ ...editingPayroll, notes: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-700">Net Salary (Calculated):</span>
-                  <span className="text-xl font-bold text-blue-700">
-                    ₹{((editingPayroll.baseSalary || 0) + (editingPayroll.allowances || 0) + (editingPayroll.bonus || 0) - (editingPayroll.deductions || 0)).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
+      {showEditModal && editingPayroll && (() => {
+        const employee = employees.find(emp => emp.id === editingPayroll.employeeId)
+        const calculatedNetSalary = (editingPayroll.baseSalary || 0) + (editingPayroll.allowances || 0) + (editingPayroll.bonus || 0) - (editingPayroll.deductions || 0)
+        const calculatedGrossSalary = (editingPayroll.baseSalary || 0) + (editingPayroll.allowances || 0) + (editingPayroll.bonus || 0)
+        
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-orange-600 flex items-center gap-3">
+                  <Edit size={24} />
+                  Edit Payroll
+                </h3>
                 <button
                   onClick={() => {
                     setShowEditModal(false)
                     setEditingPayroll(null)
                   }}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold"
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
                 >
-                  Cancel
+                  ×
                 </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="px-6 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 font-semibold flex items-center gap-2"
-                >
-                  <Save size={18} />
-                  Save Changes
-                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Employee Information (Read-only) */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
+                    <FileText size={18} />
+                    Employee Information
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Employee Name</label>
+                      <p className="text-sm font-medium text-gray-800">{employee?.name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Employee ID</label>
+                      <p className="text-sm font-medium text-gray-800">{editingPayroll.employeeId || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Department</label>
+                      <p className="text-sm font-medium text-gray-800">{employee?.department || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Position</label>
+                      <p className="text-sm font-medium text-gray-800">{employee?.position || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pay Period Information (Read-only) */}
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <Calendar size={18} />
+                    Pay Period
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Month</label>
+                      <p className="text-sm font-medium text-gray-800">{editingPayroll.month || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Year</label>
+                      <p className="text-sm font-medium text-gray-800">{editingPayroll.year || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                        editingPayroll.status === 'DRAFT' ? 'bg-gray-100 text-gray-800' :
+                        editingPayroll.status === 'PENDING_APPROVAL' ? 'bg-yellow-100 text-yellow-800' :
+                        editingPayroll.status === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
+                        editingPayroll.status === 'FINALIZED' ? 'bg-green-100 text-green-800' :
+                        'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {editingPayroll.status || 'DRAFT'}
+                      </span>
+                    </div>
+                  </div>
+                  {(editingPayroll.startDate || editingPayroll.endDate) && (
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+                        <p className="text-sm font-medium text-gray-800">
+                          {editingPayroll.startDate ? format(new Date(editingPayroll.startDate), 'dd MMM yyyy') : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+                        <p className="text-sm font-medium text-gray-800">
+                          {editingPayroll.endDate ? format(new Date(editingPayroll.endDate), 'dd MMM yyyy') : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Editable Salary Fields */}
+                <div className="space-y-4">
+                  <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <DollarSign size={18} />
+                    Salary Details
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Base Salary <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editingPayroll.baseSalary || 0}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0
+                            setEditingPayroll({ ...editingPayroll, baseSalary: value })
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Allowances</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editingPayroll.allowances || 0}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0
+                            setEditingPayroll({ ...editingPayroll, allowances: value })
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Bonus</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editingPayroll.bonus || 0}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0
+                            setEditingPayroll({ ...editingPayroll, bonus: value })
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Deductions</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editingPayroll.deductions || 0}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0
+                            setEditingPayroll({ ...editingPayroll, deductions: value })
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calculated Values */}
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-700">Gross Salary:</span>
+                        <span className="text-lg font-bold text-green-700">
+                          ₹{calculatedGrossSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Base + Allowances + Bonus</p>
+                    </div>
+                    
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-700">Net Salary:</span>
+                        <span className="text-lg font-bold text-blue-700">
+                          ₹{calculatedNetSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Gross - Deductions</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                  <textarea
+                    value={editingPayroll.notes || ''}
+                    onChange={(e) => setEditingPayroll({ ...editingPayroll, notes: e.target.value })}
+                    rows={4}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="Add any additional notes or remarks..."
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false)
+                      setEditingPayroll(null)
+                    }}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    className="px-6 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 font-semibold flex items-center gap-2 transition-colors"
+                  >
+                    <Save size={18} />
+                    Save Changes
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

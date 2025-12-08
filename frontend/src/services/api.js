@@ -676,7 +676,52 @@ const api = {
       return { success: false, message: error.message }
     }
   },
-  downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
+  downloadPayslip: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`)
+      
+      // Check content type first
+      const contentType = response.headers.get('content-type') || ''
+      
+      if (!response.ok) {
+        // Try to parse as JSON error response
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.message || errorData.error || `Failed to download payslip: ${response.status}`)
+        } else {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          throw new Error(`Failed to download payslip: ${response.status} ${response.statusText}. ${errorText}`)
+        }
+      }
+      
+      // Check if response is PDF
+      if (!contentType.includes('pdf') && !contentType.includes('application/octet-stream')) {
+        // Might be JSON error
+        try {
+          const errorData = await response.json()
+          throw new Error(errorData.message || errorData.error || 'Invalid response format')
+        } catch (jsonError) {
+          console.warn('Response is not a PDF. Content-Type:', contentType)
+        }
+      }
+      
+      const blob = await response.blob()
+      
+      // Check if blob is empty or too small (likely an error)
+      if (blob.size < 100) {
+        // Try to read as text to see if it's an error message
+        const text = await blob.text()
+        if (text.includes('error') || text.includes('Error')) {
+          throw new Error('Payslip generation failed: ' + text)
+        }
+      }
+      
+      return blob
+    } catch (error) {
+      console.error('Download payslip API error:', error)
+      throw error
+    }
+  },
   downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
 }
 

@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -236,14 +237,14 @@ public class PayrollController {
     }
 
     @GetMapping("/{id}/payslip")
-    public ResponseEntity<byte[]> generatePayslipPDF(@PathVariable Long id) {
+    public ResponseEntity<?> generatePayslipPDF(@PathVariable Long id) {
         try {
             Payroll payroll = payrollService.getPayrollById(id)
                     .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
-            SalaryStructure salaryStructure = salaryStructureService
-                    .getCurrentSalaryStructure(payroll.getEmployeeId())
-                    .orElseThrow(() -> new RuntimeException("Salary structure not found"));
+            // Try to get salary structure, but use payroll data as fallback
+            Optional<SalaryStructure> salaryStructureOpt = salaryStructureService
+                    .getCurrentSalaryStructure(payroll.getEmployeeId());
 
             Map<String, Object> payslipData = new HashMap<>();
             payslipData.put("employeeName", payroll.getEmployee() != null ? payroll.getEmployee().getName() : "");
@@ -252,26 +253,82 @@ public class PayrollController {
             payslipData.put("designation", payroll.getEmployee() != null ? payroll.getEmployee().getPosition() : "");
             payslipData.put("payPeriod", payroll.getMonth() + " " + (payroll.getYear() != null ? payroll.getYear() : ""));
             payslipData.put("payDate", LocalDate.now().toString());
-            payslipData.put("basicSalary", salaryStructure.getBasicSalary());
-            payslipData.put("hra", salaryStructure.getHra());
-            payslipData.put("allowances", salaryStructure.getTransportAllowance() + 
-                          (salaryStructure.getMedicalAllowance() != null ? salaryStructure.getMedicalAllowance() : 0));
-            payslipData.put("grossSalary", salaryStructure.getGrossSalary());
-            payslipData.put("pf", salaryStructure.getPf());
-            payslipData.put("esi", salaryStructure.getEsi());
-            payslipData.put("tds", salaryStructure.getTds());
-            payslipData.put("totalDeductions", salaryStructure.getGrossSalary() - salaryStructure.getNetSalary());
-            payslipData.put("netSalary", payroll.getNetSalary());
+            
+            if (salaryStructureOpt.isPresent()) {
+                // Use salary structure data if available
+                SalaryStructure salaryStructure = salaryStructureOpt.get();
+                Double basicSalary = salaryStructure.getBasicSalary();
+                Double grossSalary = salaryStructure.getGrossSalary();
+                Double netSalary = salaryStructure.getNetSalary();
+                
+                payslipData.put("basicSalary", basicSalary != null ? basicSalary : (payroll.getBaseSalary() != null ? payroll.getBaseSalary() : 0.0));
+                payslipData.put("hra", salaryStructure.getHra());
+                Double transportAllowance = salaryStructure.getTransportAllowance() != null ? salaryStructure.getTransportAllowance() : 0.0;
+                Double medicalAllowance = salaryStructure.getMedicalAllowance() != null ? salaryStructure.getMedicalAllowance() : 0.0;
+                payslipData.put("allowances", transportAllowance + medicalAllowance);
+                payslipData.put("grossSalary", grossSalary != null ? grossSalary : (payroll.getAmount() != null ? payroll.getAmount() : 0.0));
+                payslipData.put("pf", salaryStructure.getPf());
+                payslipData.put("esi", salaryStructure.getEsi());
+                payslipData.put("tds", salaryStructure.getTds());
+                Double totalDeductions = (grossSalary != null && netSalary != null) ? (grossSalary - netSalary) : 
+                                       (payroll.getDeductions() != null ? payroll.getDeductions() : 0.0);
+                payslipData.put("totalDeductions", totalDeductions);
+            } else {
+                // Use payroll data when salary structure is not available
+                Double baseSalary = payroll.getBaseSalary() != null ? payroll.getBaseSalary() : 0.0;
+                Double allowances = payroll.getAllowances() != null ? payroll.getAllowances() : 0.0;
+                Double bonus = payroll.getBonus() != null ? payroll.getBonus() : 0.0;
+                Double deductions = payroll.getDeductions() != null ? payroll.getDeductions() : 0.0;
+                Double grossSalary = payroll.getAmount() != null ? payroll.getAmount() : (baseSalary + allowances + bonus);
+                
+                payslipData.put("basicSalary", baseSalary);
+                payslipData.put("hra", null);
+                payslipData.put("allowances", allowances);
+                payslipData.put("grossSalary", grossSalary);
+                payslipData.put("pf", null);
+                payslipData.put("esi", null);
+                payslipData.put("tds", null);
+                payslipData.put("totalDeductions", deductions);
+            }
+            
+            Double netSalary = payroll.getNetSalary() != null ? payroll.getNetSalary() : 
+                             (payroll.getAmount() != null ? payroll.getAmount() : 0.0);
+            payslipData.put("netSalary", netSalary);
 
             byte[] pdfBytes = pdfGeneratorService.generatePayslip(payslipData);
+            
+            if (pdfBytes == null || pdfBytes.length == 0) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Failed to generate payslip PDF");
+                errorResponse.put("message", "PDF generation returned empty data");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(errorResponse);
+            }
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
-            headers.setContentDispositionFormData("attachment", "payslip_" + id + ".pdf");
+            headers.setContentDispositionFormData("inline", "payslip_" + id + ".pdf");
+            headers.setCacheControl("no-cache, no-store, must-revalidate");
+            headers.setPragma("no-cache");
+            headers.setExpires(0);
 
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            errorResponse.put("message", "Cannot generate payslip: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(errorResponse);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            e.printStackTrace();
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Internal server error");
+            errorResponse.put("message", "Failed to generate payslip: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(errorResponse);
         }
     }
 
