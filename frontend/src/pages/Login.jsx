@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Building2, Lock, Mail, User, Shield } from 'lucide-react'
 import api from '../services/api'
+import { isAuthenticated } from '../utils/auth'
 
 const Login = () => {
   const [loginType, setLoginType] = useState('admin') // 'admin' or 'employee'
@@ -13,6 +14,12 @@ const Login = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
+    // If already authenticated, redirect to dashboard
+    if (isAuthenticated()) {
+      navigate('/dashboard', { replace: true })
+      return
+    }
+
     const checkSuperAdmin = async () => {
       try {
         const response = await api.checkSuperAdminExists()
@@ -44,14 +51,8 @@ const Login = () => {
       if (loginType === 'admin') {
         response = await api.login(email, password)
         if (response && response.success) {
-          // Store JWT tokens
-          if (response.token) {
-            localStorage.setItem('token', response.token)
-          }
-          if (response.refreshToken) {
-            localStorage.setItem('refreshToken', response.refreshToken)
-          }
-          // Store user info
+          // Tokens are now stored in HttpOnly cookies by backend
+          // Only store user info in localStorage
           localStorage.setItem('isAuthenticated', 'true')
           localStorage.setItem('userEmail', response.user.email)
           localStorage.setItem('userName', response.user.name)
@@ -66,14 +67,8 @@ const Login = () => {
         // Employee login
         response = await api.employeeLogin(email, password)
         if (response && response.success) {
-          // Store JWT tokens
-          if (response.token) {
-            localStorage.setItem('token', response.token)
-          }
-          if (response.refreshToken) {
-            localStorage.setItem('refreshToken', response.refreshToken)
-          }
-          // Store employee info
+          // Tokens are now stored in HttpOnly cookies by backend
+          // Only store employee info in localStorage
           localStorage.setItem('isAuthenticated', 'true')
           localStorage.setItem('userEmail', response.employee.email)
           localStorage.setItem('userName', response.employee.name)

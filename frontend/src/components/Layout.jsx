@@ -1,4 +1,5 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import api from '../services/api'
 import { 
   LayoutDashboard, 
   Users, 
@@ -56,18 +57,25 @@ const Layout = () => {
 
   const menuItems = isEmployee ? employeeMenuItems : adminMenuItems
 
-  const handleLogout = () => {
-    // Clear all authentication data
-    localStorage.removeItem('isAuthenticated')
-    localStorage.removeItem('userEmail')
-    localStorage.removeItem('userName')
-    localStorage.removeItem('userRole')
-    localStorage.removeItem('userId')
-    localStorage.removeItem('userType')
-    localStorage.removeItem('employeeDepartment')
-    localStorage.removeItem('employeePosition')
-    // Force navigation to login page
-    window.location.href = '/login'
+  const handleLogout = async () => {
+    try {
+      // Call backend logout to clear HttpOnly cookies
+      await api.logout()
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // Clear localStorage
+      localStorage.removeItem('isAuthenticated')
+      localStorage.removeItem('userEmail')
+      localStorage.removeItem('userName')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userType')
+      localStorage.removeItem('employeeDepartment')
+      localStorage.removeItem('employeePosition')
+      // Force navigation to login page
+      window.location.href = '/login'
+    }
   }
 
   return (

@@ -16,6 +16,7 @@ import HRTickets from './pages/HRTickets'
 import Recruitment from './pages/Recruitment'
 import Analytics from './pages/Analytics'
 import InitialRoute from './components/InitialRoute'
+import { isAuthenticated } from './utils/auth'
 
 function App() {
   return (
@@ -48,9 +49,8 @@ function App() {
 
 // Protected Route Component
 function ProtectedRoute() {
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
-  
-  if (!isAuthenticated) {
+  // Check for valid JWT token, not just the flag
+  if (!isAuthenticated()) {
     return <Navigate to="/login" replace />
   }
   

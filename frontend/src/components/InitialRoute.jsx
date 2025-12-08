@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import { isAuthenticated } from '../utils/auth'
 
 const InitialRoute = () => {
   const navigate = useNavigate()
@@ -8,6 +9,14 @@ const InitialRoute = () => {
 
   useEffect(() => {
     const checkAndRedirect = async () => {
+      // First check if user is already authenticated
+      if (isAuthenticated()) {
+        navigate('/dashboard', { replace: true })
+        setChecking(false)
+        return
+      }
+
+      // If not authenticated, check if super admin exists
       try {
         const response = await api.checkSuperAdminExists()
         if (response.exists) {

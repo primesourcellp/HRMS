@@ -1,26 +1,9 @@
 const API_BASE_URL = 'http://localhost:8080/api'
 
-// Helper function to get JWT token from localStorage
-const getToken = () => {
-  return localStorage.getItem('token')
-}
-
-// Helper function to get headers with authentication
-const getAuthHeaders = () => {
-  const token = getToken()
-  const headers = { 'Content-Type': 'application/json' }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  return headers
-}
-
-// Helper function to handle API requests with auth
+// Helper function to handle API requests with cookies (HttpOnly)
 const fetchWithAuth = async (url, options = {}) => {
-  const token = getToken()
   const headers = {
-    ...(options.headers || {}),
-    ...(token && { 'Authorization': `Bearer ${token}` })
+    ...(options.headers || {})
   }
   
   // Don't override Content-Type if it's FormData (browser sets it automatically)
@@ -30,44 +13,38 @@ const fetchWithAuth = async (url, options = {}) => {
     headers['Content-Type'] = 'application/json'
   }
   
+  // Include credentials (cookies) in all requests
   const response = await fetch(url, {
     ...options,
-    headers
+    headers,
+    credentials: 'include' // Required for HttpOnly cookies
   })
   
   // If token is invalid or expired, try to refresh
-  if (response.status === 401 && token) {
-    const refreshToken = localStorage.getItem('refreshToken')
-    if (refreshToken) {
-      try {
-        const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
+  if (response.status === 401) {
+    try {
+      // Refresh token is also in HttpOnly cookie, so just call refresh endpoint
+      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include' // Cookies are automatically sent
+      })
+      
+      if (refreshResponse.ok) {
+        // New access token is set in cookie by backend
+        // Retry original request
+        return fetch(url, {
+          ...options,
+          headers,
+          credentials: 'include'
         })
-        
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json()
-          if (refreshData.token) {
-            localStorage.setItem('token', refreshData.token)
-            // Retry original request with new token
-            headers['Authorization'] = `Bearer ${refreshData.token}`
-            return fetch(url, {
-              ...options,
-              headers
-            })
-          }
-        }
-      } catch (err) {
-        console.error('Token refresh failed:', err)
       }
+    } catch (err) {
+      console.error('Token refresh failed:', err)
     }
     
-    // If refresh fails, clear tokens and redirect to login
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('isAuthenticated')
-    if (window.location.pathname !== '/login') {
+    // If refresh fails, clear auth data and redirect to login
+    // Note: Cookies are cleared by backend logout endpoint
+    if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
       window.location.href = '/login'
     }
   }
@@ -80,7 +57,8 @@ const api = {
   register: (userData) => fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData)
+    body: JSON.stringify(userData),
+    credentials: 'include'
   }).then(res => res.json()),
 
   login: async (email, password) => {
@@ -88,7 +66,8 @@ const api = {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        credentials: 'include' // Required for cookies
       })
       
       if (!response.ok) {
@@ -108,7 +87,8 @@ const api = {
       const response = await fetch(`${API_BASE_URL}/auth/employee/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        credentials: 'include' // Required for cookies
       })
       
       if (!response.ok) {
@@ -123,14 +103,22 @@ const api = {
     }
   },
 
-  checkAuth: (email) => fetch(`${API_BASE_URL}/auth/check?email=${encodeURIComponent(email)}`).then(res => res.json()),
+  checkAuth: (email) => fetch(`${API_BASE_URL}/auth/check?email=${encodeURIComponent(email)}`, {
+    credentials: 'include'
+  }).then(res => res.json()),
 
-  checkSuperAdminExists: () => fetch(`${API_BASE_URL}/auth/check-superadmin`).then(res => res.json()),
+  checkSuperAdminExists: () => fetch(`${API_BASE_URL}/auth/check-superadmin`, {
+    credentials: 'include'
+  }).then(res => res.json()),
 
-  refreshToken: (refreshToken) => fetch(`${API_BASE_URL}/auth/refresh`, {
+  refreshToken: () => fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken })
+    credentials: 'include' // Cookies are automatically sent
+  }).then(res => res.json()),
+
+  logout: () => fetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include' // Cookies are automatically sent
   }).then(res => res.json()),
 
   // Users
@@ -201,49 +189,50 @@ const api = {
   // Leaves
   getLeaves: (status) => {
     const url = status ? `${API_BASE_URL}/leaves?status=${status}` : `${API_BASE_URL}/leaves`
-    return fetch(url).then(res => res.json())
+    return fetchWithAuth(url).then(res => res.json())
   },
-  getPendingLeaves: () => fetch(`${API_BASE_URL}/leaves/pending`).then(res => res.json()),
-  getLeavesByEmployee: (employeeId) => fetch(`${API_BASE_URL}/leaves/employee/${employeeId}`).then(res => res.json()),
-  deleteLeave: (id) => fetch(`${API_BASE_URL}/leaves/${id}`, { method: 'DELETE' }).then(res => res.json()),
-  createLeave: (leave) => fetch(`${API_BASE_URL}/leaves`, {
+  getPendingLeaves: () => fetchWithAuth(`${API_BASE_URL}/leaves/pending`).then(res => res.json()),
+  getLeavesByEmployee: (employeeId) => fetchWithAuth(`${API_BASE_URL}/leaves/employee/${employeeId}`).then(res => res.json()),
+  deleteLeave: (id) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}`, { method: 'DELETE' }).then(res => res.json()),
+  createLeave: (leave) => fetchWithAuth(`${API_BASE_URL}/leaves`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(leave)
   }).then(res => res.json()),
-  approveLeave: (id, approvedBy) => fetch(`${API_BASE_URL}/leaves/${id}/approve`, {
+  approveLeave: (id, approvedBy) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ approvedBy })
   }).then(res => res.json()),
-  rejectLeave: (id, approvedBy, rejectionReason) => fetch(`${API_BASE_URL}/leaves/${id}/reject`, {
+  rejectLeave: (id, approvedBy, rejectionReason) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ approvedBy, rejectionReason })
   }).then(res => res.json()),
-  updateLeaveStatus: (id, status) => fetch(`${API_BASE_URL}/leaves/${id}/status`, {
+  updateLeaveStatus: (id, status) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/status`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status })
   }).then(res => res.json()),
 
   // Payrolls
-  getPayrolls: () => fetch(`${API_BASE_URL}/payrolls`).then(res => res.json()),
-  createPayroll: (payroll) => fetch(`${API_BASE_URL}/payrolls`, {
+  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payrolls`).then(res => res.json()),
+  createPayroll: (payroll) => fetchWithAuth(`${API_BASE_URL}/payrolls`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payroll)
   }).then(res => res.json()),
 
   // Performance
-  getPerformance: () => fetch(`${API_BASE_URL}/performance`).then(res => res.json()),
-  createPerformance: (performance) => fetch(`${API_BASE_URL}/performance`, {
+  getPerformance: () => fetchWithAuth(`${API_BASE_URL}/performance`).then(res => res.json()),
+  createPerformance: (performance) => fetchWithAuth(`${API_BASE_URL}/performance`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(performance)
   }).then(res => res.json()),
 
   // Dashboard
+<<<<<<< Updated upstream
   getDashboardStats: async (date, employeeId) => {
     try {
       let url = `${API_BASE_URL}/dashboard/stats`
@@ -261,17 +250,26 @@ const api = {
       console.error('Error fetching dashboard stats:', error)
       return {}
     }
+=======
+  getDashboardStats: (date, employeeId) => {
+    let url = `${API_BASE_URL}/dashboard/stats`
+    const params = new URLSearchParams()
+    if (date) params.append('date', date)
+    if (employeeId) params.append('employeeId', employeeId)
+    if (params.toString()) url += `?${params.toString()}`
+    return fetchWithAuth(url).then(res => res.json())
+>>>>>>> Stashed changes
   },
 
   // Documents
-  uploadDocument: (formData) => fetch(`${API_BASE_URL}/documents/upload`, {
+  uploadDocument: (formData) => fetchWithAuth(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',
     body: formData
   }).then(res => res.json()),
-  getEmployeeDocuments: (employeeId) => fetch(`${API_BASE_URL}/documents/employee/${employeeId}`).then(res => res.json()),
+  getEmployeeDocuments: (employeeId) => fetchWithAuth(`${API_BASE_URL}/documents/employee/${employeeId}`).then(res => res.json()),
   downloadDocument: async (id) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/documents/${id}/download`)
+      const response = await fetchWithAuth(`${API_BASE_URL}/documents/${id}/download`)
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error')
         throw new Error(`Failed to download document: ${response.status} ${response.statusText}`)
@@ -282,47 +280,47 @@ const api = {
       throw error
     }
   },
-  verifyDocument: (id, verified) => fetch(`${API_BASE_URL}/documents/${id}/verify`, {
+  verifyDocument: (id, verified) => fetchWithAuth(`${API_BASE_URL}/documents/${id}/verify`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ verified })
   }).then(res => res.json()),
-  deleteDocument: (id) => fetch(`${API_BASE_URL}/documents/${id}`, { method: 'DELETE' }).then(res => res.json()),
+  deleteDocument: (id) => fetchWithAuth(`${API_BASE_URL}/documents/${id}`, { method: 'DELETE' }).then(res => res.json()),
 
   // Shifts
-  getShifts: () => fetch(`${API_BASE_URL}/shifts`).then(res => res.json()),
-  getActiveShifts: () => fetch(`${API_BASE_URL}/shifts/active`).then(res => res.json()),
-  createShift: (shift) => fetch(`${API_BASE_URL}/shifts`, {
+  getShifts: () => fetchWithAuth(`${API_BASE_URL}/shifts`).then(res => res.json()),
+  getActiveShifts: () => fetchWithAuth(`${API_BASE_URL}/shifts/active`).then(res => res.json()),
+  createShift: (shift) => fetchWithAuth(`${API_BASE_URL}/shifts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(shift)
   }).then(res => res.json()),
-  updateShift: (id, shift) => fetch(`${API_BASE_URL}/shifts/${id}`, {
+  updateShift: (id, shift) => fetchWithAuth(`${API_BASE_URL}/shifts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(shift)
   }).then(res => res.json()),
-  deleteShift: (id) => fetch(`${API_BASE_URL}/shifts/${id}`, { method: 'DELETE' }).then(res => res.json()),
+  deleteShift: (id) => fetchWithAuth(`${API_BASE_URL}/shifts/${id}`, { method: 'DELETE' }).then(res => res.json()),
 
   // Leave Types
-  getLeaveTypes: () => fetch(`${API_BASE_URL}/leave-types`).then(res => res.json()),
-  getActiveLeaveTypes: () => fetch(`${API_BASE_URL}/leave-types/active`).then(res => res.json()),
-  createLeaveType: (leaveType) => fetch(`${API_BASE_URL}/leave-types`, {
+  getLeaveTypes: () => fetchWithAuth(`${API_BASE_URL}/leave-types`).then(res => res.json()),
+  getActiveLeaveTypes: () => fetchWithAuth(`${API_BASE_URL}/leave-types/active`).then(res => res.json()),
+  createLeaveType: (leaveType) => fetchWithAuth(`${API_BASE_URL}/leave-types`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(leaveType)
   }).then(res => res.json()),
-  updateLeaveType: (id, leaveType) => fetch(`${API_BASE_URL}/leave-types/${id}`, {
+  updateLeaveType: (id, leaveType) => fetchWithAuth(`${API_BASE_URL}/leave-types/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(leaveType)
   }).then(res => res.json()),
-  deleteLeaveType: (id) => fetch(`${API_BASE_URL}/leave-types/${id}`, { method: 'DELETE' }).then(res => res.json()),
+  deleteLeaveType: (id) => fetchWithAuth(`${API_BASE_URL}/leave-types/${id}`, { method: 'DELETE' }).then(res => res.json()),
 
   // Holidays
-  getHolidays: () => fetch(`${API_BASE_URL}/holidays`).then(res => res.json()),
-  getHolidaysByYear: (year) => fetch(`${API_BASE_URL}/holidays/year/${year}`).then(res => res.json()),
-  createHoliday: (holiday) => fetch(`${API_BASE_URL}/holidays`, {
+  getHolidays: () => fetchWithAuth(`${API_BASE_URL}/holidays`).then(res => res.json()),
+  getHolidaysByYear: (year) => fetchWithAuth(`${API_BASE_URL}/holidays/year/${year}`).then(res => res.json()),
+  createHoliday: (holiday) => fetchWithAuth(`${API_BASE_URL}/holidays`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(holiday)
@@ -331,59 +329,60 @@ const api = {
   // Leave Balances
   getLeaveBalances: (employeeId, year) => {
     const url = year ? `${API_BASE_URL}/leave-balances/employee/${employeeId}?year=${year}` : `${API_BASE_URL}/leave-balances/employee/${employeeId}`
-    return fetch(url).then(res => res.json())
+    return fetchWithAuth(url).then(res => res.json())
   },
   initializeLeaveBalances: (employeeId, year) => {
     const url = year 
       ? `${API_BASE_URL}/leave-balances/initialize/${employeeId}?year=${year}`
       : `${API_BASE_URL}/leave-balances/initialize/${employeeId}`
-    return fetch(url, { method: 'POST' }).then(res => res.json())
+    return fetchWithAuth(url, { method: 'POST' }).then(res => res.json())
   },
   assignLeaveBalance: (employeeId, leaveTypeId, totalDays, year) => {
     const url = year 
       ? `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}&year=${year}`
       : `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}`
-    return fetch(url, { method: 'POST' }).then(res => res.json())
+    return fetchWithAuth(url, { method: 'POST' }).then(res => res.json())
   },
 
   // Salary Structures
-  getCurrentSalaryStructure: (employeeId) => fetch(`${API_BASE_URL}/salary-structures/employee/${employeeId}`).then(res => res.json()),
-  createSalaryStructure: (salaryStructure) => fetch(`${API_BASE_URL}/salary-structures`, {
+  getCurrentSalaryStructure: (employeeId) => fetchWithAuth(`${API_BASE_URL}/salary-structures/employee/${employeeId}`).then(res => res.json()),
+  createSalaryStructure: (salaryStructure) => fetchWithAuth(`${API_BASE_URL}/salary-structures`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(salaryStructure)
   }).then(res => res.json()),
 
   // HR Tickets
-  getTickets: () => fetch(`${API_BASE_URL}/tickets`).then(res => res.json()),
-  getEmployeeTickets: (employeeId) => fetch(`${API_BASE_URL}/tickets/employee/${employeeId}`).then(res => res.json()),
-  getTicketsByStatus: (status) => fetch(`${API_BASE_URL}/tickets/status/${status}`).then(res => res.json()),
-  createTicket: (ticket) => fetch(`${API_BASE_URL}/tickets`, {
+  getTickets: () => fetchWithAuth(`${API_BASE_URL}/tickets`).then(res => res.json()),
+  getEmployeeTickets: (employeeId) => fetchWithAuth(`${API_BASE_URL}/tickets/employee/${employeeId}`).then(res => res.json()),
+  getTicketsByStatus: (status) => fetchWithAuth(`${API_BASE_URL}/tickets/status/${status}`).then(res => res.json()),
+  createTicket: (ticket) => fetchWithAuth(`${API_BASE_URL}/tickets`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ticket)
   }).then(res => res.json()),
-  updateTicket: (id, ticket) => fetch(`${API_BASE_URL}/tickets/${id}`, {
+  updateTicket: (id, ticket) => fetchWithAuth(`${API_BASE_URL}/tickets/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ticket)
   }).then(res => res.json()),
 
   // Recruitment
-  getJobPostings: () => fetch(`${API_BASE_URL}/recruitment/jobs`).then(res => res.json()),
-  createJobPosting: (jobPosting) => fetch(`${API_BASE_URL}/recruitment/jobs`, {
+  getJobPostings: () => fetchWithAuth(`${API_BASE_URL}/recruitment/jobs`).then(res => res.json()),
+  createJobPosting: (jobPosting) => fetchWithAuth(`${API_BASE_URL}/recruitment/jobs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(jobPosting)
   }).then(res => res.json()),
-  getApplicants: (jobPostingId) => fetch(`${API_BASE_URL}/recruitment/applicants/job/${jobPostingId}`).then(res => res.json()),
-  createApplicant: (applicant) => fetch(`${API_BASE_URL}/recruitment/applicants`, {
+  getApplicants: (jobPostingId) => fetchWithAuth(`${API_BASE_URL}/recruitment/applicants/job/${jobPostingId}`).then(res => res.json()),
+  createApplicant: (applicant) => fetchWithAuth(`${API_BASE_URL}/recruitment/applicants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(applicant)
   }).then(res => res.json()),
 
   // Payroll
+<<<<<<< Updated upstream
   getPayrolls: async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/payroll`)
@@ -472,6 +471,15 @@ const api = {
   },
   downloadPayslip: (id) => fetch(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
   downloadForm16: (employeeId, assessmentYear) => fetch(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
+=======
+  getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payroll`).then(res => res.json()),
+  getEmployeePayrolls: (employeeId) => fetchWithAuth(`${API_BASE_URL}/payroll/employee/${employeeId}`).then(res => res.json()),
+  generatePayroll: (employeeId, month, year) => fetchWithAuth(`${API_BASE_URL}/payroll/generate?employeeId=${employeeId}&month=${month}&year=${year}`, {
+    method: 'POST'
+  }).then(res => res.json()),
+  downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
+  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
+>>>>>>> Stashed changes
 }
 
 export default api

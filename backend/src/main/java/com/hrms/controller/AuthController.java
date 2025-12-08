@@ -22,6 +22,10 @@ import com.hrms.service.EmployeeService;
 import com.hrms.service.UserService;
 import com.hrms.util.JwtUtil;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "http://localhost:3000")
@@ -98,7 +102,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> credentials) {
+    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> credentials, HttpServletResponse httpResponse) {
         Map<String, Object> response = new HashMap<>();
         
         try {
@@ -130,10 +134,26 @@ public class AuthController {
                         "admin"
                     );
                     
+                    // Set HttpOnly cookies for secure token storage
+                    Cookie accessTokenCookie = new Cookie("accessToken", token);
+                    accessTokenCookie.setHttpOnly(true);
+                    accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
+                    accessTokenCookie.setPath("/");
+                    accessTokenCookie.setMaxAge(86400); // 24 hours in seconds
+                    accessTokenCookie.setAttribute("SameSite", "Lax");
+                    httpResponse.addCookie(accessTokenCookie);
+                    
+                    Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+                    refreshTokenCookie.setHttpOnly(true);
+                    refreshTokenCookie.setSecure(false); // Set to true in production with HTTPS
+                    refreshTokenCookie.setPath("/");
+                    refreshTokenCookie.setMaxAge(604800); // 7 days in seconds
+                    refreshTokenCookie.setAttribute("SameSite", "Lax");
+                    httpResponse.addCookie(refreshTokenCookie);
+                    
                     response.put("success", true);
                     response.put("message", "Login successful");
-                    response.put("token", token);
-                    response.put("refreshToken", refreshToken);
+                    // Don't return tokens in response body for security
                     response.put("user", Map.of(
                         "id", user.get().getId(),
                         "email", user.get().getEmail(),
@@ -184,7 +204,7 @@ public class AuthController {
     }
 
     @PostMapping("/employee/login")
-    public ResponseEntity<Map<String, Object>> employeeLogin(@RequestBody Map<String, String> credentials) {
+    public ResponseEntity<Map<String, Object>> employeeLogin(@RequestBody Map<String, String> credentials, HttpServletResponse httpResponse) {
         Map<String, Object> response = new HashMap<>();
         
         try {
@@ -216,10 +236,26 @@ public class AuthController {
                         "employee"
                     );
                     
+                    // Set HttpOnly cookies for secure token storage
+                    Cookie accessTokenCookie = new Cookie("accessToken", token);
+                    accessTokenCookie.setHttpOnly(true);
+                    accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
+                    accessTokenCookie.setPath("/");
+                    accessTokenCookie.setMaxAge(86400); // 24 hours in seconds
+                    accessTokenCookie.setAttribute("SameSite", "Lax");
+                    httpResponse.addCookie(accessTokenCookie);
+                    
+                    Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+                    refreshTokenCookie.setHttpOnly(true);
+                    refreshTokenCookie.setSecure(false); // Set to true in production with HTTPS
+                    refreshTokenCookie.setPath("/");
+                    refreshTokenCookie.setMaxAge(604800); // 7 days in seconds
+                    refreshTokenCookie.setAttribute("SameSite", "Lax");
+                    httpResponse.addCookie(refreshTokenCookie);
+                    
                     response.put("success", true);
                     response.put("message", "Login successful");
-                    response.put("token", token);
-                    response.put("refreshToken", refreshToken);
+                    // Don't return tokens in response body for security
                     response.put("employee", Map.of(
                         "id", employee.get().getId(),
                         "email", employee.get().getEmail(),
@@ -244,11 +280,21 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, Object>> refreshToken(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, Object>> refreshToken(HttpServletRequest request, HttpServletResponse httpResponse) {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            String refreshToken = request.get("refreshToken");
+            // Get refresh token from cookie
+            String refreshToken = null;
+            Cookie[] cookies = request.getCookies();
+            if (cookies != null) {
+                for (Cookie cookie : cookies) {
+                    if ("refreshToken".equals(cookie.getName())) {
+                        refreshToken = cookie.getValue();
+                        break;
+                    }
+                }
+            }
             
             if (refreshToken == null || refreshToken.isEmpty()) {
                 response.put("success", false);
@@ -272,8 +318,18 @@ public class AuthController {
             // Generate new access token
             String newToken = jwtUtil.generateToken(email, role, id, userType);
             
+            // Set new access token in HttpOnly cookie
+            Cookie accessTokenCookie = new Cookie("accessToken", newToken);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge(86400); // 24 hours in seconds
+            accessTokenCookie.setAttribute("SameSite", "Lax");
+            httpResponse.addCookie(accessTokenCookie);
+            
             response.put("success", true);
-            response.put("token", newToken);
+            response.put("message", "Token refreshed successfully");
+            // Don't return token in response body
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
@@ -281,6 +337,31 @@ public class AuthController {
             response.put("message", "Token refresh failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, Object>> logout(HttpServletResponse httpResponse) {
+        Map<String, Object> response = new HashMap<>();
+        
+        // Clear access token cookie
+        Cookie accessTokenCookie = new Cookie("accessToken", null);
+        accessTokenCookie.setHttpOnly(true);
+        accessTokenCookie.setSecure(false);
+        accessTokenCookie.setPath("/");
+        accessTokenCookie.setMaxAge(0); // Delete cookie
+        httpResponse.addCookie(accessTokenCookie);
+        
+        // Clear refresh token cookie
+        Cookie refreshTokenCookie = new Cookie("refreshToken", null);
+        refreshTokenCookie.setHttpOnly(true);
+        refreshTokenCookie.setSecure(false);
+        refreshTokenCookie.setPath("/");
+        refreshTokenCookie.setMaxAge(0); // Delete cookie
+        httpResponse.addCookie(refreshTokenCookie);
+        
+        response.put("success", true);
+        response.put("message", "Logged out successfully");
+        return ResponseEntity.ok(response);
     }
 }
 
