@@ -373,6 +373,7 @@ const api = {
         method: 'POST'
       })
       return await response.json()
+      
     } catch (error) {
       console.error('Error processing payroll:', error)
       return { success: false, message: error.message }
