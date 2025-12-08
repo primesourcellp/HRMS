@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hrms.dto.PayrollDTO;
 import com.hrms.entity.Attendance;
 import com.hrms.entity.Employee;
 import com.hrms.entity.Leave;
@@ -229,6 +230,27 @@ public class PayrollService {
     }
 
     /**
+     * Submit payroll for approval (moves from DRAFT to PENDING_APPROVAL)
+     */
+    @Transactional
+    public Payroll submitPayrollForApproval(Long payrollId) {
+        Payroll payroll = payrollRepository.findById(payrollId)
+                .orElseThrow(() -> new RuntimeException("Payroll not found"));
+
+        if (!"DRAFT".equals(payroll.getStatus())) {
+            throw new RuntimeException("Payroll must be in DRAFT status to submit for approval");
+        }
+
+        // Validate that payroll has valid amounts
+        if (payroll.getNetSalary() == null || payroll.getNetSalary() <= 0) {
+            throw new RuntimeException("Cannot submit payroll with zero or invalid net salary. Please edit the payroll first.");
+        }
+
+        payroll.setStatus("PENDING_APPROVAL");
+        return payrollRepository.save(payroll);
+    }
+
+    /**
      * Approve payroll (moves from PENDING_APPROVAL to APPROVED)
      */
     @Transactional
@@ -288,6 +310,44 @@ public class PayrollService {
         }
 
         payroll.setStatus("PAID");
+        return payrollRepository.save(payroll);
+    }
+
+    /**
+     * Update payroll (only allowed for DRAFT or PENDING_APPROVAL status)
+     */
+    @Transactional
+    public Payroll updatePayroll(Long payrollId, PayrollDTO payrollDTO) {
+        Payroll payroll = payrollRepository.findById(payrollId)
+                .orElseThrow(() -> new RuntimeException("Payroll not found"));
+
+        // Only allow updates for DRAFT or PENDING_APPROVAL status
+        if (!"DRAFT".equals(payroll.getStatus()) && !"PENDING_APPROVAL".equals(payroll.getStatus())) {
+            throw new RuntimeException("Payroll can only be updated when status is DRAFT or PENDING_APPROVAL");
+        }
+
+        // Update allowed fields
+        if (payrollDTO.getBaseSalary() != null) {
+            payroll.setBaseSalary(payrollDTO.getBaseSalary());
+        }
+        if (payrollDTO.getAllowances() != null) {
+            payroll.setAllowances(payrollDTO.getAllowances());
+        }
+        if (payrollDTO.getBonus() != null) {
+            payroll.setBonus(payrollDTO.getBonus());
+        }
+        if (payrollDTO.getDeductions() != null) {
+            payroll.setDeductions(payrollDTO.getDeductions());
+        }
+        if (payrollDTO.getNotes() != null) {
+            payroll.setNotes(payrollDTO.getNotes());
+        }
+
+        // Recalculate amount and net salary
+        double amount = payroll.getBaseSalary() + payroll.getAllowances() + payroll.getBonus() - payroll.getDeductions();
+        payroll.setAmount(amount);
+        payroll.setNetSalary(amount);
+
         return payrollRepository.save(payroll);
     }
 }

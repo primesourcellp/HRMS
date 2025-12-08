@@ -652,6 +652,30 @@ const api = {
       return { success: false, message: error.message }
     }
   },
+  updatePayroll: async (payrollId, payrollData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${payrollId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payrollData)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating payroll:', error)
+      return { success: false, message: error.message }
+    }
+  },
+  submitPayrollForApproval: async (payrollId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${payrollId}/submit`, {
+        method: 'POST'
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error submitting payroll for approval:', error)
+      return { success: false, message: error.message }
+    }
+  },
   downloadPayslip: (id) => fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`).then(res => res.blob()),
   downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
 }

@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -184,6 +186,46 @@ public class PayrollController {
             Payroll payroll = payrollService.markPayrollAsPaid(id);
             response.put("success", true);
             response.put("message", "Payroll marked as paid");
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Update payroll
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> updatePayroll(
+            @PathVariable Long id,
+            @RequestBody PayrollDTO payrollDTO) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.updatePayroll(id, payrollDTO);
+            response.put("success", true);
+            response.put("message", "Payroll updated successfully");
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Submit payroll for approval (moves from DRAFT to PENDING_APPROVAL)
+     */
+    @PostMapping("/{id}/submit")
+    public ResponseEntity<Map<String, Object>> submitPayrollForApproval(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.submitPayrollForApproval(id);
+            response.put("success", true);
+            response.put("message", "Payroll submitted for approval successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
             return ResponseEntity.ok(response);
         } catch (Exception e) {

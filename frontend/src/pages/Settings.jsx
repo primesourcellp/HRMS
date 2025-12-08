@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Palette, Calendar, Edit, Trash2, X } from 'lucide-react'
+import { Settings as SettingsIcon, User, Bell, Shield, Database, Calendar, Edit, Trash2, X } from 'lucide-react'
 import api from '../services/api'
 
 const Settings = () => {
@@ -63,7 +63,6 @@ const Settings = () => {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'data', label: 'Data Management', icon: Database },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
     ...(isAdmin ? [{ id: 'leaveTypes', label: 'Leave Types', icon: Calendar }] : [])
   ]
 
@@ -759,123 +758,6 @@ const Settings = () => {
                   </div>
                   <Database className="w-5 h-5 text-red-600" />
                 </button>
-              </div>
-            </div>
-          )}
-
-          {/* Appearance Tab */}
-          {activeTab === 'appearance' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">Appearance Settings</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Customize how HRMS looks and feels</p>
-              </div>
-              
-              {/* Theme Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-4">Theme</label>
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { value: 'light', label: 'Light', icon: '☀️', desc: 'Clean and bright' },
-                    { value: 'dark', label: 'Dark', icon: '🌙', desc: 'Easy on the eyes' },
-                    { value: 'auto', label: 'Auto', icon: '🔄', desc: 'Follow system' }
-                  ].map((theme) => (
-                    <button
-                      key={theme.value}
-                      onClick={() => handleThemeChange(theme.value)}
-                      className={`p-4 rounded-xl border-2 transition-all duration-300 text-left ${
-                        appearance.theme === theme.value
-                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-500 shadow-md'
-                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm'
-                      }`}
-                    >
-                      <div className="text-3xl mb-2">{theme.icon}</div>
-                      <div className="font-semibold text-gray-800 dark:text-gray-200 mb-1">{theme.label}</div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">{theme.desc}</div>
-                      {appearance.theme === theme.value && (
-                        <div className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium">✓ Selected</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Language Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-4">Language</label>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { value: 'english', label: 'English', flag: '🇺🇸' },
-                    { value: 'spanish', label: 'Español', flag: '🇪🇸' },
-                    { value: 'french', label: 'Français', flag: '🇫🇷' },
-                    { value: 'german', label: 'Deutsch', flag: '🇩🇪' }
-                  ].map((lang) => (
-                    <button
-                      key={lang.value}
-                      onClick={() => handleLanguageChange(lang.value)}
-                      className={`p-4 rounded-xl border-2 transition-all duration-300 text-left flex items-center gap-3 ${
-                        appearance.language === lang.value
-                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-500'
-                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600'
-                      }`}
-                    >
-                      <span className="text-2xl">{lang.flag}</span>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-800 dark:text-gray-200">{lang.label}</div>
-                        {appearance.language === lang.value && (
-                          <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">✓ Selected</div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Reset to Default */}
-              <div className="pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => {
-                    const defaultTheme = 'light'
-                    const defaultLanguage = 'english'
-                    setAppearance({ theme: defaultTheme, language: defaultLanguage })
-                    localStorage.setItem('hrms_theme', defaultTheme)
-                    localStorage.setItem('hrms_language', defaultLanguage)
-                    applyTheme(defaultTheme)
-                    
-                    const successMsg = document.createElement('div')
-                    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300'
-                    successMsg.textContent = '✓ Reset to default settings!'
-                    document.body.appendChild(successMsg)
-                    
-                    setTimeout(() => {
-                      successMsg.style.opacity = '0'
-                      setTimeout(() => {
-                        document.body.removeChild(successMsg)
-                      }, 300)
-                    }, 2000)
-                  }}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-                >
-                  Reset to Default
-                </button>
-              </div>
-
-              {/* Current Settings Info */}
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <p className="text-sm text-blue-800 dark:text-blue-200">
-                  <strong>Current Settings:</strong>
-                </p>
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Theme: <span className="font-semibold capitalize">{appearance.theme}</span>
-                  </p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Language: <span className="font-semibold capitalize">{appearance.language}</span>
-                  </p>
-                </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
-                  Your preferences are saved and will persist across sessions.
-                </p>
               </div>
             </div>
           )}
