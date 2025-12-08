@@ -512,7 +512,23 @@ const api = {
   },
 
   // Salary Structures
-  getCurrentSalaryStructure: (employeeId) => fetchWithAuth(`${API_BASE_URL}/salary-structures/employee/${employeeId}`).then(res => res.json()),
+  getCurrentSalaryStructure: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/salary-structures/employee/${employeeId}`)
+      if (!response.ok) {
+        // 404 means no salary structure exists for this employee - this is OK
+        if (response.status === 404) {
+          return null
+        }
+        console.error('Salary structure API error:', response.status, response.statusText)
+        return null
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching salary structure:', error)
+      return null
+    }
+  },
   createSalaryStructure: (salaryStructure) => fetchWithAuth(`${API_BASE_URL}/salary-structures`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

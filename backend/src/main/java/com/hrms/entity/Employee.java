@@ -2,6 +2,9 @@ package com.hrms.entity;
 
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -14,6 +17,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "employees")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Employee {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -54,6 +58,7 @@ public class Employee {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id", insertable = false, updatable = false)
+    @JsonIgnore
     private com.hrms.entity.Shift shift;
 
     // Constructors

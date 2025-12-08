@@ -34,17 +34,23 @@ const Payroll = () => {
       setPayrolls(Array.isArray(payrollData) ? payrollData : [])
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
 
-      // Load salary structures
-      for (const payroll of payrollData || []) {
+      // Load salary structures (404 is expected for employees without salary structures - this is normal)
+      // Load them in parallel to avoid blocking, and silently handle 404s
+      const salaryStructurePromises = (payrollData || []).map(async (payroll) => {
         try {
           const structure = await api.getCurrentSalaryStructure(payroll.employeeId)
           if (structure) {
             setSalaryStructures(prev => ({ ...prev, [payroll.employeeId]: structure }))
           }
+          // 404 is expected and handled silently - employee may not have salary structure yet
         } catch (error) {
-          console.error('Error loading salary structure:', error)
+          // Silently ignore errors - salary structure is optional
         }
-      }
+      })
+      // Don't await - let it load in background
+      Promise.all(salaryStructurePromises).catch(() => {
+        // Silently handle any errors
+      })
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
