@@ -44,7 +44,19 @@ public class EmployeeService {
         if (employee.getPassword() != null && !employee.getPassword().isEmpty()) {
             employee.setPassword(passwordEncoder.encode(employee.getPassword()));
         }
-
+        // Ensure `phone` is populated to avoid DB NOT NULL constraint errors.
+        // Prefer explicit `phone`, otherwise fall back to personalMobileNumber or workPhoneNumber.
+        if (employee.getPhone() == null || employee.getPhone().trim().isEmpty()) {
+            if (employee.getPersonalMobileNumber() != null && !employee.getPersonalMobileNumber().trim().isEmpty()) {
+                employee.setPhone(employee.getPersonalMobileNumber());
+            } else if (employee.getWorkPhoneNumber() != null && !employee.getWorkPhoneNumber().trim().isEmpty()) {
+                employee.setPhone(employee.getWorkPhoneNumber());
+            } else {
+                // Set empty string so the DB sees non-null value; alternatively
+                // you could throw a validation exception here to force user input.
+                employee.setPhone("");
+            }
+        }
         return employeeRepository.save(employee);
     }
 

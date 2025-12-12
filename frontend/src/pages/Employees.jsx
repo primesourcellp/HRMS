@@ -379,19 +379,7 @@ password: ''
 setWorkExperiences(employee.workExperiences || []) 
 setEducationDetails(employee.educationDetails || []) 
 setDependentDetails(employee.dependentDetails || []) 
-} 
-// Fetch and show full employee details in view modal
-const handleViewEmployee = async (employee) => {
-	try {
-		const full = await api.getEmployee(employee.id)
-		setSelectedEmployee(full || employee)
-	} catch (err) {
-		console.error('Error fetching full employee for view:', err)
-		setSelectedEmployee(employee)
-	} finally {
-		setShowViewModal(true)
 	}
-}
 } catch (error) { 
 console.error('Error fetching employee details:', error) 
 // Fallback to the employee object passed 
@@ -501,16 +489,42 @@ setDependentDetails([])
 } 
 setShowModal(true) 
 } 
+// Fetch and show full employee details in view modal (module-level)
+const handleViewEmployee = async (employee) => {
+	try {
+		const full = await api.getEmployee(employee.id)
+		setSelectedEmployee(full || employee)
+	} catch (err) {
+		console.error('Error fetching full employee for view:', err)
+		setSelectedEmployee(employee)
+	} finally {
+		setShowViewModal(true)
+	}
+}
+
 const handleSubmit = async (e) => { 
 e.preventDefault() 
 setLoading(true) 
 // Create a complete employee object to send to the backend 
 const employeeData = { 
-...formData, 
-workExperiences: workExperiences, 
-educationDetails: educationDetails, 
-dependentDetails: dependentDetails, 
-} 
+	...formData, 
+	workExperiences: workExperiences, 
+	educationDetails: educationDetails, 
+	dependentDetails: dependentDetails, 
+}
+
+// The backend expects a top-level `phone` field. If the form doesn't
+// include a dedicated `phone`, fall back to `personalMobileNumber` or
+// `workPhoneNumber` before saving. If neither is provided, ask the user
+// for a phone number to avoid a DB NOT NULL violation.
+const fallbackPhone = (formData.personalMobileNumber && formData.personalMobileNumber.trim()) || (formData.workPhoneNumber && formData.workPhoneNumber.trim()) || ''
+if (!fallbackPhone) {
+	setLoading(false)
+	alert('Please enter a phone number in Personal Mobile Number or Work Phone Number')
+	return
+}
+// Use fallbackPhone for the required `phone` property
+employeeData.phone = fallbackPhone
 try { 
 if (editingEmployee) { 
 await api.updateEmployee(editingEmployee.id, employeeData, userRole) 
@@ -782,70 +796,7 @@ return (
 	</div> 
 ); 
 } 
-	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200"> 
-		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"> 
-			<User size={20} className="text-blue-600" /> 
-			Additional Details 
-		</h4> 
-		<div className="grid grid-cols-2 gap-4"> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Tags</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.tags || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Personal Email</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.personalEmailAddress || 'N/A'}</p> 
-			</div> 
-			<div className="col-span-2"> 
-				<p className="text-sm text-gray-600 mb-1">Expertise</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.expertise || 'N/A'}</p> 
-			</div> 
-		</div> 
-		<div className="mt-4"> 
-			<h5 className="text-md font-semibold mb-2">Work Experience</h5> 
-			{(selectedEmployee.workExperiences && selectedEmployee.workExperiences.length > 0) ? (
-				selectedEmployee.workExperiences.map((we, idx) => (
-					<div key={idx} className="border border-gray-100 rounded-md p-3 mb-2">
-						<p className="text-sm text-gray-600">{we.companyName || 'Unknown Company'}</p>
-						<p className="text-sm text-gray-600">{we.designation || we.role || 'Designation'}</p>
-						<p className="text-xs text-gray-500">{we.startDate || 'N/A'} - {we.endDate || 'Present'}</p>
-					</div>
-				))
-			) : (
-				<p className="text-sm text-gray-500">No work experience recorded</p>
-			)} 
-		</div> 
-		<div className="mt-4"> 
-			<h5 className="text-md font-semibold mb-2">Education</h5> 
-			{(selectedEmployee.educationDetails && selectedEmployee.educationDetails.length > 0) ? (
-				selectedEmployee.educationDetails.map((ed, idx) => (
-					<div key={idx} className="border border-gray-100 rounded-md p-3 mb-2">
-						<p className="text-sm text-gray-600">{ed.institution || 'Unknown Institution'}</p>
-						<p className="text-sm text-gray-600">{ed.qualification || ed.degree || 'Qualification'}</p>
-						<p className="text-xs text-gray-500">{ed.startDate || 'N/A'} - {ed.endDate || 'N/A'}</p>
-					</div>
-				))
-			) : (
-				<p className="text-sm text-gray-500">No education recorded</p>
-			)} 
-		</div> 
-		<div className="mt-4"> 
-			<h5 className="text-md font-semibold mb-2">Dependents</h5> 
-			{(selectedEmployee.dependentDetails && selectedEmployee.dependentDetails.length > 0) ? (
-				selectedEmployee.dependentDetails.map((dep, idx) => (
-					<div key={idx} className="border border-gray-100 rounded-md p-3 mb-2">
-						<p className="text-sm text-gray-600">{dep.name || 'Name'}</p>
-						<p className="text-sm text-gray-600">{dep.relation || 'Relation'}</p>
-						<p className="text-xs text-gray-500">DOB: {dep.dateOfBirth || 'N/A'}</p>
-					</div>
-				))
-			) : (
-				<p className="text-sm text-gray-500">No dependent details recorded</p>
-			)} 
-		</div> 
-	</div> 
-); 
-} 
+    
 return ( 
 <div className="space-y-6 bg-gray-50 min-h-screen p-6"> 
 {/* Header Section */} 
@@ -960,7 +911,6 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 	</span> 
 </td> 
 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium"> 
-</div>
 <div className="flex items-center gap-2"> 
 	<button 
 		onClick={() => handleViewEmployee(employee)} 
