@@ -161,8 +161,6 @@ public class Employee {
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EducationDetail> educationDetails;
 
-    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<DependentDetail> dependentDetails;
     public String getExpertise() { return expertise; }
     public void setExpertise(String expertise) { this.expertise = expertise; }
 
@@ -254,8 +252,6 @@ public class Employee {
     public List<EducationDetail> getEducationDetails() { return educationDetails; }
     public void setEducationDetails(List<EducationDetail> educationDetails) { this.educationDetails = educationDetails; }
 
-    public List<DependentDetail> getDependentDetails() { return dependentDetails; }
-    public void setDependentDetails(List<DependentDetail> dependentDetails) { this.dependentDetails = dependentDetails; }
 
     // Convenience methods for backwards compatibility
     public String getName() {

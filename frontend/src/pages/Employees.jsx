@@ -73,7 +73,6 @@ dateOfExit: '',
 }) 
 const [workExperiences, setWorkExperiences] = useState([]) 
 const [educationDetails, setEducationDetails] = useState([]) 
-const [dependentDetails, setDependentDetails] = useState([]) 
 const [docFormData, setDocFormData] = useState({ 
 documentType: 'AADHAAR', 
 description: '' 
@@ -136,7 +135,6 @@ salary: editingEmployee.salary || '',
 })) 
 setWorkExperiences(editingEmployee.workExperiences || []) 
 setEducationDetails(editingEmployee.educationDetails || []) 
-setDependentDetails(editingEmployee.dependentDetails || []) 
 } else if (showModal && !editingEmployee) { 
 // Ensure form is empty when adding new employee 
 setFormData({ 
@@ -185,7 +183,8 @@ dateOfExit: '',
 salary: '', 
 
 }) 
-
+setWorkExperiences([])
+setEducationDetails([])
 } 
 }, [editingEmployee, showModal]) 
 const calculateAge = (dateOfBirth) => { 
@@ -325,7 +324,6 @@ salary: fullEmployee.salary || '',
 }) 
 setWorkExperiences(fullEmployee.workExperiences || []) 
 setEducationDetails(fullEmployee.educationDetails || []) 
-setDependentDetails(fullEmployee.dependentDetails || []) 
 } else { 
 // Fallback to the employee object passed 
 setEditingEmployee(employee) 
@@ -479,7 +477,8 @@ permanentPostalCode: '',
 dateOfExit: '', 
  
 }) 
-
+setWorkExperiences([])
+setEducationDetails([])
 } 
 setShowModal(true) 
 } 
@@ -503,8 +502,7 @@ setLoading(true)
 const employeeData = { 
 	...formData, 
 	workExperiences: workExperiences, 
-	educationDetails: educationDetails, 
-	dependentDetails: dependentDetails, 
+	educationDetails: educationDetails
 }
 
 // The backend expects a top-level `phone` field. If the form doesn't
@@ -574,7 +572,8 @@ permanentPostalCode: '',
 dateOfExit: '', 
 
 }) 
-
+setWorkExperiences([])
+setEducationDetails([])
 } catch (error) { 
 alert('Error saving employee: ' + error.message) 
 } finally { 
@@ -1305,6 +1304,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 </div> 
 </div> 
 </div> 
+
 {/* Contact Details */} 
 <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
 <h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4> 
@@ -1500,49 +1500,203 @@ disabled={formData.sameAsPresentAddress}
 </div> 
 </div> 
 
-{/* Separation Information */} 
-{editingEmployee && ( 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Separation Information</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Date of Exit</label> 
-<input 
-type="date" 
-value={formData.dateOfExit} 
-onChange={(e) => setFormData({ ...formData, dateOfExit: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-</div> 
-</div> 
-)} 
-{/* System Fields */} 
-{editingEmployee && ( 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">System Fields</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Added By</label> 
-<input 
-type="text" 
-value={editingEmployee.createdBy?.name || 'N/A'} 
-readOnly 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Modified By</label> 
-<input 
-type="text" 
-value={editingEmployee.updatedBy?.name || 'N/A'} 
-readOnly 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
-/> 
-</div> 
-</div> 
-</div> 
-)} 
+{/* Work Experience */}
+<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+<h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-between">
+  Work Experience
+  <button
+    type="button"
+    onClick={() => setWorkExperiences([...workExperiences, { companyName: '', jobTitle: '', fromDate: '', toDate: '', jobDescription: '', relevant: false }])}
+    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+  >
+    + Add Experience
+  </button>
+</h4>
+{workExperiences.map((exp, index) => (
+  <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
+    <div className="flex justify-between items-center mb-3">
+      <span className="font-semibold text-gray-700">Experience #{index + 1}</span>
+      <button
+        type="button"
+        onClick={() => setWorkExperiences(workExperiences.filter((_, i) => i !== index))}
+        className="text-red-600 hover:text-red-800 text-sm"
+      >
+        Remove
+      </button>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
+        <input
+          type="text"
+          value={exp.companyName || ''}
+          onChange={(e) => {
+            const updated = [...workExperiences]
+            updated[index].companyName = e.target.value
+            setWorkExperiences(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Job Title</label>
+        <input
+          type="text"
+          value={exp.jobTitle || ''}
+          onChange={(e) => {
+            const updated = [...workExperiences]
+            updated[index].jobTitle = e.target.value
+            setWorkExperiences(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">From Date</label>
+        <input
+          type="date"
+          value={exp.fromDate || ''}
+          onChange={(e) => {
+            const updated = [...workExperiences]
+            updated[index].fromDate = e.target.value
+            setWorkExperiences(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">To Date</label>
+        <input
+          type="date"
+          value={exp.toDate || ''}
+          onChange={(e) => {
+            const updated = [...workExperiences]
+            updated[index].toDate = e.target.value
+            setWorkExperiences(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div className="col-span-2">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Job Description</label>
+        <textarea
+          value={exp.jobDescription || ''}
+          onChange={(e) => {
+            const updated = [...workExperiences]
+            updated[index].jobDescription = e.target.value
+            setWorkExperiences(updated)
+          }}
+          rows="2"
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        ></textarea>
+      </div>
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          id={`relevant-${index}`}
+          checked={exp.relevant || false}
+          onChange={(e) => {
+            const updated = [...workExperiences]
+            updated[index].relevant = e.target.checked
+            setWorkExperiences(updated)
+          }}
+          className="mr-2"
+        />
+        <label htmlFor={`relevant-${index}`} className="text-sm font-semibold text-gray-700">Relevant Experience</label>
+      </div>
+    </div>
+  </div>
+))}
+{workExperiences.length === 0 && (
+  <p className="text-gray-500 text-sm">No work experience added. Click "Add Experience" to add.</p>
+)}
+</div>
+
+{/* Education Details */}
+<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+<h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-between">
+  Education Details
+  <button
+    type="button"
+    onClick={() => setEducationDetails([...educationDetails, { institutionName: '', degree: '', fromDate: '', toDate: '' }])}
+    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+  >
+    + Add Education
+  </button>
+</h4>
+{educationDetails.map((edu, index) => (
+  <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
+    <div className="flex justify-between items-center mb-3">
+      <span className="font-semibold text-gray-700">Education #{index + 1}</span>
+      <button
+        type="button"
+        onClick={() => setEducationDetails(educationDetails.filter((_, i) => i !== index))}
+        className="text-red-600 hover:text-red-800 text-sm"
+      >
+        Remove
+      </button>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Institution Name</label>
+        <input
+          type="text"
+          value={edu.institutionName || ''}
+          onChange={(e) => {
+            const updated = [...educationDetails]
+            updated[index].institutionName = e.target.value
+            setEducationDetails(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Degree / Qualification</label>
+        <input
+          type="text"
+          value={edu.degree || ''}
+          onChange={(e) => {
+            const updated = [...educationDetails]
+            updated[index].degree = e.target.value
+            setEducationDetails(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">From Date</label>
+        <input
+          type="date"
+          value={edu.fromDate || ''}
+          onChange={(e) => {
+            const updated = [...educationDetails]
+            updated[index].fromDate = e.target.value
+            setEducationDetails(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">To Date</label>
+        <input
+          type="date"
+          value={edu.toDate || ''}
+          onChange={(e) => {
+            const updated = [...educationDetails]
+            updated[index].toDate = e.target.value
+            setEducationDetails(updated)
+          }}
+          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+    </div>
+  </div>
+))}
+{educationDetails.length === 0 && (
+  <p className="text-gray-500 text-sm">No education details added. Click "Add Education" to add.</p>
+)}
+</div>
+
 <div className="flex gap-3 justify-end pt-4 border-t border-gray-200"> 
 <button 
 type="button" 
@@ -1595,7 +1749,8 @@ permanentPostalCode: '',
 dateOfExit: '', 
  
 }) 
-
+setWorkExperiences([])
+setEducationDetails([])
 }} 
 className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors" 
 > 
@@ -1879,7 +2034,57 @@ className="text-gray-500 hover:text-gray-700"
 			
 			 
 		</div> 
-	</div> 
+	</div>
+	{/* Work Experience */}
+	{selectedEmployee.workExperiences && selectedEmployee.workExperiences.length > 0 && (
+	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+			<FileText size={20} className="text-blue-600" />
+			Work Experience
+		</h4>
+		<div className="space-y-4">
+			{selectedEmployee.workExperiences.map((exp, index) => (
+				<div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
+					<div className="flex justify-between items-start mb-2">
+						<div>
+							<p className="text-base font-semibold text-gray-900">{exp.jobTitle || 'N/A'}</p>
+							<p className="text-sm text-gray-600">{exp.companyName || 'N/A'}</p>
+						</div>
+						{exp.relevant && (
+							<span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Relevant</span>
+						)}
+					</div>
+					<p className="text-sm text-gray-500">
+						{exp.fromDate ? new Date(exp.fromDate).toLocaleDateString() : 'N/A'} - {exp.toDate ? new Date(exp.toDate).toLocaleDateString() : 'Present'}
+					</p>
+					{exp.jobDescription && (
+						<p className="text-sm text-gray-600 mt-2">{exp.jobDescription}</p>
+					)}
+				</div>
+			))}
+		</div>
+	</div>
+	)}
+	{/* Education Details */}
+	{selectedEmployee.educationDetails && selectedEmployee.educationDetails.length > 0 && (
+	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+			<FileText size={20} className="text-blue-600" />
+			Education Details
+		</h4>
+		<div className="space-y-4">
+			{selectedEmployee.educationDetails.map((edu, index) => (
+				<div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
+					<p className="text-base font-semibold text-gray-900">{edu.degree || 'N/A'}</p>
+					<p className="text-sm text-gray-600">{edu.institutionName || 'N/A'}</p>
+					<p className="text-sm text-gray-500">
+						{edu.fromDate ? new Date(edu.fromDate).toLocaleDateString() : 'N/A'} - {edu.toDate ? new Date(edu.toDate).toLocaleDateString() : 'Present'}
+					</p>
+				</div>
+			))}
+		</div>
+	</div>
+	)}
 {/* Action Buttons */} 
 <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200"> 
 <button 

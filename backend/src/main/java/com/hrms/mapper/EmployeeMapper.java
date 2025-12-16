@@ -64,9 +64,6 @@ public class EmployeeMapper {
         if (e.getEducationDetails() != null) {
             dto.setEducationDetails(e.getEducationDetails().stream().map(EmployeeMapper::toEducationDetailDTO).collect(Collectors.toList()));
         }
-        if (e.getDependentDetails() != null) {
-            dto.setDependentDetails(e.getDependentDetails().stream().map(EmployeeMapper::toDependentDetailDTO).collect(Collectors.toList()));
-        }
         return dto;
     }
 
@@ -94,15 +91,6 @@ public class EmployeeMapper {
         return dto;
     }
 
-    public static DependentDetailDTO toDependentDetailDTO(DependentDetail d) {
-        if (d == null) return null;
-        DependentDetailDTO dto = new DependentDetailDTO();
-        dto.setId(d.getId());
-        dto.setDependentName(d.getDependentName());
-        dto.setRelationship(d.getRelationship());
-        dto.setDateOfBirth(d.getDateOfBirth());
-        return dto;
-    }
 
     public static List<EmployeeDTO> toDTOList(List<Employee> employees) {
         return employees.stream().map(EmployeeMapper::toDTO).collect(Collectors.toList());
