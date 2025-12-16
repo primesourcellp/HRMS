@@ -11,7 +11,6 @@ import org.springframework.lang.NonNull;
 import com.hrms.entity.Employee;
 import com.hrms.entity.WorkExperience;
 import com.hrms.entity.EducationDetail;
-import com.hrms.entity.DependentDetail;
 import com.hrms.repository.EmployeeRepository;
 
 @Service
@@ -158,17 +157,6 @@ public class EmployeeService {
             }
         }
 
-        if (newData.getDependentDetails() != null) {
-            if (emp.getDependentDetails() != null) {
-                emp.getDependentDetails().clear();
-            } else {
-                emp.setDependentDetails(new java.util.ArrayList<>());
-            }
-            for (DependentDetail dd : newData.getDependentDetails()) {
-                dd.setEmployee(emp);
-                emp.getDependentDetails().add(dd);
-            }
-        }
 
         return employeeRepository.save(java.util.Objects.requireNonNull(emp));
     }
