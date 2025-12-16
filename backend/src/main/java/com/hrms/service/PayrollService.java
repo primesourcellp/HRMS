@@ -10,10 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-<<<<<<< HEAD
 import org.springframework.lang.NonNull;
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.dto.PayrollDTO;
 import com.hrms.entity.Attendance;
@@ -48,13 +45,8 @@ public class PayrollService {
         return payrollRepository.findAll();
     }
 
-<<<<<<< HEAD
     public Optional<Payroll> getPayrollById(@NonNull Long id) {
         return payrollRepository.findById(java.util.Objects.requireNonNull(id));
-=======
-    public Optional<Payroll> getPayrollById(Long id) {
-        return payrollRepository.findById(id);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     public Payroll createPayroll(Payroll payroll) {
@@ -64,38 +56,21 @@ public class PayrollService {
         return payrollRepository.save(payroll);
     }
 
-<<<<<<< HEAD
     public List<Payroll> getPayrollsByEmployeeId(@NonNull Long employeeId) {
         return payrollRepository.findByEmployeeId(java.util.Objects.requireNonNull(employeeId));
-=======
-    public List<Payroll> getPayrollsByEmployeeId(Long employeeId) {
-        return payrollRepository.findByEmployeeId(employeeId);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     public List<Payroll> getPayrollsByMonth(String month) {
         return payrollRepository.findByMonth(month);
     }
 
-<<<<<<< HEAD
     public Payroll generatePayroll(@NonNull Long employeeId, String month, Integer year) {
         // This would typically fetch salary structure and calculate payroll
         // For now, creating a basic payroll entry
-=======
-    public Payroll generatePayroll(Long employeeId, String month, Integer year) {
-        // Fetch employee to get salary
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
-        
-        // Use employee salary as base salary
-        double employeeSalary = employee.getSalary() != null ? employee.getSalary() : 0.0;
-        
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         Payroll payroll = new Payroll();
         payroll.setEmployeeId(employeeId);
         payroll.setMonth(month);
         payroll.setYear(year);
-<<<<<<< HEAD
         payroll.setBaseSalary(0.0);
         payroll.setAllowances(0.0);
         payroll.setBonus(0.0);
@@ -104,16 +79,6 @@ public class PayrollService {
         payroll.setNetSalary(0.0);
         payroll.setStatus("DRAFT");
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
-=======
-        payroll.setBaseSalary(employeeSalary);
-        payroll.setAllowances(0.0);
-        payroll.setBonus(0.0);
-        payroll.setDeductions(0.0);
-        payroll.setAmount(employeeSalary);
-        payroll.setNetSalary(employeeSalary);
-        payroll.setStatus("DRAFT");
-        return payrollRepository.save(payroll);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     /**
@@ -128,11 +93,7 @@ public class PayrollService {
         return employees.stream()
                 .map(employee -> {
                     try {
-<<<<<<< HEAD
                         return processEmployeePayroll(java.util.Objects.requireNonNull(employee.getId()), startDate, endDate, month, year);
-=======
-                        return processEmployeePayroll(employee.getId(), startDate, endDate, month, year);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                     } catch (Exception e) {
                         // Log error but continue processing other employees
                         System.err.println("Error processing payroll for employee " + employee.getName() + " (ID: " + employee.getId() + "): " + e.getMessage());
@@ -148,11 +109,7 @@ public class PayrollService {
      * Process payroll for a single employee
      */
     @Transactional
-<<<<<<< HEAD
     public Payroll processEmployeePayroll(@NonNull Long employeeId, LocalDate startDate, LocalDate endDate, String month, Integer year) {
-=======
-    public Payroll processEmployeePayroll(Long employeeId, LocalDate startDate, LocalDate endDate, String month, Integer year) {
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         // Check if payroll already exists for this period
         Optional<Payroll> existing = payrollRepository.findAll().stream()
                 .filter(p -> p.getEmployeeId().equals(employeeId) 
@@ -165,7 +122,6 @@ public class PayrollService {
         }
 
         // Get employee and salary structure
-<<<<<<< HEAD
         Employee employee = employeeRepository.findById(java.util.Objects.requireNonNull(employeeId))
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
@@ -174,16 +130,6 @@ public class PayrollService {
             // Instead of throwing exception, create a payroll entry with zero values
             // This allows the process to continue for other employees
             System.err.println("Warning: Salary structure not found for employee: " + employee.getName() + " (ID: " + employeeId + "). Creating payroll with zero values.");
-=======
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
-
-        Optional<SalaryStructure> salaryOpt = salaryStructureRepository.findByEmployeeIdAndActiveTrue(employeeId);
-        if (!salaryOpt.isPresent()) {
-            // Instead of throwing exception, create a payroll entry with zero values
-            // This allows the process to continue for other employees
-            System.err.println("Warning: Salary structure not found for employee: " + employee.getName() + " (ID: " + employeeId + "). Using employee salary as base salary.");
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             
             Payroll payroll = existing.orElse(new Payroll());
             payroll.setEmployeeId(employeeId);
@@ -191,7 +137,6 @@ public class PayrollService {
             payroll.setYear(year);
             payroll.setStartDate(startDate);
             payroll.setEndDate(endDate);
-<<<<<<< HEAD
             payroll.setBaseSalary(0.0);
             payroll.setAllowances(0.0);
             payroll.setBonus(0.0);
@@ -200,35 +145,16 @@ public class PayrollService {
             payroll.setNetSalary(0.0);
             payroll.setStatus("DRAFT");
             payroll.setNotes("Salary structure not found - requires manual review");
-=======
-            // Use employee salary as base salary
-            double employeeSalary = employee.getSalary() != null ? employee.getSalary() : 0.0;
-            payroll.setBaseSalary(employeeSalary);
-            payroll.setAllowances(0.0);
-            payroll.setBonus(0.0);
-            payroll.setDeductions(0.0);
-            payroll.setAmount(employeeSalary);
-            payroll.setNetSalary(employeeSalary);
-            payroll.setStatus("DRAFT");
-            payroll.setNotes("Salary structure not found - using employee salary as base salary");
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             return payrollRepository.save(payroll);
         }
         SalaryStructure salaryStructure = salaryOpt.get();
 
         // Get attendance records for the period
         List<Attendance> attendanceRecords = attendanceRepository
-<<<<<<< HEAD
                 .findByEmployeeIdAndDateBetween(java.util.Objects.requireNonNull(employeeId), startDate, endDate);
 
         // Get approved leaves for the period
         List<Leave> approvedLeaves = leaveRepository.findByEmployeeId(java.util.Objects.requireNonNull(employeeId)).stream()
-=======
-                .findByEmployeeIdAndDateBetween(employeeId, startDate, endDate);
-
-        // Get approved leaves for the period
-        List<Leave> approvedLeaves = leaveRepository.findByEmployeeId(employeeId).stream()
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .filter(leave -> "APPROVED".equals(leave.getStatus())
                         && !leave.getStartDate().isAfter(endDate)
                         && !leave.getEndDate().isBefore(startDate))
@@ -261,13 +187,8 @@ public class PayrollService {
         // Calculate proration factor
         double prorationFactor = totalDays > 0 ? payableDays / totalDays : 0.0;
 
-<<<<<<< HEAD
         // Calculate earnings (prorated)
         double basicSalary = salaryStructure.getBasicSalary() != null ? salaryStructure.getBasicSalary() : 0.0;
-=======
-        // Calculate earnings (prorated) - Use employee salary as base salary instead of salary structure basic salary
-        double basicSalary = employee.getSalary() != null ? employee.getSalary() : 0.0;
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         double hra = salaryStructure.getHra() != null ? salaryStructure.getHra() : 0.0;
         double transportAllowance = salaryStructure.getTransportAllowance() != null ? salaryStructure.getTransportAllowance() : 0.0;
         double medicalAllowance = salaryStructure.getMedicalAllowance() != null ? salaryStructure.getMedicalAllowance() : 0.0;
@@ -306,24 +227,15 @@ public class PayrollService {
         payroll.setNetSalary(netSalary);
         payroll.setStatus("PENDING_APPROVAL");
 
-<<<<<<< HEAD
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
-=======
-        return payrollRepository.save(payroll);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     /**
      * Submit payroll for approval (moves from DRAFT to PENDING_APPROVAL)
      */
     @Transactional
-<<<<<<< HEAD
     public Payroll submitPayrollForApproval(@NonNull Long payrollId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
-=======
-    public Payroll submitPayrollForApproval(Long payrollId) {
-        Payroll payroll = payrollRepository.findById(payrollId)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
         if (!"DRAFT".equals(payroll.getStatus())) {
@@ -336,24 +248,15 @@ public class PayrollService {
         }
 
         payroll.setStatus("PENDING_APPROVAL");
-<<<<<<< HEAD
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
-=======
-        return payrollRepository.save(payroll);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     /**
      * Approve payroll (moves from PENDING_APPROVAL to APPROVED)
      */
     @Transactional
-<<<<<<< HEAD
     public Payroll approvePayroll(@NonNull Long payrollId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
-=======
-    public Payroll approvePayroll(Long payrollId) {
-        Payroll payroll = payrollRepository.findById(payrollId)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
         if (!"PENDING_APPROVAL".equals(payroll.getStatus())) {
@@ -361,24 +264,15 @@ public class PayrollService {
         }
 
         payroll.setStatus("APPROVED");
-<<<<<<< HEAD
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
-=======
-        return payrollRepository.save(payroll);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     /**
      * Finalize payroll (moves from APPROVED to FINALIZED and generates payslips)
      */
     @Transactional
-<<<<<<< HEAD
     public Payroll finalizePayroll(@NonNull Long payrollId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
-=======
-    public Payroll finalizePayroll(Long payrollId) {
-        Payroll payroll = payrollRepository.findById(payrollId)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
         if (!"APPROVED".equals(payroll.getStatus())) {
@@ -386,11 +280,7 @@ public class PayrollService {
         }
 
         payroll.setStatus("FINALIZED");
-<<<<<<< HEAD
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
-=======
-        return payrollRepository.save(payroll);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     /**
@@ -412,13 +302,8 @@ public class PayrollService {
      * Mark payroll as paid (moves from FINALIZED to PAID)
      */
     @Transactional
-<<<<<<< HEAD
     public Payroll markPayrollAsPaid(@NonNull Long payrollId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
-=======
-    public Payroll markPayrollAsPaid(Long payrollId) {
-        Payroll payroll = payrollRepository.findById(payrollId)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
         if (!"FINALIZED".equals(payroll.getStatus())) {
@@ -426,24 +311,15 @@ public class PayrollService {
         }
 
         payroll.setStatus("PAID");
-<<<<<<< HEAD
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
-=======
-        return payrollRepository.save(payroll);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     /**
      * Update payroll (only allowed for DRAFT or PENDING_APPROVAL status)
      */
     @Transactional
-<<<<<<< HEAD
     public Payroll updatePayroll(@NonNull Long payrollId, PayrollDTO payrollDTO) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
-=======
-    public Payroll updatePayroll(Long payrollId, PayrollDTO payrollDTO) {
-        Payroll payroll = payrollRepository.findById(payrollId)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
         // Only allow updates for DRAFT or PENDING_APPROVAL status
@@ -475,25 +351,4 @@ public class PayrollService {
 
         return payrollRepository.save(payroll);
     }
-<<<<<<< HEAD
 }
-=======
-
-    /**
-     * Delete payroll (only allowed for DRAFT or PENDING_APPROVAL status)
-     */
-    @Transactional
-    public void deletePayroll(Long payrollId) {
-        Payroll payroll = payrollRepository.findById(payrollId)
-                .orElseThrow(() -> new RuntimeException("Payroll not found"));
-
-        // Only allow deletion for DRAFT or PENDING_APPROVAL status
-        if (!"DRAFT".equals(payroll.getStatus()) && !"PENDING_APPROVAL".equals(payroll.getStatus())) {
-            throw new RuntimeException("Payroll can only be deleted when status is DRAFT or PENDING_APPROVAL");
-        }
-
-        payrollRepository.delete(payroll);
-    }
-}
-
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

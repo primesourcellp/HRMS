@@ -125,7 +125,6 @@ const Users = () => {
   const canDelete = currentUserRole === 'SUPER_ADMIN'
 
   return (
-<<<<<<< HEAD
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -141,25 +140,6 @@ const Users = () => {
             Add User
           </button>
         )}
-=======
-    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
-      <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-blue-600">User Management</h2>
-            <p className="text-sm md:text-base text-gray-600 mt-1">Manage system users and administrators</p>
-          </div>
-          {canCreateAdmin && (
-            <button
-              onClick={() => handleOpenModal()}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm md:text-base"
-            >
-              <Plus size={20} />
-              Add User
-            </button>
-          )}
-        </div>
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       </div>
 
       {/* Search Bar */}

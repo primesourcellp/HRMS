@@ -1,0 +1,22 @@
+package com.hrms.dto;
+
+import java.time.LocalDate;
+
+public class DependentDetailDTO {
+    private Long id;
+    private String dependentName;
+    private String relationship;
+    private LocalDate dateOfBirth;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getDependentName() { return dependentName; }
+    public void setDependentName(String dependentName) { this.dependentName = dependentName; }
+
+    public String getRelationship() { return relationship; }
+    public void setRelationship(String relationship) { this.relationship = relationship; }
+
+    public LocalDate getDateOfBirth() { return dateOfBirth; }
+    public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+}

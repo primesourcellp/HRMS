@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 // frontend/src/services/api.js
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 const API_BASE_URL = 'http://localhost:8080/api'
 
 // Flag to prevent redirect loops - use sessionStorage to persist across page loads
@@ -25,7 +22,6 @@ const setRedirectFlag = (value) => {
   }
 }
 
-<<<<<<< HEAD
 /**
  * Helper to read response body safely for error messages.
  * Tries to parse JSON, falls back to text.
@@ -43,68 +39,42 @@ const readResponseBody = async (response) => {
   }
 }
 
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 // Helper function to handle API requests with cookies (HttpOnly)
 const fetchWithAuth = async (url, options = {}) => {
   const headers = {
     ...(options.headers || {})
   }
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   // Don't override Content-Type if it's FormData (browser sets it automatically)
   if (options.body instanceof FormData) {
     delete headers['Content-Type']
   } else if (!headers['Content-Type']) {
     headers['Content-Type'] = 'application/json'
   }
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   // Include credentials (cookies) in all requests
   const response = await fetch(url, {
     ...options,
     headers,
     credentials: 'include' // Required for HttpOnly cookies
   })
-<<<<<<< HEAD
 
   // If token is invalid or expired, try to refresh
   if (response.status === 401) {
     const currentPath = window.location.pathname
 
-=======
-  
-  // If token is invalid or expired, try to refresh
-  if (response.status === 401) {
-    const currentPath = window.location.pathname
-    
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     // Don't redirect if already on login/register page
     if (currentPath === '/login' || currentPath === '/register') {
       return response
     }
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     try {
       // Refresh token is also in HttpOnly cookie, so just call refresh endpoint
       const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         credentials: 'include' // Cookies are automatically sent
       })
-<<<<<<< HEAD
 
-=======
-      
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       if (refreshResponse.ok) {
         // New access token is set in cookie by backend
         // Retry original request
@@ -117,30 +87,17 @@ const fetchWithAuth = async (url, options = {}) => {
     } catch (err) {
       console.error('Token refresh failed:', err)
     }
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     // If refresh fails (401 or 400), handle redirect
     // Use sessionStorage to prevent redirect loops across page loads
     if (!getRedirectFlag()) {
       const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
-<<<<<<< HEAD
 
       // If user appears authenticated but got 401, session expired - redirect
       // If not authenticated, ProtectedRoute should handle it, but redirect anyway to be safe
       if (isAuthenticated || currentPath.startsWith('/dashboard') || currentPath.startsWith('/employees') ||
         currentPath.startsWith('/attendance') || currentPath.startsWith('/leave') ||
         currentPath.startsWith('/payroll') || currentPath.startsWith('/performance')) {
-=======
-      
-      // If user appears authenticated but got 401, session expired - redirect
-      // If not authenticated, ProtectedRoute should handle it, but redirect anyway to be safe
-      if (isAuthenticated || currentPath.startsWith('/dashboard') || currentPath.startsWith('/employees') || 
-          currentPath.startsWith('/attendance') || currentPath.startsWith('/leave') || 
-          currentPath.startsWith('/payroll') || currentPath.startsWith('/performance')) {
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         setRedirectFlag(true)
         // Redirect immediately - no delay needed since we have the flag
         console.log('Authentication failed, redirecting to login...')
@@ -154,11 +111,7 @@ const fetchWithAuth = async (url, options = {}) => {
       }
     }
   }
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   return response
 }
 
@@ -169,7 +122,6 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(userData),
     credentials: 'include'
-<<<<<<< HEAD
   }).then(async (res) => {
     if (!res.ok) {
       const body = await readResponseBody(res)
@@ -177,9 +129,6 @@ const api = {
     }
     return res.json()
   }),
-=======
-  }).then(res => res.json()),
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
   login: async (email, password) => {
     try {
@@ -189,21 +138,12 @@ const api = {
         body: JSON.stringify({ email, password }),
         credentials: 'include' // Required for cookies
       })
-<<<<<<< HEAD
 
       if (!response.ok) {
         const body = await readResponseBody(response)
         throw new Error(body?.message || body || `HTTP error! status: ${response.status}`)
       }
 
-=======
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-      
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       return await response.json()
     } catch (error) {
       console.error('Login API error:', error)
@@ -219,21 +159,12 @@ const api = {
         body: JSON.stringify({ email, password }),
         credentials: 'include' // Required for cookies
       })
-<<<<<<< HEAD
 
       if (!response.ok) {
         const body = await readResponseBody(response)
         throw new Error(body?.message || body || `HTTP error! status: ${response.status}`)
       }
 
-=======
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-      
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       return await response.json()
     } catch (error) {
       console.error('Employee login API error:', error)
@@ -265,31 +196,21 @@ const api = {
       const url = role ? `${API_BASE_URL}/users?role=${role}` : `${API_BASE_URL}/users`
       const response = await fetchWithAuth(url)
       if (!response.ok) {
-<<<<<<< HEAD
         const body = await readResponseBody(response)
         console.error('Users API error:', response.status, body)
         throw new Error(body?.message || body || `Failed to fetch users (${response.status})`)
-=======
-        console.error('Users API error:', response.status, response.statusText)
-        return []
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       }
       const data = await response.json()
       return Array.isArray(data) ? data : []
     } catch (error) {
       console.error('Error fetching users:', error)
-<<<<<<< HEAD
       throw error
-=======
-      return []
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
   },
   createUser: (userData, currentUserRole) => fetchWithAuth(`${API_BASE_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...userData, currentUserRole })
-<<<<<<< HEAD
   }).then(async (res) => {
     if (!res.ok) {
       const body = await readResponseBody(res)
@@ -297,14 +218,10 @@ const api = {
     }
     return res.json()
   }),
-=======
-  }).then(res => res.json()),
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   updateUser: (id, userData, currentUserRole) => fetchWithAuth(`${API_BASE_URL}/users/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...userData, currentUserRole })
-<<<<<<< HEAD
   }).then(async (res) => {
     if (!res.ok) {
       const body = await readResponseBody(res)
@@ -325,19 +242,10 @@ const api = {
   // ========================
   // Employees - CORRECTED
   // ========================
-=======
-  }).then(res => res.json()),
-  deleteUser: (id, currentUserRole) => fetchWithAuth(`${API_BASE_URL}/users/${id}?currentUserRole=${currentUserRole}`, {
-    method: 'DELETE'
-  }).then(res => res.ok ? res : res.json()),
-
-  // Employees
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   getEmployees: async (search) => {
     try {
       const url = search ? `${API_BASE_URL}/employees?search=${encodeURIComponent(search)}` : `${API_BASE_URL}/employees`
       const response = await fetchWithAuth(url)
-<<<<<<< HEAD
 
       if (!response.ok) {
         const body = await readResponseBody(response)
@@ -417,42 +325,10 @@ const api = {
     }
   },
 
-=======
-      if (!response.ok) {
-        console.error('Employees API error:', response.status, response.statusText)
-        // If 401, the redirect should have happened, but return empty array anyway
-        if (response.status === 401) {
-          console.warn('Unauthorized access - user may need to login')
-        }
-        return []
-      }
-      const data = await response.json()
-      console.log('getEmployees response:', data)
-      const result = Array.isArray(data) ? data : []
-      console.log('getEmployees returning:', result.length, 'employees')
-      return result
-    } catch (error) {
-      console.error('Error fetching employees:', error)
-      return []
-    }
-  },
-  getEmployee: (id) => fetchWithAuth(`${API_BASE_URL}/employees/${id}`).then(res => res.json()),
-  createEmployee: (employee, userRole) => fetchWithAuth(`${API_BASE_URL}/employees?userRole=${userRole}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(employee)
-  }).then(res => res.json()),
-  updateEmployee: (id, employee, userRole) => fetchWithAuth(`${API_BASE_URL}/employees/${id}?userRole=${userRole}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(employee)
-  }).then(res => res.json()),
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   changeEmployeePassword: (id, currentPassword, newPassword) => fetchWithAuth(`${API_BASE_URL}/employees/${id}/change-password`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currentPassword, newPassword })
-<<<<<<< HEAD
   }).then(async (res) => {
     if (!res.ok) {
       const body = await readResponseBody(res)
@@ -479,52 +355,28 @@ const api = {
       return true
     } catch (error) {
       console.error('deleteEmployee error:', error)
-=======
-  }).then(res => res.json()),
-  deleteEmployee: async (id, userRole) => {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/employees/${id}?userRole=${userRole}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to delete employee' }))
-        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`)
-      }
-      return { success: true, message: 'Employee deleted successfully' }
-    } catch (error) {
-      console.error('Delete employee API error:', error)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       throw error
     }
   },
 
-<<<<<<< HEAD
   // ... rest of the file remains unchanged (attendance, leaves, payrolls, docs, etc.)
   // For brevity we keep the rest of the previously working methods but with the
   // same approach (check response.ok, read body for errors and throw where needed).
   // (You can keep the rest of your original implementations below.)
 
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   // Attendance
   getAttendance: async () => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/attendance`)
       if (!response.ok) {
-<<<<<<< HEAD
         const body = await readResponseBody(response)
         console.error('Attendance API error:', response.status, body)
         throw new Error(body?.message || body || `Failed to fetch attendance (${response.status})`)
-=======
-        console.error('Attendance API error:', response.status, response.statusText)
-        return []
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       }
       const data = await response.json()
       return Array.isArray(data) ? data : []
     } catch (error) {
       console.error('Error fetching attendance:', error)
-<<<<<<< HEAD
       throw error
     }
   },
@@ -533,42 +385,6 @@ const api = {
 
 
 
-=======
-      return []
-    }
-  },
-  getAttendanceByDate: async (date) => {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/date/${date}`)
-      if (!response.ok) {
-        console.error('Attendance by date API error:', response.status, response.statusText)
-        return []
-      }
-      const data = await response.json()
-      return Array.isArray(data) ? data : []
-    } catch (error) {
-      console.error('Error fetching attendance by date:', error)
-      return []
-    }
-  },
-  getAttendanceByEmployee: (employeeId) => fetchWithAuth(`${API_BASE_URL}/attendance/employee/${employeeId}`).then(res => res.json()),
-  checkIn: (data) => fetchWithAuth(`${API_BASE_URL}/attendance/check-in`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  }).then(res => res.json()),
-  checkOut: (data) => fetchWithAuth(`${API_BASE_URL}/attendance/check-out`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  }).then(res => res.json()),
-  getWeeklyHours: (employeeId, weekStart) => fetchWithAuth(`${API_BASE_URL}/attendance/employee/${employeeId}/weekly?weekStart=${weekStart}`).then(res => res.json()),
-  markAttendance: (data) => fetchWithAuth(`${API_BASE_URL}/attendance/mark`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  }).then(res => res.json()),
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
   // Leaves
   getLeaves: async (status) => {
@@ -633,36 +449,11 @@ const api = {
       return []
     }
   },
-<<<<<<< HEAD
-=======
-  getPerformanceByEmployeeId: async (employeeId) => {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/performance/employee/${employeeId}`)
-      if (!response.ok) {
-        console.error('Performance API error:', response.status, response.statusText)
-        return []
-      }
-      const data = await response.json()
-      return Array.isArray(data) ? data : []
-    } catch (error) {
-      console.error('Error fetching employee performance:', error)
-      return []
-    }
-  },
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   createPerformance: (performance) => fetchWithAuth(`${API_BASE_URL}/performance`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(performance)
   }).then(res => res.json()),
-<<<<<<< HEAD
-=======
-  updatePerformance: (id, performance) => fetchWithAuth(`${API_BASE_URL}/performance/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(performance)
-  }).then(res => res.json()),
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
   // Dashboard
   getDashboardStats: async (date, employeeId) => {
@@ -1031,45 +822,7 @@ const api = {
       throw error
     }
   },
-<<<<<<< HEAD
   downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
-=======
-  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob()),
-  deletePayroll: async (payrollId) => {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${payrollId}`, {
-        method: 'DELETE'
-      })
-      return await response.json()
-    } catch (error) {
-      console.error('Error deleting payroll:', error)
-      return { success: false, message: error.message }
-    }
-  },
-
-  // Notifications
-  createNotification: (notification) => fetchWithAuth(`${API_BASE_URL}/notifications`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(notification)
-  }).then(res => res.json()),
-
-  getNotifications: async (employeeId) => {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/notifications/employee/${employeeId}`)
-      if (!response.ok) return []
-      const data = await response.json()
-      return Array.isArray(data) ? data : []
-    } catch (error) {
-      console.error('Error fetching notifications:', error)
-      return []
-    }
-  },
-
-  markNotificationAsRead: (notificationId) => fetchWithAuth(`${API_BASE_URL}/notifications/${notificationId}/read`, {
-    method: 'PUT'
-  }).then(res => res.json())
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 }
 
 export default api

@@ -7,11 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-<<<<<<< HEAD
 import org.springframework.lang.NonNull;
 import java.util.Objects;
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -54,17 +51,10 @@ public class RecruitmentController {
     }
 
     @PutMapping("/jobs/{id}")
-<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> updateJobPosting(@PathVariable @NonNull Long id, @RequestBody JobPosting jobPosting) {
         Map<String, Object> response = new HashMap<>();
         try {
             JobPosting updated = recruitmentService.updateJobPosting(Objects.requireNonNull(id), jobPosting);
-=======
-    public ResponseEntity<Map<String, Object>> updateJobPosting(@PathVariable Long id, @RequestBody JobPosting jobPosting) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            JobPosting updated = recruitmentService.updateJobPosting(id, jobPosting);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Job posting updated successfully");
             response.put("jobPosting", updated);
@@ -77,17 +67,10 @@ public class RecruitmentController {
     }
 
     @DeleteMapping("/jobs/{id}")
-<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> deleteJobPosting(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             recruitmentService.deleteJobPosting(Objects.requireNonNull(id));
-=======
-    public ResponseEntity<Map<String, Object>> deleteJobPosting(@PathVariable Long id) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            recruitmentService.deleteJobPosting(id);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Job posting deleted successfully");
             return ResponseEntity.ok(response);
@@ -100,13 +83,8 @@ public class RecruitmentController {
 
     // Applicant endpoints
     @GetMapping("/applicants/job/{jobPostingId}")
-<<<<<<< HEAD
     public ResponseEntity<List<Applicant>> getApplicantsByJobPosting(@PathVariable @NonNull Long jobPostingId) {
         return ResponseEntity.ok(recruitmentService.getApplicantsByJobPosting(Objects.requireNonNull(jobPostingId)));
-=======
-    public ResponseEntity<List<Applicant>> getApplicantsByJobPosting(@PathVariable Long jobPostingId) {
-        return ResponseEntity.ok(recruitmentService.getApplicantsByJobPosting(jobPostingId));
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     @GetMapping("/applicants/status/{status}")
@@ -132,20 +110,12 @@ public class RecruitmentController {
 
     @PutMapping("/applicants/{id}/status")
     public ResponseEntity<Map<String, Object>> updateApplicantStatus(
-<<<<<<< HEAD
             @PathVariable @NonNull Long id,
-=======
-            @PathVariable Long id,
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             @RequestBody Map<String, String> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Applicant updated = recruitmentService.updateApplicantStatus(
-<<<<<<< HEAD
                 Objects.requireNonNull(id), request.get("status"), request.get("feedback"));
-=======
-                id, request.get("status"), request.get("feedback"));
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Applicant status updated successfully");
             response.put("applicant", updated);
@@ -159,19 +129,11 @@ public class RecruitmentController {
 
     @PostMapping("/applicants/{id}/interview")
     public ResponseEntity<Map<String, Object>> scheduleInterview(
-<<<<<<< HEAD
             @PathVariable @NonNull Long id, @RequestBody Map<String, String> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             LocalDate interviewDate = LocalDate.parse(request.get("interviewDate"));
             Applicant updated = recruitmentService.scheduleInterview(Objects.requireNonNull(id), interviewDate);
-=======
-            @PathVariable Long id, @RequestBody Map<String, String> request) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            LocalDate interviewDate = LocalDate.parse(request.get("interviewDate"));
-            Applicant updated = recruitmentService.scheduleInterview(id, interviewDate);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Interview scheduled successfully");
             response.put("applicant", updated);
@@ -183,7 +145,3 @@ public class RecruitmentController {
         }
     }
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

@@ -1,18 +1,11 @@
 package com.hrms.service;
 
 import com.hrms.entity.SalaryStructure;
-<<<<<<< HEAD
-=======
-import com.hrms.entity.Employee;
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 import com.hrms.repository.SalaryStructureRepository;
 import com.hrms.repository.EmployeeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-<<<<<<< HEAD
 import org.springframework.lang.NonNull;
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import java.time.LocalDate;
 import java.util.List;
@@ -28,47 +21,27 @@ public class SalaryStructureService {
     private EmployeeRepository employeeRepository;
 
     public SalaryStructure createSalaryStructure(SalaryStructure salaryStructure) {
-<<<<<<< HEAD
         employeeRepository.findById(java.util.Objects.requireNonNull(salaryStructure.getEmployeeId()))
-=======
-        employeeRepository.findById(salaryStructure.getEmployeeId())
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         // Deactivate previous salary structures
         Optional<SalaryStructure> existing = salaryStructureRepository
-<<<<<<< HEAD
                 .findByEmployeeIdAndActiveTrue(java.util.Objects.requireNonNull(salaryStructure.getEmployeeId()));
-=======
-                .findByEmployeeIdAndActiveTrue(salaryStructure.getEmployeeId());
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         if (existing.isPresent()) {
             SalaryStructure prev = existing.get();
             prev.setActive(false);
             prev.setEffectiveTo(LocalDate.now().minusDays(1));
-<<<<<<< HEAD
             salaryStructureRepository.save(java.util.Objects.requireNonNull(prev));
-=======
-            salaryStructureRepository.save(prev);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         }
 
         // Calculate gross and net salary
         calculateSalaries(salaryStructure);
 
-<<<<<<< HEAD
         return salaryStructureRepository.save(java.util.Objects.requireNonNull(salaryStructure));
     }
 
     public SalaryStructure updateSalaryStructure(@NonNull Long id, SalaryStructure salaryDetails) {
         SalaryStructure salaryStructure = salaryStructureRepository.findById(java.util.Objects.requireNonNull(id))
-=======
-        return salaryStructureRepository.save(salaryStructure);
-    }
-
-    public SalaryStructure updateSalaryStructure(Long id, SalaryStructure salaryDetails) {
-        SalaryStructure salaryStructure = salaryStructureRepository.findById(id)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Salary structure not found"));
 
         salaryStructure.setBasicSalary(salaryDetails.getBasicSalary());
@@ -85,11 +58,7 @@ public class SalaryStructureService {
 
         calculateSalaries(salaryStructure);
 
-<<<<<<< HEAD
         return salaryStructureRepository.save(java.util.Objects.requireNonNull(salaryStructure));
-=======
-        return salaryStructureRepository.save(salaryStructure);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     private void calculateSalaries(SalaryStructure salaryStructure) {
@@ -111,7 +80,6 @@ public class SalaryStructureService {
         salaryStructure.setNetSalary(gross - deductions);
     }
 
-<<<<<<< HEAD
     public Optional<SalaryStructure> getCurrentSalaryStructure(@NonNull Long employeeId) {
         return salaryStructureRepository.findByEmployeeIdAndActiveTrue(java.util.Objects.requireNonNull(employeeId));
     }
@@ -124,18 +92,3 @@ public class SalaryStructureService {
         salaryStructureRepository.deleteById(java.util.Objects.requireNonNull(id));
     }
 }
-=======
-    public Optional<SalaryStructure> getCurrentSalaryStructure(Long employeeId) {
-        return salaryStructureRepository.findByEmployeeIdAndActiveTrue(employeeId);
-    }
-
-    public List<SalaryStructure> getEmployeeSalaryHistory(Long employeeId) {
-        return salaryStructureRepository.findByEmployeeId(employeeId);
-    }
-
-    public void deleteSalaryStructure(Long id) {
-        salaryStructureRepository.deleteById(id);
-    }
-}
-
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

@@ -24,7 +24,6 @@ body {
   color: #e5e5e5;
 }
 
-<<<<<<< HEAD
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -53,59 +52,5 @@ body {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #777;
-=======
-/* Hide scrollbar but maintain scroll functionality */
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-*::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-  width: 0;
-  height: 0;
-}
-
-/* Optional: Show scrollbar on hover for desktop (uncomment if needed) */
-/*
-@media (min-width: 768px) {
-  *:hover::-webkit-scrollbar {
-    display: block;
-    width: 8px;
-    height: 8px;
-  }
-  
-  *:hover::-webkit-scrollbar-track {
-    background: #f1f1f1;
-  }
-  
-  *:hover::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
-  }
-  
-  *:hover::-webkit-scrollbar-thumb:hover {
-    background: #555;
-  }
-}
-*/
-
-/* Touch-friendly improvements for mobile */
-.touch-manipulation {
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Prevent text selection on mobile buttons */
-button {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-}
-
-/* Smooth scrolling */
-html {
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 }
 

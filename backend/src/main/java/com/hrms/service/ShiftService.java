@@ -4,10 +4,7 @@ import com.hrms.entity.Shift;
 import com.hrms.repository.ShiftRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-<<<<<<< HEAD
 import org.springframework.lang.NonNull;
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import java.time.Duration;
 import java.util.List;
@@ -37,19 +34,11 @@ public class ShiftService {
             }
             shift.setWorkingHours(hours);
         }
-<<<<<<< HEAD
         return shiftRepository.save(java.util.Objects.requireNonNull(shift));
     }
 
     public Shift updateShift(@NonNull Long id, Shift shiftDetails) {
         Shift shift = shiftRepository.findById(java.util.Objects.requireNonNull(id))
-=======
-        return shiftRepository.save(shift);
-    }
-
-    public Shift updateShift(Long id, Shift shiftDetails) {
-        Shift shift = shiftRepository.findById(id)
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Shift not found"));
 
         shift.setName(shiftDetails.getName());
@@ -69,7 +58,6 @@ public class ShiftService {
             shift.setWorkingHours(hours);
         }
 
-<<<<<<< HEAD
         return shiftRepository.save(java.util.Objects.requireNonNull(shift));
     }
 
@@ -81,17 +69,3 @@ public class ShiftService {
         return shiftRepository.findById(java.util.Objects.requireNonNull(id));
     }
 }
-=======
-        return shiftRepository.save(shift);
-    }
-
-    public void deleteShift(Long id) {
-        shiftRepository.deleteById(id);
-    }
-
-    public Optional<Shift> getShiftById(Long id) {
-        return shiftRepository.findById(id);
-    }
-}
-
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

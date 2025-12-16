@@ -6,11 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-<<<<<<< HEAD
 import org.springframework.lang.NonNull;
 import java.util.Objects;
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -58,17 +55,10 @@ public class HolidayController {
     }
 
     @PutMapping("/{id}")
-<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> updateHoliday(@PathVariable @NonNull Long id, @RequestBody Holiday holiday) {
         Map<String, Object> response = new HashMap<>();
         try {
             Holiday updated = holidayService.updateHoliday(Objects.requireNonNull(id), holiday);
-=======
-    public ResponseEntity<Map<String, Object>> updateHoliday(@PathVariable Long id, @RequestBody Holiday holiday) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            Holiday updated = holidayService.updateHoliday(id, holiday);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Holiday updated successfully");
             response.put("holiday", updated);
@@ -81,17 +71,10 @@ public class HolidayController {
     }
 
     @DeleteMapping("/{id}")
-<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> deleteHoliday(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             holidayService.deleteHoliday(Objects.requireNonNull(id));
-=======
-    public ResponseEntity<Map<String, Object>> deleteHoliday(@PathVariable Long id) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            holidayService.deleteHoliday(id);
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Holiday deleted successfully");
             return ResponseEntity.ok(response);
@@ -102,7 +85,3 @@ public class HolidayController {
         }
     }
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

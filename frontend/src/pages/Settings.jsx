@@ -41,7 +41,6 @@ const Settings = () => {
     language: localStorage.getItem('hrms_language') || 'english'
   })
 
-<<<<<<< HEAD
   const [leaveTypes, setLeaveTypes] = useState([])
   const [showLeaveTypeModal, setShowLeaveTypeModal] = useState(false)
   const [editingLeaveType, setEditingLeaveType] = useState(null)
@@ -54,8 +53,6 @@ const Settings = () => {
     description: '',
     active: true
   })
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
@@ -65,22 +62,15 @@ const Settings = () => {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Shield },
-<<<<<<< HEAD
     { id: 'data', label: 'Data Management', icon: Database },
     ...(isAdmin ? [{ id: 'leaveTypes', label: 'Leave Types', icon: Calendar }] : [])
-=======
-    { id: 'data', label: 'Data Management', icon: Database }
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   ]
 
   useEffect(() => {
     loadUserProfile()
-<<<<<<< HEAD
     if (isAdmin) {
       loadLeaveTypes()
     }
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     loadAppearanceSettings()
     
     // Set up system theme change listener for 'auto' mode
@@ -245,7 +235,6 @@ const Settings = () => {
     }
   }
 
-<<<<<<< HEAD
   const loadLeaveTypes = async () => {
     try {
       const data = await api.getLeaveTypes()
@@ -312,8 +301,6 @@ const Settings = () => {
     }
   }
 
-=======
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   const handleProfileSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -462,7 +449,6 @@ const Settings = () => {
   }
 
   return (
-<<<<<<< HEAD
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       <div>
         <h2 className="text-3xl font-bold text-blue-600">Settings</h2>
@@ -491,40 +477,6 @@ const Settings = () => {
         </div>
 
         <div className="p-6 bg-white">
-=======
-    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
-      <div>
-        <h2 className="text-2xl md:text-3xl font-bold text-blue-600">Settings</h2>
-        <p className="text-sm md:text-base text-gray-600 mt-1 font-medium">Manage your account settings and preferences</p>
-      </div>
-
-      <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 overflow-hidden">
-        {/* Mobile: Vertical tabs, Desktop: Horizontal tabs */}
-        <div className="md:flex md:overflow-x-auto border-b-2 border-gray-200 bg-gray-50">
-          {/* Mobile: Grid layout */}
-          <div className="grid grid-cols-2 md:flex md:flex-row">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center justify-center md:justify-start gap-1 md:gap-2 px-3 md:px-6 py-3 md:py-4 border-b-2 md:border-b-2 transition-all duration-300 font-semibold text-xs md:text-base ${
-                    activeTab === tab.id
-                      ? 'border-blue-600 text-blue-700 bg-white shadow-sm'
-                      : 'border-transparent text-gray-600 hover:text-blue-700 hover:bg-gray-100 active:bg-gray-200'
-                  }`}
-                >
-                  <Icon size={16} className="md:w-5 md:h-5 flex-shrink-0" />
-                  <span className="truncate">{tab.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="p-4 md:p-6 bg-white">
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
           {/* Profile Tab */}
           {activeTab === 'profile' && (
             <div>
@@ -534,7 +486,6 @@ const Settings = () => {
                   <span className="ml-3 text-gray-600">Loading profile...</span>
                 </div>
               ) : (
-<<<<<<< HEAD
             <form onSubmit={handleProfileSubmit} className="space-y-6">
                   {/* User Avatar and Basic Info */}
                   <div className="flex items-center gap-6 mb-6 pb-6 border-b border-gray-200">
@@ -544,31 +495,14 @@ const Settings = () => {
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-gray-800">{profileData.name || 'User'}</h3>
                       <p className="text-sm text-gray-600 mt-1">{profileData.position || profileData.role}</p>
-=======
-            <form onSubmit={handleProfileSubmit} className="space-y-4 md:space-y-6">
-                  {/* User Avatar and Basic Info */}
-                  <div className="flex items-center gap-4 md:gap-6 mb-4 md:mb-6 pb-4 md:pb-6 border-b border-gray-200">
-                    <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl md:text-2xl font-semibold shadow-lg">
-                      {profileData.name ? profileData.name.charAt(0).toUpperCase() : 'U'}
-                </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg md:text-xl font-semibold text-gray-800">{profileData.name || 'User'}</h3>
-                      <p className="text-xs md:text-sm text-gray-600 mt-1">{profileData.position || profileData.role}</p>
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                       <p className="text-xs text-gray-500 mt-1">{profileData.department || 'HRMS System'}</p>
                     </div>
                   </div>
 
                   {/* Login Credentials Section */}
-<<<<<<< HEAD
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                     <h4 className="text-sm font-semibold text-blue-800 mb-3">Login Credentials</h4>
                     <div className="grid grid-cols-2 gap-4">
-=======
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4 mb-4 md:mb-6">
-                    <h4 className="text-xs md:text-sm font-semibold text-blue-800 mb-3">Login Credentials</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 <div>
                         <label className="block text-xs font-medium text-blue-700 mb-1">Email (Login ID)</label>
                         <div className="px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm text-gray-700">
@@ -593,13 +527,8 @@ const Settings = () => {
               </div>
 
                   {/* Editable Profile Information */}
-<<<<<<< HEAD
                   <h4 className="text-sm font-semibold text-gray-800 mb-4">Profile Information</h4>
               <div className="grid grid-cols-2 gap-4">
-=======
-                  <h4 className="text-sm md:text-base font-semibold text-gray-800 mb-4">Profile Information</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Full Name <span className="text-red-500">*</span>
@@ -685,30 +614,18 @@ const Settings = () => {
                     )}
               </div>
 
-<<<<<<< HEAD
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                     <button
                       type="button"
                       onClick={() => loadUserProfile()}
                       className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
-=======
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button
-                      type="button"
-                      onClick={() => loadUserProfile()}
-                      className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors text-gray-700 font-medium touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                     >
                       Cancel
                     </button>
                 <button
                   type="submit"
                       disabled={loading}
-<<<<<<< HEAD
                       className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-=======
-                      className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 >
                       {loading ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -720,7 +637,6 @@ const Settings = () => {
 
           {/* Notifications Tab */}
           {activeTab === 'notifications' && (
-<<<<<<< HEAD
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Notification Preferences</h3>
               {Object.entries(notifications).map(([key, value]) => (
@@ -732,19 +648,6 @@ const Settings = () => {
                     <p className="text-sm text-gray-600">Receive notifications for {key.toLowerCase()}</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-=======
-            <div className="space-y-3 md:space-y-4">
-              <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">Notification Preferences</h3>
-              {Object.entries(notifications).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between p-3 md:p-4 bg-gray-50 rounded-lg">
-                  <div className="flex-1 min-w-0 pr-3">
-                    <p className="font-medium text-gray-800 text-sm md:text-base">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                    </p>
-                    <p className="text-xs md:text-sm text-gray-600 mt-1">Receive notifications for {key.toLowerCase()}</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 touch-manipulation">
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                     <input
                       type="checkbox"
                       checked={value}
@@ -760,7 +663,6 @@ const Settings = () => {
 
           {/* Security Tab */}
           {activeTab === 'security' && (
-<<<<<<< HEAD
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Security Settings</h3>
               
@@ -770,17 +672,6 @@ const Settings = () => {
                   <p className="text-sm text-gray-600">Add an extra layer of security to your account</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-=======
-            <div className="space-y-4 md:space-y-6">
-              <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">Security Settings</h3>
-              
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 md:p-4 bg-gray-50 rounded-lg">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-800 text-sm md:text-base">Two-Factor Authentication</p>
-                  <p className="text-xs md:text-sm text-gray-600 mt-1">Add an extra layer of security to your account</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 touch-manipulation">
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                   <input
                     type="checkbox"
                     checked={security.twoFactorAuth}
@@ -796,11 +687,7 @@ const Settings = () => {
                 <select
                   value={security.sessionTimeout}
                   onChange={(e) => handleSecurityChange('sessionTimeout', e.target.value)}
-<<<<<<< HEAD
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-=======
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 >
                   <option value="15">15 minutes</option>
                   <option value="30">30 minutes</option>
@@ -814,11 +701,7 @@ const Settings = () => {
                 <select
                   value={security.passwordExpiry}
                   onChange={(e) => handleSecurityChange('passwordExpiry', e.target.value)}
-<<<<<<< HEAD
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-=======
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 >
                   <option value="30">30 days</option>
                   <option value="60">60 days</option>
@@ -834,11 +717,7 @@ const Settings = () => {
                     setPasswordError('')
                     setShowPasswordModal(true)
                   }}
-<<<<<<< HEAD
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-=======
-                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 >
                   Change Password
                 </button>
@@ -848,24 +727,15 @@ const Settings = () => {
 
           {/* Data Management Tab */}
           {activeTab === 'data' && (
-<<<<<<< HEAD
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Data Management</h3>
               
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-sm text-blue-800">
-=======
-            <div className="space-y-4 md:space-y-6">
-              <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">Data Management</h3>
-              
-              <div className="p-3 md:p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-xs md:text-sm text-blue-800">
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                   <strong>Note:</strong> All data is stored locally in your browser. Export your data regularly to prevent data loss.
                 </p>
               </div>
 
-<<<<<<< HEAD
               <div className="space-y-4">
                 <button
                   onClick={handleExportData}
@@ -876,23 +746,10 @@ const Settings = () => {
                     <p className="text-sm text-gray-600">Download all HRMS data as JSON</p>
                   </div>
                   <Database className="w-5 h-5 text-gray-600" />
-=======
-              <div className="space-y-3 md:space-y-4">
-                <button
-                  onClick={handleExportData}
-                  className="w-full flex items-center justify-between p-3 md:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
-                >
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-gray-800 text-sm md:text-base">Export Data</p>
-                    <p className="text-xs md:text-sm text-gray-600 mt-1">Download all HRMS data as JSON</p>
-                  </div>
-                  <Database className="w-5 h-5 text-gray-600 flex-shrink-0 ml-3" />
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 </button>
 
                 <button
                   onClick={handleClearCache}
-<<<<<<< HEAD
                   className="w-full flex items-center justify-between p-4 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                 >
                   <div>
@@ -900,21 +757,11 @@ const Settings = () => {
                     <p className="text-sm text-red-600">Permanently delete all stored data</p>
                   </div>
                   <Database className="w-5 h-5 text-red-600" />
-=======
-                  className="w-full flex items-center justify-between p-3 md:p-4 bg-red-50 rounded-lg hover:bg-red-100 active:bg-red-200 transition-colors touch-manipulation"
-                >
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-red-800 text-sm md:text-base">Clear All Data</p>
-                    <p className="text-xs md:text-sm text-red-600 mt-1">Permanently delete all stored data</p>
-                  </div>
-                  <Database className="w-5 h-5 text-red-600 flex-shrink-0 ml-3" />
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 </button>
               </div>
             </div>
           )}
 
-<<<<<<< HEAD
           {/* Leave Types Tab (Admin Only) */}
           {activeTab === 'leaveTypes' && isAdmin && (
             <div className="space-y-6">
@@ -1124,28 +971,13 @@ const Settings = () => {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-blue-600">Change Password</h3>
-=======
-        </div>
-      </div>
-
-      {/* Change Password Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-6 w-full max-w-md border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg md:text-xl font-bold text-blue-600">Change Password</h3>
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               <button
                 onClick={() => {
                   setShowPasswordModal(false)
                   setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
                   setPasswordError('')
                 }}
-<<<<<<< HEAD
                 className="text-gray-500 hover:text-gray-700"
-=======
-                className="text-gray-500 hover:text-gray-700 touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               >
                 <X size={24} />
               </button>
@@ -1214,11 +1046,7 @@ const Settings = () => {
                 </ul>
               </div>
               
-<<<<<<< HEAD
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
-=======
-              <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4 border-t border-gray-200">
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 <button
                   type="button"
                   onClick={() => {
@@ -1226,22 +1054,14 @@ const Settings = () => {
                     setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
                     setPasswordError('')
                   }}
-<<<<<<< HEAD
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
-=======
-                  className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors text-gray-700 font-medium touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-<<<<<<< HEAD
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-=======
-                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
->>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 >
                   {loading ? 'Changing...' : 'Change Password'}
                 </button>
