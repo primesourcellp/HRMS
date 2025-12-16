@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
+<<<<<<< HEAD
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X } from 'lucide-react'
+=======
+import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon } from 'lucide-react'
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 import api from '../services/api'
 import { format, differenceInDays, parseISO, isAfter, isBefore, startOfToday } from 'date-fns'
 
@@ -14,12 +18,30 @@ const LeaveManagement = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showBalanceModal, setShowBalanceModal] = useState(false)
+<<<<<<< HEAD
+=======
+  const [showLeaveTypeModal, setShowLeaveTypeModal] = useState(false)
+  const [showLeaveTypeList, setShowLeaveTypeList] = useState(false)
+  const [editingLeaveType, setEditingLeaveType] = useState(null)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   const [balanceFormData, setBalanceFormData] = useState({
     employeeId: '',
     leaveTypeId: '',
     totalDays: '',
     year: new Date().getFullYear()
   })
+<<<<<<< HEAD
+=======
+  const [leaveTypeFormData, setLeaveTypeFormData] = useState({
+    name: '',
+    code: '',
+    maxDays: '',
+    carryForward: false,
+    maxCarryForward: '',
+    description: '',
+    active: true
+  })
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   const [selectedLeave, setSelectedLeave] = useState(null)
   const [filter, setFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
@@ -81,8 +103,14 @@ const LeaveManagement = () => {
         leavesData = filter === 'All' ? await api.getLeaves() : await api.getLeaves(filter)
       }
 
+<<<<<<< HEAD
       const [typesData, employeesData, usersData] = await Promise.all([
         api.getActiveLeaveTypes(),
+=======
+      const [typesData, allTypesData, employeesData, usersData] = await Promise.all([
+        api.getActiveLeaveTypes(),
+        isAdmin ? api.getLeaveTypes() : Promise.resolve([]),
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         // Load employees for admins, or load current employee's data for employees
         isAdmin ? api.getEmployees() : (isEmployee && currentUserId ? 
           api.getEmployees().then(emps => {
@@ -98,7 +126,17 @@ const LeaveManagement = () => {
       ])
       
       setLeaves(Array.isArray(leavesData) ? leavesData : [])
+<<<<<<< HEAD
       setLeaveTypes(Array.isArray(typesData) ? typesData : [])
+=======
+      // For admin, load all leave types (including inactive) for management
+      // For employees, load only active leave types
+      if (isAdmin) {
+        setLeaveTypes(Array.isArray(allTypesData) ? allTypesData : [])
+      } else {
+        setLeaveTypes(Array.isArray(typesData) ? typesData : [])
+      }
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
       setUsers(Array.isArray(usersData) ? usersData : [])
 
@@ -482,6 +520,86 @@ const LeaveManagement = () => {
     }
   }
 
+<<<<<<< HEAD
+=======
+  const handleOpenLeaveTypeModal = (leaveType = null) => {
+    if (leaveType) {
+      setEditingLeaveType(leaveType)
+      setLeaveTypeFormData({
+        name: leaveType.name || '',
+        code: leaveType.code || '',
+        maxDays: leaveType.maxDays || '',
+        carryForward: leaveType.carryForward || false,
+        maxCarryForward: leaveType.maxCarryForward || '',
+        description: leaveType.description || '',
+        active: leaveType.active !== undefined ? leaveType.active : true
+      })
+    } else {
+      setEditingLeaveType(null)
+      setLeaveTypeFormData({
+        name: '',
+        code: '',
+        maxDays: '',
+        carryForward: false,
+        maxCarryForward: '',
+        description: '',
+        active: true
+      })
+    }
+    setShowLeaveTypeModal(true)
+  }
+
+  const handleLeaveTypeSubmit = async (e) => {
+    e.preventDefault()
+    if (!leaveTypeFormData.name || !leaveTypeFormData.code) {
+      alert('Please fill in name and code')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const submitData = {
+        ...leaveTypeFormData,
+        maxDays: leaveTypeFormData.maxDays ? parseInt(leaveTypeFormData.maxDays) : null,
+        maxCarryForward: leaveTypeFormData.maxCarryForward ? parseInt(leaveTypeFormData.maxCarryForward) : null
+      }
+
+      if (editingLeaveType) {
+        await api.updateLeaveType(editingLeaveType.id, submitData)
+        alert('Leave type updated successfully')
+      } else {
+        await api.createLeaveType(submitData)
+        alert('Leave type created successfully')
+      }
+      
+      setShowLeaveTypeModal(false)
+      setEditingLeaveType(null)
+      await loadData()
+    } catch (error) {
+      alert('Error saving leave type: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteLeaveType = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this leave type? This action cannot be undone.')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      await api.deleteLeaveType(id)
+      alert('Leave type deleted successfully')
+      await loadData()
+    } catch (error) {
+      alert('Error deleting leave type: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   const filteredLeaves = leaves.filter(leave => {
     // Search functionality
     const searchLower = searchTerm.toLowerCase().trim()
@@ -520,6 +638,7 @@ const LeaveManagement = () => {
   }
 
   return (
+<<<<<<< HEAD
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       {/* Header Section */}
       <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
@@ -535,6 +654,23 @@ const LeaveManagement = () => {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="px-5 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black font-medium"
+=======
+    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
+      {/* Header Section */}
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-blue-600 mb-2">Leave Management</h2>
+            <p className="text-sm md:text-base text-gray-600 font-medium">
+              {isEmployee ? 'View and manage your leave applications' : 'Manage leave applications and approvals'}
+            </p>
+          </div>
+          <div className="flex gap-2 md:gap-3 w-full sm:w-auto flex-wrap">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="flex-1 sm:flex-none px-4 md:px-5 py-2 md:py-2.5 border-2 border-gray-200 rounded-lg md:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black font-medium text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             >
               <option value="All">All Leaves</option>
               <option value="PENDING">Pending</option>
@@ -543,6 +679,7 @@ const LeaveManagement = () => {
             </select>
             {isAdmin && (
               <button
+<<<<<<< HEAD
                 onClick={() => {
                   setBalanceFormData({
                     employeeId: '',
@@ -557,6 +694,14 @@ const LeaveManagement = () => {
               >
                 <User size={20} />
                 Assign Balance
+=======
+                onClick={() => handleOpenLeaveTypeModal()}
+                className="bg-blue-600 text-white px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold text-sm md:text-base"
+              >
+                <Plus size={18} />
+                <span className="hidden sm:inline">Add Leave Type</span>
+                <span className="sm:hidden">Add Type</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               </button>
             )}
             {isEmployee && (
@@ -647,11 +792,106 @@ const LeaveManagement = () => {
       {leaveTypes.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800">
+<<<<<<< HEAD
             <strong>No leave types found.</strong> Please create leave types in the Settings page first.
+=======
+            <strong>No leave types found.</strong> {isAdmin ? 'Click "Add Leave Type" button above to create leave types.' : 'Please contact your administrator to create leave types.'}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
           </p>
         </div>
       )}
 
+<<<<<<< HEAD
+=======
+      {/* Leave Types Table (Admin Only) */}
+      {isAdmin && leaveTypes.length > 0 && (
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 overflow-hidden">
+          <div className="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200">
+            <h3 className="text-lg md:text-xl font-bold text-gray-800">Leave Types</h3>
+            <p className="text-xs md:text-sm text-gray-500 mt-1">
+              List of all configured leave types. Use the &quot;Add Leave Type&quot; button above to create new types.
+            </p>
+          </div>
+          <div className="p-4 md:p-6 overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Code</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Max Days</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Carry Forward</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {leaveTypes.map((type) => (
+                  <tr key={type.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{type.name}</div>
+                        {type.description && (
+                          <div className="text-xs text-gray-500 mt-1">{type.description}</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                        {type.code}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">
+                        {type.maxDays ? `${type.maxDays} days` : 'Unlimited'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {type.carryForward ? (
+                          <span className="text-green-600 font-semibold">
+                            Yes {type.maxCarryForward ? `(Max: ${type.maxCarryForward})` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">No</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          type.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {type.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenLeaveTypeModal(type)}
+                          className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLeaveType(type.id)}
+                          className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       {/* Leave Balances - Only visible to employees */}
       {isEmployee && (() => {
         // Remove duplicates by grouping by leaveTypeId (keep the one with highest totalDays or most recent)
@@ -674,11 +914,19 @@ const LeaveManagement = () => {
         if (uniqueBalances.length === 0) return null
 
               return (
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">Your Leave Balance</h3>
                 <p className="text-sm text-gray-500 font-medium">Year {new Date().getFullYear()}</p>
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 md:p-6 border-2 border-gray-200">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 md:mb-6 gap-3">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-1">Your Leave Balance</h3>
+                <p className="text-xs md:text-sm text-gray-500 font-medium">Year {new Date().getFullYear()}</p>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               </div>
               <button
                 onClick={async () => {
@@ -1633,6 +1881,143 @@ const LeaveManagement = () => {
           </div>
         </div>
       )}
+<<<<<<< HEAD
+=======
+
+      {/* Leave Type Create/Edit Modal */}
+      {showLeaveTypeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                {editingLeaveType ? 'Edit Leave Type' : 'Create Leave Type'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowLeaveTypeModal(false)
+                  setEditingLeaveType(null)
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleLeaveTypeSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={leaveTypeFormData.name}
+                    onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, name: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="e.g., Casual Leave"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={leaveTypeFormData.code}
+                    onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, code: e.target.value.toUpperCase() })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="e.g., CL"
+                    required
+                    maxLength={10}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Max Days Per Year
+                  </label>
+                  <input
+                    type="number"
+                    value={leaveTypeFormData.maxDays}
+                    onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, maxDays: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Leave empty for unlimited"
+                    min="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Maximum days allowed per year (optional)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Max Carry Forward Days
+                  </label>
+                  <input
+                    type="number"
+                    value={leaveTypeFormData.maxCarryForward}
+                    onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, maxCarryForward: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Only if carry forward enabled"
+                    min="0"
+                    disabled={!leaveTypeFormData.carryForward}
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={leaveTypeFormData.carryForward}
+                      onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, carryForward: e.target.checked })}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-700">Allow Carry Forward</span>
+                  </label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={leaveTypeFormData.active}
+                      onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, active: e.target.checked })}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-700">Active</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={leaveTypeFormData.description}
+                  onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, description: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                  rows={3}
+                  placeholder="Enter description for this leave type..."
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLeaveTypeModal(false)
+                    setEditingLeaveType(null)
+                  }}
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                >
+                  {loading ? 'Saving...' : editingLeaveType ? 'Update Leave Type' : 'Create Leave Type'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     </div>
   )
 }

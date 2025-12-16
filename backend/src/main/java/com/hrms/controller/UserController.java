@@ -16,8 +16,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
 import java.util.Objects;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.dto.UserDTO;
 import com.hrms.entity.User;
@@ -43,8 +46,13 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
+<<<<<<< HEAD
     public ResponseEntity<UserDTO> getUserById(@PathVariable @NonNull Long id) {
         return userService.getUserById(Objects.requireNonNull(id))
+=======
+    public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
+        return userService.getUserById(id)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .map(DTOMapper::toUserDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -83,7 +91,11 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+<<<<<<< HEAD
     public ResponseEntity<?> updateUser(@PathVariable @NonNull Long id, @RequestBody Map<String, Object> request) {
+=======
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         try {
             String currentUserRole = (String) request.get("currentUserRole");
             String requestedRole = (String) request.get("role");
@@ -104,7 +116,11 @@ public class UserController {
                 userDetails.setPassword((String) request.get("password"));
             }
             
+<<<<<<< HEAD
             User updatedUser = userService.updateUser(Objects.requireNonNull(id), userDetails);
+=======
+            User updatedUser = userService.updateUser(id, userDetails);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             return ResponseEntity.ok(DTOMapper.toUserDTO(updatedUser));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -113,7 +129,11 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
+<<<<<<< HEAD
     public ResponseEntity<?> deleteUser(@PathVariable @NonNull Long id, @RequestParam String currentUserRole) {
+=======
+    public ResponseEntity<?> deleteUser(@PathVariable Long id, @RequestParam String currentUserRole) {
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         try {
             // Only SUPER_ADMIN can delete users
             if (!"SUPER_ADMIN".equals(currentUserRole)) {
@@ -121,7 +141,11 @@ public class UserController {
                         .body(Map.of("error", "Only SUPER_ADMIN can delete users"));
             }
             
+<<<<<<< HEAD
             userService.deleteUser(Objects.requireNonNull(id));
+=======
+            userService.deleteUser(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -129,3 +153,7 @@ public class UserController {
         }
     }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

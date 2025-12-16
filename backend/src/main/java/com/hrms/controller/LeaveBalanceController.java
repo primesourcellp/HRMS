@@ -9,8 +9,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
 import java.util.Objects;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.entity.LeaveBalance;
 import com.hrms.service.LeaveBalanceService;
@@ -25,9 +28,15 @@ public class LeaveBalanceController {
 
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<?> getEmployeeLeaveBalances(
+<<<<<<< HEAD
             @PathVariable @NonNull Long employeeId, @RequestParam(required = false) Integer year) {
         try {
             return ResponseEntity.ok(leaveBalanceService.getEmployeeLeaveBalances(Objects.requireNonNull(employeeId), year));
+=======
+            @PathVariable Long employeeId, @RequestParam(required = false) Integer year) {
+        try {
+            return ResponseEntity.ok(leaveBalanceService.getEmployeeLeaveBalances(employeeId, year));
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         } catch (Exception e) {
             System.err.println("Error fetching leave balances: " + e.getMessage());
             return ResponseEntity.status(500).body("Error fetching leave balances: " + e.getMessage());
@@ -36,22 +45,37 @@ public class LeaveBalanceController {
 
     @PostMapping("/carry-forward")
     public ResponseEntity<String> carryForwardLeaves(
+<<<<<<< HEAD
             @RequestParam @NonNull Long employeeId,
             @RequestParam Integer fromYear,
             @RequestParam Integer toYear) {
         leaveBalanceService.carryForwardLeaves(Objects.requireNonNull(employeeId), fromYear, toYear);
+=======
+            @RequestParam Long employeeId,
+            @RequestParam Integer fromYear,
+            @RequestParam Integer toYear) {
+        leaveBalanceService.carryForwardLeaves(employeeId, fromYear, toYear);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         return ResponseEntity.ok("Leave carry forward completed");
     }
 
     @PostMapping("/initialize/{employeeId}")
     public ResponseEntity<?> initializeLeaveBalances(
+<<<<<<< HEAD
             @PathVariable @NonNull Long employeeId,
+=======
+            @PathVariable Long employeeId,
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             @RequestParam(required = false) Integer year) {
         try {
             if (year == null) {
                 year = java.time.LocalDate.now().getYear();
             }
+<<<<<<< HEAD
             return ResponseEntity.ok(leaveBalanceService.initializeLeaveBalances(Objects.requireNonNull(employeeId), year));
+=======
+            return ResponseEntity.ok(leaveBalanceService.initializeLeaveBalances(employeeId, year));
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         } catch (Exception e) {
             System.err.println("Error initializing leave balances: " + e.getMessage());
             return ResponseEntity.status(500).body("Error initializing leave balances: " + e.getMessage());
@@ -60,13 +84,25 @@ public class LeaveBalanceController {
 
     @PostMapping("/assign")
     public ResponseEntity<LeaveBalance> assignLeaveBalance(
+<<<<<<< HEAD
             @RequestParam @NonNull Long employeeId,
             @RequestParam @NonNull Long leaveTypeId,
+=======
+            @RequestParam Long employeeId,
+            @RequestParam Long leaveTypeId,
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             @RequestParam Double totalDays,
             @RequestParam(required = false) Integer year) {
         if (year == null) {
             year = java.time.LocalDate.now().getYear();
         }
+<<<<<<< HEAD
         return ResponseEntity.ok(leaveBalanceService.assignLeaveBalance(Objects.requireNonNull(employeeId), Objects.requireNonNull(leaveTypeId), year, totalDays));
     }
 }
+=======
+        return ResponseEntity.ok(leaveBalanceService.assignLeaveBalance(employeeId, leaveTypeId, year, totalDays));
+    }
+}
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

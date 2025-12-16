@@ -39,14 +39,14 @@ public class DTOMapper {
     // Employee Mappers
     public static EmployeeDTO toEmployeeDTO(Employee employee) {
         if (employee == null) return null;
+<<<<<<< HEAD
         EmployeeDTO dto = new EmployeeDTO();
         dto.setId(employee.getId());
         dto.setEmployeeId(employee.getEmployeeId());
         dto.setFirstName(employee.getFirstName());
         dto.setLastName(employee.getLastName());
-        dto.setNickName(employee.getNickName());
         dto.setEmail(employee.getEmail());
-        dto.setZohoRole(employee.getZohoRole());
+        dto.setRole(employee.getRole());
         dto.setDepartment(employee.getDepartment());
         dto.setLocation(employee.getLocation());
         dto.setDesignation(employee.getDesignation());
@@ -54,13 +54,13 @@ public class DTOMapper {
         dto.setEmployeeStatus(employee.getEmployeeStatus());
         dto.setSourceOfHire(employee.getSourceOfHire());
         dto.setDateOfJoining(employee.getDateOfJoining());
+        dto.setSalary(employee.getSalary());
         dto.setDateOfBirth(employee.getDateOfBirth());
         dto.setAge(employee.getAge());
         dto.setGender(employee.getGender());
         dto.setMaritalStatus(employee.getMaritalStatus());
         dto.setAboutMe(employee.getAboutMe());
         dto.setExpertise(employee.getExpertise());
-        dto.setUan(employee.getUan());
         dto.setPan(employee.getPan());
         dto.setAadhaar(employee.getAadhaar());
         dto.setWorkPhoneNumber(employee.getWorkPhoneNumber());
@@ -84,11 +84,26 @@ public class DTOMapper {
         dto.setPermanentPostalCode(employee.getPermanentPostalCode());
         dto.setDateOfExit(employee.getDateOfExit());
         dto.setPhone(employee.getPhone());
-        dto.setSalary(employee.getSalary());
+        
         dto.setAvatar(employee.getAvatar());
         dto.setShiftId(employee.getShift() != null ? employee.getShift().getId() : null);
         // Map work experiences, education, dependents if needed
         return dto;
+=======
+        return new EmployeeDTO(
+            employee.getId(),
+            employee.getName(),
+            employee.getEmail(),
+            employee.getPhone(),
+            employee.getDepartment(),
+            employee.getPosition(),
+            employee.getSalary(),
+            employee.getJoinDate(),
+            employee.getStatus(),
+            employee.getAvatar(),
+            employee.getShiftId()
+        );
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     public static List<EmployeeDTO> toEmployeeDTOList(List<Employee> employees) {

@@ -16,8 +16,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
 import java.util.Objects;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.entity.Leave;
 import com.hrms.service.LeaveService;
@@ -48,15 +51,25 @@ public class LeaveController {
     }
 
     @GetMapping("/{id}")
+<<<<<<< HEAD
     public ResponseEntity<Leave> getLeaveById(@PathVariable @NonNull Long id) {
         return leaveService.getLeaveById(Objects.requireNonNull(id))
+=======
+    public ResponseEntity<Leave> getLeaveById(@PathVariable Long id) {
+        return leaveService.getLeaveById(id)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/employee/{employeeId}")
+<<<<<<< HEAD
     public ResponseEntity<List<Leave>> getLeavesByEmployeeId(@PathVariable @NonNull Long employeeId) {
         return ResponseEntity.ok(leaveService.getLeavesByEmployeeId(Objects.requireNonNull(employeeId)));
+=======
+    public ResponseEntity<List<Leave>> getLeavesByEmployeeId(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(leaveService.getLeavesByEmployeeId(employeeId));
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     @GetMapping("/pending")
@@ -82,11 +95,19 @@ public class LeaveController {
 
     @PostMapping("/{id}/approve")
     public ResponseEntity<Map<String, Object>> approveLeave(
+<<<<<<< HEAD
             @PathVariable @NonNull Long id, @RequestBody Map<String, Long> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Long approvedBy = request.get("approvedBy");
             Leave approved = leaveService.approveLeave(Objects.requireNonNull(id), approvedBy);
+=======
+            @PathVariable Long id, @RequestBody Map<String, Long> request) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Long approvedBy = request.get("approvedBy");
+            Leave approved = leaveService.approveLeave(id, approvedBy);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Leave approved successfully");
             response.put("leave", approved);
@@ -100,12 +121,20 @@ public class LeaveController {
 
     @PostMapping("/{id}/reject")
     public ResponseEntity<Map<String, Object>> rejectLeave(
+<<<<<<< HEAD
             @PathVariable @NonNull Long id, @RequestBody Map<String, Object> request) {
+=======
+            @PathVariable Long id, @RequestBody Map<String, Object> request) {
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         Map<String, Object> response = new HashMap<>();
         try {
             Long approvedBy = Long.valueOf(request.get("approvedBy").toString());
             String rejectionReason = request.get("rejectionReason").toString();
+<<<<<<< HEAD
             Leave rejected = leaveService.rejectLeave(Objects.requireNonNull(id), approvedBy, rejectionReason);
+=======
+            Leave rejected = leaveService.rejectLeave(id, approvedBy, rejectionReason);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Leave rejected");
             response.put("leave", rejected);
@@ -118,8 +147,17 @@ public class LeaveController {
     }
 
     @PutMapping("/{id}/status")
+<<<<<<< HEAD
     public ResponseEntity<Leave> updateLeaveStatus(@PathVariable @NonNull Long id, @RequestBody Map<String, String> request) {
         String status = request.get("status");
         return ResponseEntity.ok(leaveService.updateLeaveStatus(Objects.requireNonNull(id), status));
     }
 }
+=======
+    public ResponseEntity<Leave> updateLeaveStatus(@PathVariable Long id, @RequestBody Map<String, String> request) {
+        String status = request.get("status");
+        return ResponseEntity.ok(leaveService.updateLeaveStatus(id, status));
+    }
+}
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

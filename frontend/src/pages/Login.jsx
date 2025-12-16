@@ -110,6 +110,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-500 via-primary-600 to-primary-700 flex items-center justify-center p-4">
+<<<<<<< HEAD
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
@@ -121,6 +122,19 @@ const Login = () => {
 
         {/* Login Type Tabs */}
         <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg">
+=======
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl w-full max-w-md p-6 md:p-8">
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-primary-100 rounded-full mb-3 md:mb-4">
+            <Building2 className="w-6 h-6 md:w-8 md:h-8 text-primary-600" />
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">HRMS Portal</h1>
+          <p className="text-sm md:text-base text-gray-600">Human Resource Management System</p>
+        </div>
+
+        {/* Login Type Tabs */}
+        <div className="flex gap-2 mb-4 md:mb-6 bg-gray-100 p-1 rounded-lg">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
           <button
             type="button"
             onClick={() => {
@@ -129,13 +143,21 @@ const Login = () => {
               setEmail('')
               setPassword('')
             }}
+<<<<<<< HEAD
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-all ${
+=======
+            className={`flex-1 flex items-center justify-center gap-1 md:gap-2 px-3 md:px-4 py-2 rounded-md transition-all text-sm md:text-base ${
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               loginType === 'admin'
                 ? 'bg-white text-primary-600 shadow-sm font-medium'
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
+<<<<<<< HEAD
             <Shield size={18} />
+=======
+            <Shield size={16} className="md:w-5 md:h-5" />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <span>Admin</span>
           </button>
           <button
@@ -146,18 +168,30 @@ const Login = () => {
               setEmail('')
               setPassword('')
             }}
+<<<<<<< HEAD
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-all ${
+=======
+            className={`flex-1 flex items-center justify-center gap-1 md:gap-2 px-3 md:px-4 py-2 rounded-md transition-all text-sm md:text-base ${
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               loginType === 'employee'
                 ? 'bg-white text-primary-600 shadow-sm font-medium'
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
+<<<<<<< HEAD
             <User size={18} />
+=======
+            <User size={16} className="md:w-5 md:h-5" />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <span>Employee</span>
           </button>
         </div>
 
+<<<<<<< HEAD
         <form onSubmit={handleSubmit} className="space-y-6">
+=======
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
@@ -169,12 +203,20 @@ const Login = () => {
               Email Address
             </label>
             <div className="relative">
+<<<<<<< HEAD
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+=======
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5" />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+<<<<<<< HEAD
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+=======
+                className="w-full pl-10 md:pl-10 pr-4 py-2.5 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 placeholder="Enter your email"
                 required
               />
@@ -186,12 +228,20 @@ const Login = () => {
               Password
             </label>
             <div className="relative">
+<<<<<<< HEAD
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+=======
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5" />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+<<<<<<< HEAD
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+=======
+                className="w-full pl-10 md:pl-10 pr-4 py-2.5 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 placeholder="Enter your password"
                 required
               />
@@ -201,19 +251,31 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
+<<<<<<< HEAD
             className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+=======
+            className="w-full bg-primary-600 text-white py-2.5 md:py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 
         {loginType === 'admin' && (
+<<<<<<< HEAD
           <div className="mt-6 text-center text-sm text-gray-600">
+=======
+          <div className="mt-4 md:mt-6 text-center text-xs md:text-sm text-gray-600">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <p>Don't have an account?</p>
             <button
               type="button"
               onClick={() => navigate('/register')}
+<<<<<<< HEAD
               className="text-primary-600 hover:text-primary-700 font-medium mt-1"
+=======
+              className="text-primary-600 hover:text-primary-700 font-medium mt-1 text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             >
               Register as Super Admin
             </button>

@@ -12,6 +12,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+<<<<<<< HEAD
+=======
+import org.springframework.web.bind.annotation.DeleteMapping;
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,7 +24,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.dto.PayrollDTO;
 import com.hrms.entity.Payroll;
@@ -29,7 +36,10 @@ import com.hrms.mapper.DTOMapper;
 import com.hrms.service.PayrollService;
 import com.hrms.service.SalaryStructureService;
 import com.hrms.util.PDFGeneratorService;
+<<<<<<< HEAD
 import java.util.Objects;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 @RestController
 @RequestMapping("/api/payroll")
@@ -61,9 +71,15 @@ public class PayrollController {
     }
 
     @GetMapping("/employee/{employeeId}")
+<<<<<<< HEAD
     public ResponseEntity<List<PayrollDTO>> getEmployeePayrolls(@PathVariable @NonNull Long employeeId) {
         try {
             List<Payroll> payrolls = payrollService.getPayrollsByEmployeeId(Objects.requireNonNull(employeeId));
+=======
+    public ResponseEntity<List<PayrollDTO>> getEmployeePayrolls(@PathVariable Long employeeId) {
+        try {
+            List<Payroll> payrolls = payrollService.getPayrollsByEmployeeId(employeeId);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             if (payrolls == null) {
                 return ResponseEntity.ok(List.of());
             }
@@ -77,12 +93,20 @@ public class PayrollController {
 
     @PostMapping("/generate")
     public ResponseEntity<Map<String, Object>> generatePayroll(
+<<<<<<< HEAD
             @RequestParam @NonNull Long employeeId,
+=======
+            @RequestParam Long employeeId,
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             @RequestParam String month,
             @RequestParam Integer year) {
         Map<String, Object> response = new HashMap<>();
         try {
+<<<<<<< HEAD
             Payroll payroll = payrollService.generatePayroll(Objects.requireNonNull(employeeId), month, year);
+=======
+            Payroll payroll = payrollService.generatePayroll(employeeId, month, year);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Payroll generated successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -123,10 +147,17 @@ public class PayrollController {
      * Approve a payroll
      */
     @PostMapping("/{id}/approve")
+<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> approvePayroll(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             Payroll payroll = payrollService.approvePayroll(Objects.requireNonNull(id));
+=======
+    public ResponseEntity<Map<String, Object>> approvePayroll(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.approvePayroll(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Payroll approved successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -142,10 +173,17 @@ public class PayrollController {
      * Finalize a payroll
      */
     @PostMapping("/{id}/finalize")
+<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> finalizePayroll(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             Payroll payroll = payrollService.finalizePayroll(Objects.requireNonNull(id));
+=======
+    public ResponseEntity<Map<String, Object>> finalizePayroll(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.finalizePayroll(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Payroll finalized successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -183,10 +221,17 @@ public class PayrollController {
      * Mark payroll as paid
      */
     @PostMapping("/{id}/mark-paid")
+<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> markPayrollAsPaid(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             Payroll payroll = payrollService.markPayrollAsPaid(Objects.requireNonNull(id));
+=======
+    public ResponseEntity<Map<String, Object>> markPayrollAsPaid(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.markPayrollAsPaid(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Payroll marked as paid");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -203,11 +248,19 @@ public class PayrollController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updatePayroll(
+<<<<<<< HEAD
             @PathVariable @NonNull Long id,
             @RequestBody PayrollDTO payrollDTO) {
         Map<String, Object> response = new HashMap<>();
         try {
             Payroll payroll = payrollService.updatePayroll(Objects.requireNonNull(id), payrollDTO);
+=======
+            @PathVariable Long id,
+            @RequestBody PayrollDTO payrollDTO) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.updatePayroll(id, payrollDTO);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Payroll updated successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -223,10 +276,17 @@ public class PayrollController {
      * Submit payroll for approval (moves from DRAFT to PENDING_APPROVAL)
      */
     @PostMapping("/{id}/submit")
+<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> submitPayrollForApproval(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             Payroll payroll = payrollService.submitPayrollForApproval(Objects.requireNonNull(id));
+=======
+    public ResponseEntity<Map<String, Object>> submitPayrollForApproval(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.submitPayrollForApproval(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Payroll submitted for approval successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -239,14 +299,24 @@ public class PayrollController {
     }
 
     @GetMapping("/{id}/payslip")
+<<<<<<< HEAD
     public ResponseEntity<?> generatePayslipPDF(@PathVariable @NonNull Long id) {
         try {
             Payroll payroll = payrollService.getPayrollById(Objects.requireNonNull(id))
+=======
+    public ResponseEntity<?> generatePayslipPDF(@PathVariable Long id) {
+        try {
+            Payroll payroll = payrollService.getPayrollById(id)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                     .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
             // Try to get salary structure, but use payroll data as fallback
             Optional<SalaryStructure> salaryStructureOpt = salaryStructureService
+<<<<<<< HEAD
                     .getCurrentSalaryStructure(Objects.requireNonNull(payroll.getEmployeeId()));
+=======
+                    .getCurrentSalaryStructure(payroll.getEmployeeId());
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
             Map<String, Object> payslipData = new HashMap<>();
             payslipData.put("employeeName", payroll.getEmployee() != null ? payroll.getEmployee().getName() : "");
@@ -304,7 +374,11 @@ public class PayrollController {
                 errorResponse.put("error", "Failed to generate payslip PDF");
                 errorResponse.put("message", "PDF generation returned empty data");
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+<<<<<<< HEAD
                         .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+=======
+                        .contentType(MediaType.APPLICATION_JSON)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                         .body(errorResponse);
             }
 
@@ -321,7 +395,11 @@ public class PayrollController {
             errorResponse.put("error", e.getMessage());
             errorResponse.put("message", "Cannot generate payslip: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+<<<<<<< HEAD
                     .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+=======
+                    .contentType(MediaType.APPLICATION_JSON)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                     .body(errorResponse);
         } catch (Exception e) {
             e.printStackTrace();
@@ -329,19 +407,31 @@ public class PayrollController {
             errorResponse.put("error", "Internal server error");
             errorResponse.put("message", "Failed to generate payslip: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+<<<<<<< HEAD
                     .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+=======
+                    .contentType(MediaType.APPLICATION_JSON)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                     .body(errorResponse);
         }
     }
 
     @GetMapping("/form16")
     public ResponseEntity<byte[]> generateForm16(
+<<<<<<< HEAD
             @RequestParam @NonNull Long employeeId,
+=======
+            @RequestParam Long employeeId,
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             @RequestParam Integer assessmentYear) {
         try {
             // Get employee and salary data
             SalaryStructure salaryStructure = salaryStructureService
+<<<<<<< HEAD
                     .getCurrentSalaryStructure(Objects.requireNonNull(employeeId))
+=======
+                    .getCurrentSalaryStructure(employeeId)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                     .orElseThrow(() -> new RuntimeException("Salary structure not found"));
 
             Map<String, Object> form16Data = new HashMap<>();
@@ -362,4 +452,25 @@ public class PayrollController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+<<<<<<< HEAD
+=======
+
+    /**
+     * Delete payroll
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> deletePayroll(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            payrollService.deletePayroll(id);
+            response.put("success", true);
+            response.put("message", "Payroll deleted successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 }

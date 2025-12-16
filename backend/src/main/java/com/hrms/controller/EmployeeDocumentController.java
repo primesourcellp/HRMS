@@ -20,8 +20,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
 import java.util.Objects;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.entity.EmployeeDocument;
 import com.hrms.service.EmployeeDocumentService;
@@ -36,13 +39,21 @@ public class EmployeeDocumentController {
 
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> uploadDocument(
+<<<<<<< HEAD
             @RequestParam("employeeId") @NonNull Long employeeId,
+=======
+            @RequestParam("employeeId") Long employeeId,
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             @RequestParam("file") MultipartFile file,
             @RequestParam("documentType") String documentType,
             @RequestParam(value = "description", required = false) String description) {
         Map<String, Object> response = new HashMap<>();
         try {
+<<<<<<< HEAD
             EmployeeDocument document = documentService.uploadDocument(Objects.requireNonNull(employeeId), file, documentType, description);
+=======
+            EmployeeDocument document = documentService.uploadDocument(employeeId, file, documentType, description);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Document uploaded successfully");
             response.put("document", document);
@@ -55,12 +66,18 @@ public class EmployeeDocumentController {
     }
 
     @GetMapping("/employee/{employeeId}")
+<<<<<<< HEAD
     public ResponseEntity<List<EmployeeDocument>> getEmployeeDocuments(@PathVariable @NonNull Long employeeId) {
         return ResponseEntity.ok(documentService.getEmployeeDocuments(Objects.requireNonNull(employeeId)));
+=======
+    public ResponseEntity<List<EmployeeDocument>> getEmployeeDocuments(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(documentService.getEmployeeDocuments(employeeId));
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     @GetMapping("/employee/{employeeId}/type/{documentType}")
     public ResponseEntity<List<EmployeeDocument>> getDocumentsByType(
+<<<<<<< HEAD
             @PathVariable @NonNull Long employeeId, @PathVariable String documentType) {
         return ResponseEntity.ok(documentService.getDocumentsByType(Objects.requireNonNull(employeeId), documentType));
     }
@@ -69,13 +86,27 @@ public class EmployeeDocumentController {
     public ResponseEntity<byte[]> downloadDocument(@PathVariable long id) {
         try {
             EmployeeDocument document = documentService.getDocumentById(Objects.requireNonNull(id));
+=======
+            @PathVariable Long employeeId, @PathVariable String documentType) {
+        return ResponseEntity.ok(documentService.getDocumentsByType(employeeId, documentType));
+    }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long id) {
+        try {
+            EmployeeDocument document = documentService.getDocumentById(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             if (document == null) {
                 System.err.println("Document not found for ID: " + id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             
             System.out.println("Downloading document ID: " + id + ", File path: " + document.getFilePath());
+<<<<<<< HEAD
             byte[] fileContent = documentService.downloadDocument(Objects.requireNonNull(id));
+=======
+            byte[] fileContent = documentService.downloadDocument(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             if (fileContent == null || fileContent.length == 0) {
                 System.err.println("File content is empty for document ID: " + id + ", File path: " + document.getFilePath());
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -133,10 +164,17 @@ public class EmployeeDocumentController {
 
     @PutMapping("/{id}/verify")
     public ResponseEntity<Map<String, Object>> verifyDocument(
+<<<<<<< HEAD
             @PathVariable @NonNull Long id, @RequestBody Map<String, Boolean> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             EmployeeDocument document = documentService.verifyDocument(Objects.requireNonNull(id), request.get("verified"));
+=======
+            @PathVariable Long id, @RequestBody Map<String, Boolean> request) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            EmployeeDocument document = documentService.verifyDocument(id, request.get("verified"));
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("document", document);
             return ResponseEntity.ok(response);
@@ -148,10 +186,17 @@ public class EmployeeDocumentController {
     }
 
     @DeleteMapping("/{id}")
+<<<<<<< HEAD
     public ResponseEntity<Map<String, Object>> deleteDocument(@PathVariable long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             documentService.deleteDocument(Objects.requireNonNull(id));
+=======
+    public ResponseEntity<Map<String, Object>> deleteDocument(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            documentService.deleteDocument(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             response.put("success", true);
             response.put("message", "Document deleted successfully");
             return ResponseEntity.ok(response);

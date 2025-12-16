@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
+<<<<<<< HEAD
 import { Clock, CheckCircle, XCircle, Calendar, Search, Smartphone, Monitor, TrendingUp, CalendarDays, Timer, CheckCircle2, Edit, X, Download, Filter, Network } from 'lucide-react'
+=======
+import { Clock, CheckCircle, Calendar, Search, TrendingUp, CalendarDays, Timer, CheckCircle2, Edit, X, Download, Filter, Monitor, Smartphone, XCircle } from 'lucide-react'
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 import api from '../services/api'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from 'date-fns'
 
@@ -64,7 +68,11 @@ const Attendance = () => {
           return recordDate === selectedDate
         })
         setAttendance(dateAttendance)
+<<<<<<< HEAD
         setShifts(Array.isArray(shiftsData) ? shiftsData : [])
+=======
+        setShifts(Array.isArray(shiftsData) ? shiftsData : [])  
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       } else {
         // For admins, load all data
       const [empData, attData, shiftsData] = await Promise.all([
@@ -93,6 +101,7 @@ const Attendance = () => {
     setLoading(true)
     setError(null)
     try {
+<<<<<<< HEAD
       const checkInData = {
         employeeId,
         date: selectedDate,
@@ -100,17 +109,38 @@ const Attendance = () => {
         shiftId: null,
         method: 'WEB' // Laptops use WEB method, IP address captured automatically by backend
       }
+=======
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5)
+      
+      const checkInData = {
+        employeeId,
+        date: today,
+        checkInTime: currentTime,
+        shiftId: null,
+        method: 'WEB'
+      }
+      
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       const response = await api.checkIn(checkInData)
       if (response.success === false) {
         throw new Error(response.message || 'Check-in failed')
       }
+<<<<<<< HEAD
+=======
+      
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       await loadData()
       
       // Show success message
       const successMsg = document.createElement('div')
       successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
       successMsg.style.opacity = '1'
+<<<<<<< HEAD
       successMsg.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Check-in successful! Login time and IP address recorded.</span>'
+=======
+      successMsg.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Check-in successful!</span>'
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       document.body.appendChild(successMsg)
       
       setTimeout(() => {
@@ -133,16 +163,30 @@ const Attendance = () => {
     setLoading(true)
     setError(null)
     try {
+<<<<<<< HEAD
       const checkOutData = {
         employeeId,
         date: selectedDate,
         checkOutTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
         method: 'WEB' // Laptops use WEB method, IP address captured automatically by backend
       }
+=======
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5)
+      
+      const checkOutData = {
+        employeeId,
+        date: today,
+        checkOutTime: currentTime,
+        method: 'WEB'
+      }
+      
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       const response = await api.checkOut(checkOutData)
       if (response.success === false) {
         throw new Error(response.message || 'Check-out failed')
       }
+<<<<<<< HEAD
       await loadData()
       
       // Show success message with working hours
@@ -151,6 +195,16 @@ const Attendance = () => {
       successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
       successMsg.style.opacity = '1'
       successMsg.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Check-out successful! Logout time and IP address recorded. Total working hours: ${workingHours.toFixed(2)}h</span>`
+=======
+      
+      await loadData()
+      
+      // Show success message
+      const successMsg = document.createElement('div')
+      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
+      successMsg.style.opacity = '1'
+      successMsg.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Check-out successful!</span>'
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
       document.body.appendChild(successMsg)
       
       setTimeout(() => {
@@ -160,7 +214,11 @@ const Attendance = () => {
             document.body.removeChild(successMsg)
           }
         }, 300)
+<<<<<<< HEAD
       }, 4000)
+=======
+      }, 3000)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     } catch (error) {
       setError(error.message || 'Error checking out')
       alert('Error checking out: ' + (error.message || 'Unknown error'))
@@ -369,6 +427,7 @@ const Attendance = () => {
   const weeklyCalendar = isEmployee ? getWeeklyCalendar() : []
 
   return (
+<<<<<<< HEAD
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       {/* Header Section */}
       <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
@@ -384,11 +443,32 @@ const Attendance = () => {
         <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-200">
               <Calendar size={20} className="text-blue-600" />
+=======
+    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
+      {/* Header Section */}
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-blue-600 mb-2">
+            {isEmployee ? 'My Attendance' : 'Attendance Management'}
+          </h2>
+            <p className="text-sm md:text-base text-gray-600 font-medium">
+              {isEmployee ? 'Mark your attendance and view your attendance records' : 'View and manage employee attendance records'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2 bg-blue-50 px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl border border-blue-200 flex-1 sm:flex-none">
+              <Calendar size={18} className="text-blue-600 md:w-5 md:h-5" />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
+<<<<<<< HEAD
                 className="border-none outline-none bg-transparent text-gray-700 font-medium cursor-pointer"
+=======
+                className="border-none outline-none bg-transparent text-gray-700 font-medium cursor-pointer text-sm md:text-base w-full"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             />
             </div>
           </div>
@@ -398,6 +478,7 @@ const Attendance = () => {
       {/* Employee View - Modern Card Design */}
       {isEmployee && employeeId && employees.length > 0 && (
         <>
+<<<<<<< HEAD
           {/* Check In/Out Card - Redesigned */}
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 p-6 relative">
             <div className="flex items-center justify-between mb-6">
@@ -472,30 +553,120 @@ const Attendance = () => {
             </div>
 
             <div className="flex gap-3">
+=======
+          {/* Mark Attendance Card - Compact */}
+          <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 p-4 md:p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Mark Your Attendance</h3>
+                  <p className="text-xs text-gray-500">
+                    {format(new Date(), 'EEEE, MMMM d, yyyy')} • {format(new Date(), 'h:mm a')}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Today's Status Badge */}
+              {todayRecord && (
+                <div className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                  todayRecord.checkIn && todayRecord.checkOut 
+                    ? 'bg-green-100 text-green-700 border border-green-300' 
+                    : 'bg-blue-100 text-blue-700 border border-blue-300'
+                }`}>
+                  {todayRecord.checkIn && todayRecord.checkOut ? 'Completed' : 'Checked In'}
+                </div>
+              )}
+            </div>
+
+            {/* Status Info Row */}
+            {todayRecord && (
+              <div className="grid grid-cols-3 gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Check In</p>
+                  <p className="text-sm font-bold text-gray-800">{todayRecord.checkIn || '--:--'}</p>
+                </div>
+                <div className="text-center border-x border-gray-200">
+                  <p className="text-xs text-gray-500 mb-1">Check Out</p>
+                  <p className="text-sm font-bold text-gray-800">{todayRecord.checkOut || '--:--'}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Hours</p>
+                  <p className="text-sm font-bold text-gray-800">
+                    {todayRecord.workingHours ? `${todayRecord.workingHours.toFixed(2)}h` : '--'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Check In/Out Buttons */}
+            <div className="flex gap-2">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               {!todayRecord?.checkIn ? (
                 <button
                   onClick={() => handleCheckIn(employeeId)}
                   disabled={loading}
+<<<<<<< HEAD
                   className="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
                   <CheckCircle size={18} />
                   Check In
+=======
+                  className="flex-1 bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span className="text-sm">Checking In...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      <span className="text-sm">Check In</span>
+                    </>
+                  )}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 </button>
               ) : !todayRecord?.checkOut ? (
                 <button
                   onClick={() => handleCheckOut(employeeId)}
                   disabled={loading}
+<<<<<<< HEAD
                   className="flex-1 bg-gray-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
                   <XCircle size={18} />
                   Check Out
                 </button>
               ) : null}
+=======
+                  className="flex-1 bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span className="text-sm">Checking Out...</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={18} />
+                      <span className="text-sm">Check Out</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="flex-1 bg-gray-100 text-gray-600 font-semibold py-3 px-4 rounded-lg text-sm text-center">
+                  Attendance Completed
+                </div>
+              )}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             </div>
           </div>
 
           {/* Stats Cards */}
           {stats && (
+<<<<<<< HEAD
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
                 <div className="flex items-center justify-between mb-4">
@@ -525,16 +696,55 @@ const Attendance = () => {
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">{stats.attendanceRate}%</h3>
                 <p className="text-sm text-gray-500">Attendance Rate</p>
+=======
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+              <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 md:p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
+                <div className="flex items-center justify-between mb-3 md:mb-4">
+                  <div className="bg-blue-600 p-2 md:p-3 rounded-lg">
+                    <Timer className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                  </div>
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-1">{stats.weeklyHours}h</h3>
+                <p className="text-xs md:text-sm text-gray-500">Weekly Hours</p>
+              </div>
+
+              <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 md:p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
+                <div className="flex items-center justify-between mb-3 md:mb-4">
+                  <div className="bg-blue-600 p-2 md:p-3 rounded-lg">
+                    <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                  </div>
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-1">{stats.monthlyPresent}/{stats.monthlyTotal}</h3>
+                <p className="text-xs md:text-sm text-gray-500">Monthly Attendance</p>
+              </div>
+
+              <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 md:p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:scale-105">
+                <div className="flex items-center justify-between mb-3 md:mb-4">
+                  <div className="bg-blue-600 p-2 md:p-3 rounded-lg">
+                    <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                  </div>
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-1">{stats.attendanceRate}%</h3>
+                <p className="text-xs md:text-sm text-gray-500">Attendance Rate</p>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               </div>
             </div>
           )}
 
           {/* Weekly Calendar - List Design */}
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <CalendarDays size={22} className="text-blue-600" />
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 md:p-6 border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h3 className="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2 md:gap-3">
+                <div className="p-1.5 md:p-2 bg-blue-100 rounded-lg">
+                  <CalendarDays size={18} className="text-blue-600 md:w-6 md:h-6" />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 </div>
               This Week
             </h3>
@@ -697,6 +907,7 @@ const Attendance = () => {
       {!isEmployee && (
         <>
           {/* Search and Filters - Redesigned */}
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
             <div className="flex gap-4">
               <div className="flex-1 relative">
@@ -707,21 +918,44 @@ const Attendance = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 border border-gray-200">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search by employee name, email, or department..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 md:pl-12 pr-10 md:pr-12 py-2 md:py-3 border-2 border-gray-200 rounded-lg md:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 />
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
+<<<<<<< HEAD
                     className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                     title="Clear search"
                   >
                     <X size={18} />
+=======
+                    className="absolute right-3 md:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Clear search"
+                  >
+                    <X size={16} />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                   </button>
                 )}
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
+<<<<<<< HEAD
                 className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
+=======
+                className="px-4 md:px-5 py-2 md:py-3 border-2 border-gray-200 rounded-lg md:rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               >
                 <option value="All">All Status</option>
                 <option value="Present">Present</option>
@@ -731,11 +965,20 @@ const Attendance = () => {
               {isAdmin && (
                 <button
                   onClick={handleExportAttendance}
+<<<<<<< HEAD
                   className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all font-semibold"
                   title="Export Attendance"
                 >
                   <Download size={18} />
                   Export CSV
+=======
+                  className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 text-white rounded-lg md:rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all font-semibold text-sm md:text-base"
+                  title="Export Attendance"
+                >
+                  <Download size={16} className="md:w-5 md:h-5" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="sm:hidden">Export</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 </button>
               )}
             </div>
@@ -756,9 +999,15 @@ const Attendance = () => {
 
 
           {/* Attendance Table - Redesigned */}
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
             <div className="overflow-x-auto">
               <table className="w-full">
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 <thead className="bg-blue-600 text-white">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
@@ -861,6 +1110,7 @@ const Attendance = () => {
                             <div className="flex gap-2">
                             {isCurrentUser && !isAdmin && (
                               <>
+<<<<<<< HEAD
                               {!record?.checkIn ? (
                                 <button
                                   onClick={() => handleCheckIn(employee.id)}
@@ -879,6 +1129,18 @@ const Attendance = () => {
                                 </button>
                               ) : (
                                 <span className="text-green-600 text-xs font-semibold bg-green-50 px-3 py-1.5 rounded-lg">Completed</span>
+=======
+                              {!record ? (
+                                <button
+                                  onClick={() => handleEmployeeMarkAttendance(employee.id)}
+                                  disabled={loading}
+                                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-xs font-semibold shadow-md hover:shadow-lg transition-all"
+                                >
+                                  Mark Attendance
+                                </button>
+                              ) : (
+                                <span className="text-green-600 text-xs font-semibold bg-green-50 px-3 py-1.5 rounded-lg">Marked</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                               )}
                               </>
                             )}
@@ -940,7 +1202,11 @@ const Attendance = () => {
       {/* Mark Attendance Modal (Admin) - Redesigned */}
       {showMarkModal && isAdmin && selectedEmployee && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-6 w-full max-w-md border-2 border-gray-200">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-2">
                 <CheckCircle size={24} className="text-blue-600" />
@@ -1034,7 +1300,11 @@ const Attendance = () => {
       {/* Edit Attendance Modal (Admin) - Redesigned */}
       {showEditModal && isAdmin && selectedRecord && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-6 w-full max-w-md border-2 border-gray-200">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-2">
                 <Edit size={24} className="text-blue-600" />

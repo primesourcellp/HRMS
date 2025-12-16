@@ -22,7 +22,13 @@ const HRTickets = () => {
   })
   const userRole = localStorage.getItem('userRole')
   const currentUserId = localStorage.getItem('userId')
+<<<<<<< HEAD
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+=======
+  const userType = localStorage.getItem('userType')
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+  const isEmployee = userType === 'employee'
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
   useEffect(() => {
     loadData()
@@ -32,12 +38,40 @@ const HRTickets = () => {
     try {
       setLoading(true)
       setError(null)
+<<<<<<< HEAD
       const [ticketsData, employeesData] = await Promise.all([
         filter === 'All' ? api.getTickets() : api.getTicketsByStatus(filter),
         api.getEmployees()
       ])
       setTickets(Array.isArray(ticketsData) ? ticketsData : [])
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
+=======
+      
+      // Employees see only their own tickets, HR/Admin see all tickets
+      let ticketsData
+      if (isEmployee && currentUserId) {
+        // Employee: get only their tickets
+        ticketsData = await api.getEmployeeTickets(parseInt(currentUserId))
+        // Filter by status if needed (client-side filtering for employees)
+        if (filter !== 'All') {
+          ticketsData = Array.isArray(ticketsData) ? ticketsData.filter(t => t.status === filter) : []
+        }
+      } else {
+        // Admin/HR: get all tickets or filter by status
+        ticketsData = filter === 'All' ? api.getTickets() : api.getTicketsByStatus(filter)
+      }
+      
+      // Only load employees list for admin/HR (to display employee names)
+      const employeesData = isAdmin ? api.getEmployees() : Promise.resolve([])
+      
+      const [tickets, employees] = await Promise.all([
+        Promise.resolve(ticketsData),
+        employeesData
+      ])
+      
+      setTickets(Array.isArray(tickets) ? tickets : [])
+      setEmployees(Array.isArray(employees) ? employees : [])
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     } catch (error) {
       console.error('Error loading data:', error)
       setError(error.message || 'Failed to load tickets')
@@ -143,6 +177,7 @@ const HRTickets = () => {
   }
 
   return (
+<<<<<<< HEAD
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       {/* Header Section */}
       <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
@@ -158,6 +193,27 @@ const HRTickets = () => {
               className="px-5 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
             >
               <option value="All">All Tickets</option>
+=======
+    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
+      {/* Header Section */}
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-blue-600 mb-2">HR Ticketing System</h2>
+            <p className="text-sm md:text-base text-gray-600 font-medium">
+              {isEmployee 
+                ? 'Raise queries or issues directly to the HR department' 
+                : 'Manage employee requests and tickets'}
+            </p>
+          </div>
+          <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="flex-1 sm:flex-none px-4 md:px-5 py-2 md:py-2.5 border-2 border-gray-200 rounded-lg md:rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium text-sm md:text-base"
+            >
+              <option value="All">{isEmployee ? 'All My Tickets' : 'All Tickets'}</option>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               <option value="OPEN">Open</option>
               <option value="IN_PROGRESS">In Progress</option>
               <option value="RESOLVED">Resolved</option>
@@ -212,8 +268,15 @@ const HRTickets = () => {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">
+<<<<<<< HEAD
                     <strong>Type:</strong> {getTicketTypeLabel(ticket.ticketType || 'SALARY_ISSUE')} | 
                     <strong> Employee:</strong> {getEmployeeName(ticket.employeeId)}
+=======
+                    <strong>Type:</strong> {getTicketTypeLabel(ticket.ticketType || 'SALARY_ISSUE')}
+                    {isAdmin && (
+                      <> | <strong> Employee:</strong> {getEmployeeName(ticket.employeeId)}</>
+                    )}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                   </p>
                   <p className="text-gray-700">{ticket.description || 'No description'}</p>
                   {ticket.resolution && (

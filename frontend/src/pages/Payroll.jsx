@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
+<<<<<<< HEAD
 import { DollarSign, Download, FileText, Calendar, CheckCircle, XCircle, Clock, Play, CheckSquare, FileCheck, Banknote, Edit, Eye, Search, Filter, X, Save, TrendingUp, TrendingDown, FileSpreadsheet } from 'lucide-react'
+=======
+import { DollarSign, Download, FileText, Calendar, CheckCircle, XCircle, Clock, Play, CheckSquare, FileCheck, Banknote, Edit, Eye, Search, Filter, X, Save, TrendingUp, TrendingDown, FileSpreadsheet, Trash2 } from 'lucide-react'
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 import api from '../services/api'
 import { format } from 'date-fns'
 
@@ -323,6 +327,24 @@ const Payroll = () => {
     }
   }
 
+<<<<<<< HEAD
+=======
+  const handleDeletePayroll = async (payrollId) => {
+    if (!window.confirm('Are you sure you want to delete this payroll? This action cannot be undone.')) return
+    try {
+      const result = await api.deletePayroll(payrollId)
+      if (result.success) {
+        alert('Payroll deleted successfully')
+        await loadData()
+      } else {
+        alert('Error: ' + (result.message || 'Failed to delete payroll'))
+      }
+    } catch (error) {
+      alert('Error deleting payroll: ' + error.message)
+    }
+  }
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
   const handleExportPayroll = () => {
     const filtered = getFilteredPayrolls()
     const csvContent = [
@@ -418,6 +440,7 @@ const Payroll = () => {
   const finalizedCount = filteredPayrolls.filter(p => p.status === 'FINALIZED').length
 
   return (
+<<<<<<< HEAD
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       {/* Header Section */}
       <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
@@ -429,20 +452,45 @@ const Payroll = () => {
             </p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+=======
+    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
+      {/* Header Section */}
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-blue-600 mb-2">Payroll Management</h2>
+            <p className="text-sm md:text-base text-gray-600 font-medium">
+              {isAdmin ? 'Process and manage employee payrolls' : 'View your payroll history and payslips'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap w-full sm:w-auto">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
+<<<<<<< HEAD
               className="px-5 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+=======
+              className="flex-1 sm:flex-none px-3 md:px-5 py-2 md:py-2.5 border-2 border-gray-200 rounded-lg md:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             />
             {filteredPayrolls.length > 0 && (
               <button
                 onClick={handleExportPayroll}
+<<<<<<< HEAD
                 className="bg-green-600 text-white px-4 py-2.5 rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all font-semibold"
                 title="Export to CSV"
               >
                 <FileSpreadsheet size={18} />
                 Export
+=======
+                className="bg-green-600 text-white px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all font-semibold text-sm md:text-base"
+                title="Export to CSV"
+              >
+                <FileSpreadsheet size={16} className="md:w-5 md:h-5" />
+                <span className="hidden sm:inline">Export</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               </button>
             )}
           </div>
@@ -450,8 +498,13 @@ const Payroll = () => {
 
         {/* Admin Controls */}
         {isAdmin && (
+<<<<<<< HEAD
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+=======
+          <div className="mt-4 md:mt-6 pt-4 md:pt-6 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-4">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Payroll Period Start Date</label>
                 <input
@@ -471,6 +524,7 @@ const Payroll = () => {
                 />
               </div>
             </div>
+<<<<<<< HEAD
             <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={handleProcessPayroll}
@@ -479,23 +533,50 @@ const Payroll = () => {
               >
                 <Play size={20} />
                 {processing ? 'Processing...' : 'Process Payroll for All Employees'}
+=======
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3 w-full sm:w-auto">
+              <button
+                onClick={handleProcessPayroll}
+                disabled={processing}
+                className="bg-blue-600 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
+              >
+                <Play size={18} className="md:w-5 md:h-5" />
+                <span className="hidden sm:inline">{processing ? 'Processing...' : 'Process Payroll for All Employees'}</span>
+                <span className="sm:hidden">{processing ? 'Processing...' : 'Process Payroll'}</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               </button>
               {pendingApprovalCount > 0 && (
                 <button
                   onClick={handleReviewPayrolls}
+<<<<<<< HEAD
                   className="bg-yellow-600 text-white px-6 py-3 rounded-xl hover:bg-yellow-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
                 >
                   <CheckSquare size={20} />
                   Review & Approve ({pendingApprovalCount})
+=======
+                  className="bg-yellow-600 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl hover:bg-yellow-700 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold text-sm md:text-base"
+                >
+                  <CheckSquare size={18} className="md:w-5 md:h-5" />
+                  <span className="hidden sm:inline">Review & Approve ({pendingApprovalCount})</span>
+                  <span className="sm:hidden">Review ({pendingApprovalCount})</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 </button>
               )}
               {approvedCount > 0 && (
                 <button
                   onClick={handleFinalizeAll}
+<<<<<<< HEAD
                   className="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
                 >
                   <FileCheck size={20} />
                   Finalize All Approved ({approvedCount})
+=======
+                  className="bg-green-600 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl hover:bg-green-700 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold text-sm md:text-base"
+                >
+                  <FileCheck size={18} className="md:w-5 md:h-5" />
+                  <span className="hidden sm:inline">Finalize All Approved ({approvedCount})</span>
+                  <span className="sm:hidden">Finalize ({approvedCount})</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 </button>
               )}
             </div>
@@ -505,7 +586,11 @@ const Payroll = () => {
 
       {/* Status Summary Cards */}
       {isAdmin && filteredPayrolls.length > 0 && (
+<<<<<<< HEAD
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+=======
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
           <div className="bg-white rounded-xl shadow-md p-4 border border-gray-200">
             <div className="flex items-center justify-between">
               <div>
@@ -547,25 +632,44 @@ const Payroll = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-md p-4 border border-gray-200">
+<<<<<<< HEAD
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+=======
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 md:gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               <input
                 type="text"
                 placeholder="Search by employee name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+<<<<<<< HEAD
                 className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+=======
+                className="w-full pl-9 md:pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg md:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
               />
             </div>
           </div>
           <div className="flex items-center gap-2">
+<<<<<<< HEAD
             <Filter size={18} className="text-gray-600" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+=======
+            <Filter size={16} className="text-gray-600 hidden sm:block" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="flex-1 sm:flex-none px-3 md:px-4 py-2 border-2 border-gray-200 rounded-lg md:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             >
               <option value="ALL">All Status</option>
               <option value="DRAFT">Draft</option>
@@ -581,19 +685,128 @@ const Payroll = () => {
                 setSearchTerm('')
                 setStatusFilter('ALL')
               }}
+<<<<<<< HEAD
               className="px-4 py-2 text-gray-600 hover:text-gray-800 flex items-center gap-2"
             >
               <X size={18} />
               Clear Filters
+=======
+              className="px-3 md:px-4 py-2 text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2 text-sm md:text-base"
+            >
+              <X size={16} />
+              <span className="hidden sm:inline">Clear Filters</span>
+              <span className="sm:hidden">Clear</span>
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             </button>
           )}
         </div>
       </div>
 
       {/* Payroll List */}
+<<<<<<< HEAD
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
         <div className="overflow-x-auto">
           <table className="w-full">
+=======
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
+        {/* Mobile Card View */}
+        <div className="block md:hidden space-y-4 p-4">
+          {filteredPayrolls.map((payroll) => {
+            const structure = getSalaryStructure(payroll.employeeId)
+            const hasZeroValues = (!payroll.netSalary || payroll.netSalary === 0) && (!payroll.baseSalary || payroll.baseSalary === 0)
+            const needsSalaryStructure = hasZeroValues && !structure
+            const employee = employees.find(e => e.id === payroll.employeeId)
+            return (
+              <div key={payroll.id} className={`border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all bg-white ${needsSalaryStructure ? 'bg-yellow-50 border-yellow-300' : ''}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                      {getEmployeeName(payroll.employeeId)?.charAt(0) || 'E'}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm">{getEmployeeName(payroll.employeeId)}</h4>
+                      <p className="text-xs text-gray-500">{employee?.department || 'N/A'}</p>
+                    </div>
+                  </div>
+                  {getStatusBadge(payroll.status)}
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Period:</span>
+                    <span className="font-semibold">
+                      {payroll.startDate && payroll.endDate ? (
+                        `${format(new Date(payroll.startDate), 'MMM dd')} - ${format(new Date(payroll.endDate), 'MMM dd')}`
+                      ) : (
+                        `${payroll.month} ${payroll.year}`
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Gross:</span>
+                    <span className={hasZeroValues ? 'text-gray-400' : 'text-gray-900'}>
+                      ₹{structure?.grossSalary?.toLocaleString() || payroll.baseSalary?.toLocaleString() || '0'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Deductions:</span>
+                    <span className={hasZeroValues ? 'text-gray-400' : 'text-gray-900'}>
+                      ₹{structure ? (structure.grossSalary - structure.netSalary).toLocaleString() : payroll.deductions?.toLocaleString() || '0'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="text-gray-600 font-semibold">Net Salary:</span>
+                    <span className={`font-bold ${hasZeroValues ? 'text-gray-400' : 'text-blue-600'}`}>
+                      ₹{payroll.netSalary?.toLocaleString() || payroll.amount?.toLocaleString() || '0'}
+                    </span>
+                  </div>
+                  {needsSalaryStructure && (
+                    <p className="text-xs text-yellow-700 mt-2 flex items-center gap-1">
+                      <XCircle size={12} />
+                      Salary structure missing
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+                  <button
+                    onClick={() => handleViewDetails(payroll)}
+                    className="flex-1 text-purple-600 hover:text-purple-800 p-2 rounded-lg hover:bg-purple-50 transition-colors text-xs font-medium"
+                  >
+                    View
+                  </button>
+                  {payroll.status === 'FINALIZED' && (
+                    <button
+                      onClick={() => handleDownloadPayslip(payroll.id, false)}
+                      className="flex-1 text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors text-xs font-medium"
+                    >
+                      Payslip
+                    </button>
+                  )}
+                  {isAdmin && payroll.status !== 'FINALIZED' && (
+                    <button
+                      onClick={() => handleEditPayroll(payroll)}
+                      className="flex-1 text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors text-xs font-medium"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeletePayroll(payroll.id)}
+                      className="flex-1 text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors text-xs font-medium"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full min-w-[800px]">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Employee</th>
@@ -723,6 +936,18 @@ const Payroll = () => {
                             <Download size={18} />
                           </button>
                         )}
+<<<<<<< HEAD
+=======
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeletePayroll(payroll.id)}
+                            className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Delete Payroll"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                       </div>
                     </td>
                   </tr>
@@ -743,6 +968,7 @@ const Payroll = () => {
       {/* Review & Approve Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -751,6 +977,16 @@ const Payroll = () => {
                   Review & Approve Payrolls
                 </h3>
                 <p className="text-sm text-gray-600 mt-1">
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 md:mb-6 gap-3">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-yellow-600 flex items-center gap-2 md:gap-3">
+                  <CheckSquare size={20} className="md:w-6 md:h-6" />
+                  Review & Approve Payrolls
+                </h3>
+                <p className="text-xs md:text-sm text-gray-600 mt-1">
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                   {reviewPayrolls.length} payroll(s) pending approval for {selectedMonth}
                 </p>
               </div>
@@ -869,10 +1105,17 @@ const Payroll = () => {
       {/* Payroll Detail Modal */}
       {showDetailModal && selectedPayroll && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+<<<<<<< HEAD
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
                 <FileText size={24} />
+=======
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h3 className="text-xl md:text-2xl font-bold text-blue-600 flex items-center gap-2 md:gap-3">
+                <FileText size={20} className="md:w-6 md:h-6" />
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 Payroll Details
               </h3>
               <button
@@ -1082,7 +1325,10 @@ const Payroll = () => {
 
       {/* Edit Payroll Modal */}
       {showEditModal && editingPayroll && (() => {
+<<<<<<< HEAD
         const employee = employees.find(emp => emp.id === editingPayroll.employeeId)
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         const calculatedNetSalary = (editingPayroll.baseSalary || 0) + (editingPayroll.allowances || 0) + (editingPayroll.bonus || 0) - (editingPayroll.deductions || 0)
         const calculatedGrossSalary = (editingPayroll.baseSalary || 0) + (editingPayroll.allowances || 0) + (editingPayroll.bonus || 0)
         
@@ -1106,6 +1352,7 @@ const Payroll = () => {
               </div>
               
               <div className="space-y-6">
+<<<<<<< HEAD
                 {/* Employee Information (Read-only) */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
                   <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
@@ -1178,6 +1425,8 @@ const Payroll = () => {
                   )}
                 </div>
 
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 {/* Editable Salary Fields */}
                 <div className="space-y-4">
                   <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2">

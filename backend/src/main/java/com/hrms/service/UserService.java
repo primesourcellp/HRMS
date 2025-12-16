@@ -5,7 +5,10 @@ import com.hrms.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import java.util.List;
 import java.util.Optional;
@@ -46,12 +49,21 @@ public class UserService {
         return userRepository.findAll();
     }
 
+<<<<<<< HEAD
     public Optional<User> getUserById(@NonNull Long id) {
         return userRepository.findById(java.util.Objects.requireNonNull(id));
     }
 
     public User updateUser(@NonNull Long id, User userDetails) {
         User user = userRepository.findById(java.util.Objects.requireNonNull(id))
+=======
+    public Optional<User> getUserById(Long id) {
+        return userRepository.findById(id);
+    }
+
+    public User updateUser(Long id, User userDetails) {
+        User user = userRepository.findById(id)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
         
         // Prevent changing role to SUPER_ADMIN if one already exists
@@ -72,18 +84,30 @@ public class UserService {
             user.setPassword(passwordEncoder.encode(userDetails.getPassword()));
         }
         
+<<<<<<< HEAD
         return userRepository.save(java.util.Objects.requireNonNull(user));
     }
 
     public void deleteUser(@NonNull Long id) {
         User user = userRepository.findById(java.util.Objects.requireNonNull(id))
+=======
+        return userRepository.save(user);
+    }
+
+    public void deleteUser(Long id) {
+        User user = userRepository.findById(id)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
         
         if ("SUPER_ADMIN".equals(user.getRole())) {
             throw new RuntimeException("Cannot delete SUPER_ADMIN");
         }
         
+<<<<<<< HEAD
         userRepository.deleteById(java.util.Objects.requireNonNull(id));
+=======
+        userRepository.deleteById(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     public boolean authenticate(String email, String password) {
@@ -107,3 +131,7 @@ public class UserService {
         return userRepository.countByRole("SUPER_ADMIN");
     }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

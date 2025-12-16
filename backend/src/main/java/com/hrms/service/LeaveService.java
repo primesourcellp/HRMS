@@ -7,7 +7,10 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.entity.Holiday;
 import com.hrms.entity.Leave;
@@ -29,8 +32,13 @@ public class LeaveService {
         return leaveRepository.findAll();
     }
 
+<<<<<<< HEAD
     public Optional<Leave> getLeaveById(@NonNull Long id) {
         return leaveRepository.findById(java.util.Objects.requireNonNull(id));
+=======
+    public Optional<Leave> getLeaveById(Long id) {
+        return leaveRepository.findById(id);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     public Leave createLeave(Leave leave) {
@@ -49,7 +57,11 @@ public class LeaveService {
         if (leave.getLeaveTypeId() != null) {
             int year = leave.getStartDate().getYear();
             var balance = leaveBalanceService.getOrCreateLeaveBalance(
+<<<<<<< HEAD
                 java.util.Objects.requireNonNull(leave.getEmployeeId()), java.util.Objects.requireNonNull(leave.getLeaveTypeId()), year);
+=======
+                leave.getEmployeeId(), leave.getLeaveTypeId(), year);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             
             if (balance.getBalance() < totalDays) {
                 throw new RuntimeException("Insufficient leave balance");
@@ -59,8 +71,13 @@ public class LeaveService {
         return leaveRepository.save(leave);
     }
 
+<<<<<<< HEAD
     public Leave approveLeave(@NonNull Long id, Long approvedBy) {
         Leave leave = leaveRepository.findById(java.util.Objects.requireNonNull(id))
+=======
+    public Leave approveLeave(Long id, Long approvedBy) {
+        Leave leave = leaveRepository.findById(id)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Leave not found"));
 
         leave.setStatus("APPROVED");
@@ -71,6 +88,7 @@ public class LeaveService {
         if (leave.getLeaveTypeId() != null) {
             int year = leave.getStartDate().getYear();
             var balance = leaveBalanceService.getOrCreateLeaveBalance(
+<<<<<<< HEAD
                 java.util.Objects.requireNonNull(leave.getEmployeeId()), java.util.Objects.requireNonNull(leave.getLeaveTypeId()), year);
             
             double newUsedDays = balance.getUsedDays() + leave.getTotalDays();
@@ -83,6 +101,20 @@ public class LeaveService {
 
     public Leave rejectLeave(@NonNull Long id, Long approvedBy, String rejectionReason) {
         Leave leave = leaveRepository.findById(java.util.Objects.requireNonNull(id))
+=======
+                leave.getEmployeeId(), leave.getLeaveTypeId(), year);
+            
+            double newUsedDays = balance.getUsedDays() + leave.getTotalDays();
+            leaveBalanceService.updateLeaveBalance(
+                leave.getEmployeeId(), leave.getLeaveTypeId(), year, newUsedDays);
+        }
+
+        return leaveRepository.save(leave);
+    }
+
+    public Leave rejectLeave(Long id, Long approvedBy, String rejectionReason) {
+        Leave leave = leaveRepository.findById(id)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 .orElseThrow(() -> new RuntimeException("Leave not found"));
 
         leave.setStatus("REJECTED");
@@ -90,6 +122,7 @@ public class LeaveService {
         leave.setApprovedDate(LocalDate.now());
         leave.setRejectionReason(rejectionReason);
 
+<<<<<<< HEAD
         return leaveRepository.save(java.util.Objects.requireNonNull(leave));
     }
 
@@ -98,14 +131,29 @@ public class LeaveService {
                 .orElseThrow(() -> new RuntimeException("Leave not found with id: " + id));
         leave.setStatus(status);
         return leaveRepository.save(java.util.Objects.requireNonNull(leave));
+=======
+        return leaveRepository.save(leave);
+    }
+
+    public Leave updateLeaveStatus(Long id, String status) {
+        Leave leave = leaveRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Leave not found with id: " + id));
+        leave.setStatus(status);
+        return leaveRepository.save(leave);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     public List<Leave> getLeavesByStatus(String status) {
         return leaveRepository.findByStatus(status);
     }
 
+<<<<<<< HEAD
     public List<Leave> getLeavesByEmployeeId(@NonNull Long employeeId) {
         return leaveRepository.findByEmployeeId(java.util.Objects.requireNonNull(employeeId));
+=======
+    public List<Leave> getLeavesByEmployeeId(Long employeeId) {
+        return leaveRepository.findByEmployeeId(employeeId);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     }
 
     public List<Leave> getPendingLeaves() {

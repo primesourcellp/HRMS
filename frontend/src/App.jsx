@@ -13,7 +13,11 @@ import Settings from './pages/Settings'
 import Users from './pages/Users'
 import Shifts from './pages/Shifts'
 import HRTickets from './pages/HRTickets'
+<<<<<<< HEAD
 import Recruitment from './pages/Recruitment'
+=======
+// import Recruitment from './pages/Recruitment'
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 import Analytics from './pages/Analytics'
 import InitialRoute from './components/InitialRoute'
 import { isAuthenticated } from './utils/auth'
@@ -36,7 +40,11 @@ function App() {
             <Route path="performance" element={<Performance />} />
             <Route path="shifts" element={<Shifts />} />
             <Route path="tickets" element={<HRTickets />} />
+<<<<<<< HEAD
             <Route path="recruitment" element={<Recruitment />} />
+=======
+            {/* <Route path="recruitment" element={<Recruitment />} /> */}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />

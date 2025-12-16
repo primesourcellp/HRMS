@@ -5,7 +5,10 @@ import java.io.IOException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+<<<<<<< HEAD
 import org.springframework.lang.NonNull;
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
 import com.hrms.util.JwtUtil;
 
@@ -22,7 +25,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private JwtUtil jwtUtil;
     
     @Override
+<<<<<<< HEAD
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+=======
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         String path = request.getRequestURI();
         String method = request.getMethod();
         
@@ -36,7 +43,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+<<<<<<< HEAD
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
+=======
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
             throws ServletException, IOException {
         
         String path = request.getRequestURI();
@@ -103,3 +114,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

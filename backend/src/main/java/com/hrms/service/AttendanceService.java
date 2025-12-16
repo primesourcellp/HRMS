@@ -26,11 +26,19 @@ public class AttendanceService {
         return attendanceRepository.findAll();
     }
 
+<<<<<<< HEAD
     public Optional<Attendance> getAttendanceById(long id) {
         return attendanceRepository.findById(java.lang.Long.valueOf(id));
     }
 
     public Attendance checkIn(long employeeId, LocalDate date, LocalTime checkInTime, 
+=======
+    public Optional<Attendance> getAttendanceById(Long id) {
+        return attendanceRepository.findById(id);
+    }
+
+    public Attendance checkIn(Long employeeId, LocalDate date, LocalTime checkInTime, 
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                              Long shiftId, Double latitude, Double longitude, 
                              String location, String ipAddress, String method) {
         Optional<Attendance> existing = attendanceRepository.findByEmployeeIdAndDate(employeeId, date);
@@ -56,7 +64,11 @@ public class AttendanceService {
         return attendanceRepository.save(attendance);
     }
 
+<<<<<<< HEAD
     public Attendance checkOut(long employeeId, LocalDate date, LocalTime checkOutTime,
+=======
+    public Attendance checkOut(Long employeeId, LocalDate date, LocalTime checkOutTime,
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                               Double latitude, Double longitude, String location, 
                               String ipAddress, String method) {
         Attendance attendance = attendanceRepository.findByEmployeeIdAndDate(employeeId, date)
@@ -75,7 +87,11 @@ public class AttendanceService {
         return attendanceRepository.save(attendance);
     }
 
+<<<<<<< HEAD
     private void calculateWorkingHours(@org.springframework.lang.NonNull Attendance attendance) {
+=======
+    private void calculateWorkingHours(Attendance attendance) {
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         if (attendance.getCheckIn() != null && attendance.getCheckOut() != null) {
             Duration duration = Duration.between(attendance.getCheckIn(), attendance.getCheckOut());
             double totalMinutes = duration.toMinutes();
@@ -84,7 +100,11 @@ public class AttendanceService {
 
             // Get shift details if available
             if (attendance.getShiftId() != null) {
+<<<<<<< HEAD
                 Optional<Shift> shiftOpt = shiftRepository.findById(java.util.Objects.requireNonNull(attendance.getShiftId()));
+=======
+                Optional<Shift> shiftOpt = shiftRepository.findById(attendance.getShiftId());
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
                 if (shiftOpt.isPresent()) {
                     Shift shift = shiftOpt.get();
                     double expectedHours = shift.getWorkingHours() != null ? shift.getWorkingHours() : 8.0;
@@ -101,8 +121,13 @@ public class AttendanceService {
         }
     }
 
+<<<<<<< HEAD
     public Attendance markAttendance(long employeeId, LocalDate date, String status, String checkIn, String checkOut) {
         Optional<Attendance> existing = attendanceRepository.findByEmployeeIdAndDate(java.lang.Long.valueOf(employeeId), date);
+=======
+    public Attendance markAttendance(Long employeeId, LocalDate date, String status, String checkIn, String checkOut) {
+        Optional<Attendance> existing = attendanceRepository.findByEmployeeIdAndDate(employeeId, date);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         
         Attendance attendance;
         if (existing.isPresent()) {
@@ -129,6 +154,7 @@ public class AttendanceService {
         return attendanceRepository.findByDate(date);
     }
 
+<<<<<<< HEAD
     public List<Attendance> getAttendanceByEmployeeId(long employeeId) {
         return attendanceRepository.findByEmployeeId(java.lang.Long.valueOf(employeeId));
     }
@@ -140,9 +166,26 @@ public class AttendanceService {
     public double getWeeklyHours(long employeeId, LocalDate weekStart) {
         LocalDate weekEnd = weekStart.plusDays(6);
         List<Attendance> attendances = attendanceRepository.findByEmployeeIdAndDateBetween(java.lang.Long.valueOf(employeeId), weekStart, weekEnd);
+=======
+    public List<Attendance> getAttendanceByEmployeeId(Long employeeId) {
+        return attendanceRepository.findByEmployeeId(employeeId);
+    }
+
+    public List<Attendance> getAttendanceByEmployeeIdAndDateRange(Long employeeId, LocalDate startDate, LocalDate endDate) {
+        return attendanceRepository.findByEmployeeIdAndDateBetween(employeeId, startDate, endDate);
+    }
+
+    public double getWeeklyHours(Long employeeId, LocalDate weekStart) {
+        LocalDate weekEnd = weekStart.plusDays(6);
+        List<Attendance> attendances = attendanceRepository.findByEmployeeIdAndDateBetween(employeeId, weekStart, weekEnd);
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
         return attendances.stream()
                 .filter(a -> a.getWorkingHours() != null)
                 .mapToDouble(Attendance::getWorkingHours)
                 .sum();
     }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

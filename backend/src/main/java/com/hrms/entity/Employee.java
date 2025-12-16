@@ -1,16 +1,33 @@
 package com.hrms.entity;
 
+<<<<<<< HEAD
 import jakarta.persistence.*;
 import java.time.LocalDate;
-import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+=======
+import java.time.LocalDate;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 @Entity
 @Table(name = "employees")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Employee {
+<<<<<<< HEAD
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -32,8 +49,8 @@ public class Employee {
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
 
-    public String getZohoRole() { return zohoRole; }
-    public void setZohoRole(String zohoRole) { this.zohoRole = zohoRole; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
@@ -56,6 +73,9 @@ public class Employee {
     public LocalDate getDateOfJoining() { return dateOfJoining; }
     public void setDateOfJoining(LocalDate dateOfJoining) { this.dateOfJoining = dateOfJoining; }
 
+    public Double getSalary() { return salary; }
+    public void setSalary(Double salary) { this.salary = salary; }
+
     public LocalDate getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
 
@@ -71,29 +91,37 @@ public class Employee {
     public String getAboutMe() { return aboutMe; }
     public void setAboutMe(String aboutMe) { this.aboutMe = aboutMe; }
 
+=======
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+<<<<<<< HEAD
     // Basic Information
     private String employeeId;
     private String firstName;
     private String lastName;
     private String nickName;
     private String email;
+    private String name;
 
     @Column(name = "password", length = 255)
     private String password; // BCrypt hash
 
     // Work Information
-    private String zohoRole;
+    private String role;
     private String department;
     private String location;
     private String designation;
     private String employmentType;
     private String employeeStatus;
     private String sourceOfHire;
+    
+    @Column(name = "join_date")
     private LocalDate dateOfJoining;
+    
+    private Double salary;
 
     // Personal Details
     private LocalDate dateOfBirth;
@@ -139,23 +167,50 @@ public class Employee {
     // Exit and Other Info
     private LocalDate dateOfExit;
     private String phone;
-    private Double salary;
+    
     private String avatar;
     // Removed duplicate shiftId field
+=======
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Column(nullable = false)
+    private String phone;
+
+    @Column(nullable = false)
+    private String department;
+
+    @Column(nullable = false)
+    private String position;
+
+    @Column(nullable = false)
+    private Double salary;
+
+    @Column(name = "join_date", nullable = false)
+    private LocalDate joinDate;
+
+    @Column(nullable = false)
+    private String status = "Active";
+
+    @Column(name = "avatar")
+    private String avatar;
+
+    @Column(name = "shift_id")
+    private Long shiftId;
+
+    @Column(name = "password", length = 255)
+    private String password; // BCrypt hash (60 characters)
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id", insertable = false, updatable = false)
     @JsonIgnore
     private com.hrms.entity.Shift shift;
 
-    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<WorkExperience> workExperiences;
-
-    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<EducationDetail> educationDetails;
-
-    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<DependentDetail> dependentDetails;
+<<<<<<< HEAD
     public String getExpertise() { return expertise; }
     public void setExpertise(String expertise) { this.expertise = expertise; }
 
@@ -231,8 +286,7 @@ public class Employee {
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
 
-    public Double getSalary() { return salary; }
-    public void setSalary(Double salary) { this.salary = salary; }
+   
 
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }
@@ -242,22 +296,16 @@ public class Employee {
     public com.hrms.entity.Shift getShift() { return shift; }
     public void setShift(com.hrms.entity.Shift shift) { this.shift = shift; }
 
-    public List<WorkExperience> getWorkExperiences() { return workExperiences; }
-    public void setWorkExperiences(List<WorkExperience> workExperiences) { this.workExperiences = workExperiences; }
-
-    public List<EducationDetail> getEducationDetails() { return educationDetails; }
-    public void setEducationDetails(List<EducationDetail> educationDetails) { this.educationDetails = educationDetails; }
-
-    public List<DependentDetail> getDependentDetails() { return dependentDetails; }
-    public void setDependentDetails(List<DependentDetail> dependentDetails) { this.dependentDetails = dependentDetails; }
 
     // Convenience methods for backwards compatibility
     public String getName() {
+        if (name != null) return name;
         if (firstName != null && lastName != null) {
             return firstName + " " + lastName;
         }
         return firstName != null ? firstName : lastName;
     }
+    public void setName(String name) { this.name = name; }
 
     public String getStatus() { return employeeStatus; }
     public void setStatus(String status) { this.employeeStatus = status; }
@@ -269,3 +317,129 @@ public class Employee {
     public void setJoinDate(LocalDate joinDate) { this.dateOfJoining = joinDate; }
 }
 
+=======
+    // Constructors
+    public Employee() {
+    }
+
+    public Employee(Long id, String name, String email, String phone, String department, 
+                   String position, Double salary, LocalDate joinDate, String status, String avatar, Long shiftId) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        this.phone = phone;
+        this.department = department;
+        this.position = position;
+        this.salary = salary;
+        this.joinDate = joinDate;
+        this.status = status;
+        this.avatar = avatar;
+        this.shiftId = shiftId;
+    }
+
+    // Getters and Setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getPosition() {
+        return position;
+    }
+
+    public void setPosition(String position) {
+        this.position = position;
+    }
+
+    public Double getSalary() {
+        return salary;
+    }
+
+    public void setSalary(Double salary) {
+        this.salary = salary;
+    }
+
+    public LocalDate getJoinDate() {
+        return joinDate;
+    }
+
+    public void setJoinDate(LocalDate joinDate) {
+        this.joinDate = joinDate;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
+    public Long getShiftId() {
+        return shiftId;
+    }
+
+    public void setShiftId(Long shiftId) {
+        this.shiftId = shiftId;
+    }
+
+    public com.hrms.entity.Shift getShift() {
+        return shift;
+    }
+
+    public void setShift(com.hrms.entity.Shift shift) {
+        this.shift = shift;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+}
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc

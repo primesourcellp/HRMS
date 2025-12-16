@@ -138,6 +138,7 @@ const Recruitment = () => {
   }
 
   return (
+<<<<<<< HEAD
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
       {/* Header Section */}
       <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
@@ -149,6 +150,19 @@ const Recruitment = () => {
           <button
             onClick={() => setShowJobModal(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+=======
+    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
+      {/* Header Section */}
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-blue-600 mb-2">Recruitment & Onboarding</h2>
+            <p className="text-sm md:text-base text-gray-600 font-medium">Manage job postings and applicant tracking</p>
+          </div>
+          <button
+            onClick={() => setShowJobModal(true)}
+            className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm md:text-base"
+>>>>>>> 2c550b7884d6f72fa5ebdefcd004805c337ce6fc
           >
             <Plus size={20} />
             Post Job
