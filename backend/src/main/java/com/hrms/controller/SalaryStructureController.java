@@ -6,8 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.lang.NonNull;
-import java.util.Objects;
 
 import java.util.HashMap;
 import java.util.List;
@@ -22,15 +20,15 @@ public class SalaryStructureController {
     private SalaryStructureService salaryStructureService;
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<SalaryStructure> getCurrentSalaryStructure(@PathVariable @NonNull Long employeeId) {
-        return salaryStructureService.getCurrentSalaryStructure(Objects.requireNonNull(employeeId))
+    public ResponseEntity<SalaryStructure> getCurrentSalaryStructure(@PathVariable Long employeeId) {
+        return salaryStructureService.getCurrentSalaryStructure(employeeId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/employee/{employeeId}/history")
-    public ResponseEntity<List<SalaryStructure>> getSalaryHistory(@PathVariable @NonNull Long employeeId) {
-        return ResponseEntity.ok(salaryStructureService.getEmployeeSalaryHistory(Objects.requireNonNull(employeeId)));
+    public ResponseEntity<List<SalaryStructure>> getSalaryHistory(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(salaryStructureService.getEmployeeSalaryHistory(employeeId));
     }
 
     @PostMapping
@@ -51,10 +49,10 @@ public class SalaryStructureController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updateSalaryStructure(
-            @PathVariable @NonNull Long id, @RequestBody SalaryStructure salaryStructure) {
+            @PathVariable Long id, @RequestBody SalaryStructure salaryStructure) {
         Map<String, Object> response = new HashMap<>();
         try {
-            SalaryStructure updated = salaryStructureService.updateSalaryStructure(Objects.requireNonNull(id), Objects.requireNonNull(salaryStructure));
+            SalaryStructure updated = salaryStructureService.updateSalaryStructure(id, salaryStructure);
             response.put("success", true);
             response.put("message", "Salary structure updated successfully");
             response.put("salaryStructure", updated);
@@ -67,10 +65,10 @@ public class SalaryStructureController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteSalaryStructure(@PathVariable long id) {
+    public ResponseEntity<Map<String, Object>> deleteSalaryStructure(@PathVariable Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
-            salaryStructureService.deleteSalaryStructure(Objects.requireNonNull(id));
+            salaryStructureService.deleteSalaryStructure(id);
             response.put("success", true);
             response.put("message", "Salary structure deleted successfully");
             return ResponseEntity.ok(response);
@@ -81,3 +79,4 @@ public class SalaryStructureController {
         }
     }
 }
+

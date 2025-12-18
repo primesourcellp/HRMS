@@ -13,7 +13,6 @@ import Settings from './pages/Settings'
 import Users from './pages/Users'
 import Shifts from './pages/Shifts'
 import HRTickets from './pages/HRTickets'
-import Recruitment from './pages/Recruitment'
 import Analytics from './pages/Analytics'
 import InitialRoute from './components/InitialRoute'
 import { isAuthenticated } from './utils/auth'
@@ -36,7 +35,6 @@ function App() {
             <Route path="performance" element={<Performance />} />
             <Route path="shifts" element={<Shifts />} />
             <Route path="tickets" element={<HRTickets />} />
-            <Route path="recruitment" element={<Recruitment />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />

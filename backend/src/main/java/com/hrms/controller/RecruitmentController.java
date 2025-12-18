@@ -7,8 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.lang.NonNull;
-import java.util.Objects;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -51,10 +49,10 @@ public class RecruitmentController {
     }
 
     @PutMapping("/jobs/{id}")
-    public ResponseEntity<Map<String, Object>> updateJobPosting(@PathVariable @NonNull Long id, @RequestBody JobPosting jobPosting) {
+    public ResponseEntity<Map<String, Object>> updateJobPosting(@PathVariable Long id, @RequestBody JobPosting jobPosting) {
         Map<String, Object> response = new HashMap<>();
         try {
-            JobPosting updated = recruitmentService.updateJobPosting(Objects.requireNonNull(id), jobPosting);
+            JobPosting updated = recruitmentService.updateJobPosting(id, jobPosting);
             response.put("success", true);
             response.put("message", "Job posting updated successfully");
             response.put("jobPosting", updated);
@@ -67,10 +65,10 @@ public class RecruitmentController {
     }
 
     @DeleteMapping("/jobs/{id}")
-    public ResponseEntity<Map<String, Object>> deleteJobPosting(@PathVariable @NonNull Long id) {
+    public ResponseEntity<Map<String, Object>> deleteJobPosting(@PathVariable Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
-            recruitmentService.deleteJobPosting(Objects.requireNonNull(id));
+            recruitmentService.deleteJobPosting(id);
             response.put("success", true);
             response.put("message", "Job posting deleted successfully");
             return ResponseEntity.ok(response);
@@ -83,8 +81,8 @@ public class RecruitmentController {
 
     // Applicant endpoints
     @GetMapping("/applicants/job/{jobPostingId}")
-    public ResponseEntity<List<Applicant>> getApplicantsByJobPosting(@PathVariable @NonNull Long jobPostingId) {
-        return ResponseEntity.ok(recruitmentService.getApplicantsByJobPosting(Objects.requireNonNull(jobPostingId)));
+    public ResponseEntity<List<Applicant>> getApplicantsByJobPosting(@PathVariable Long jobPostingId) {
+        return ResponseEntity.ok(recruitmentService.getApplicantsByJobPosting(jobPostingId));
     }
 
     @GetMapping("/applicants/status/{status}")
@@ -110,12 +108,12 @@ public class RecruitmentController {
 
     @PutMapping("/applicants/{id}/status")
     public ResponseEntity<Map<String, Object>> updateApplicantStatus(
-            @PathVariable @NonNull Long id,
+            @PathVariable Long id,
             @RequestBody Map<String, String> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Applicant updated = recruitmentService.updateApplicantStatus(
-                Objects.requireNonNull(id), request.get("status"), request.get("feedback"));
+                id, request.get("status"), request.get("feedback"));
             response.put("success", true);
             response.put("message", "Applicant status updated successfully");
             response.put("applicant", updated);
@@ -129,11 +127,11 @@ public class RecruitmentController {
 
     @PostMapping("/applicants/{id}/interview")
     public ResponseEntity<Map<String, Object>> scheduleInterview(
-            @PathVariable @NonNull Long id, @RequestBody Map<String, String> request) {
+            @PathVariable Long id, @RequestBody Map<String, String> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             LocalDate interviewDate = LocalDate.parse(request.get("interviewDate"));
-            Applicant updated = recruitmentService.scheduleInterview(Objects.requireNonNull(id), interviewDate);
+            Applicant updated = recruitmentService.scheduleInterview(id, interviewDate);
             response.put("success", true);
             response.put("message", "Interview scheduled successfully");
             response.put("applicant", updated);
@@ -145,3 +143,4 @@ public class RecruitmentController {
         }
     }
 }
+

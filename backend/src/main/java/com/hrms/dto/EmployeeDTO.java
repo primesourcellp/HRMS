@@ -55,6 +55,7 @@ public class EmployeeDTO {
 
     private List<WorkExperienceDTO> workExperiences;
     private List<EducationDetailDTO> educationDetails;
+    private List<DependentDetailDTO> dependentDetails;
 
     // Getters and Setters
     public Long getId() { return id; }
@@ -203,6 +204,9 @@ public class EmployeeDTO {
 
     public List<EducationDetailDTO> getEducationDetails() { return educationDetails; }
     public void setEducationDetails(List<EducationDetailDTO> educationDetails) { this.educationDetails = educationDetails; }
+
+    public List<DependentDetailDTO> getDependentDetails() { return dependentDetails; }
+    public void setDependentDetails(List<DependentDetailDTO> dependentDetails) { this.dependentDetails = dependentDetails; }
 
 }
 

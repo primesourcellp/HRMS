@@ -57,7 +57,7 @@ public class EmployeeController {
     // CREATE EMPLOYEE
     // -------------------------------------------------------
     @PostMapping
-    public ResponseEntity<Employee> createEmployee(
+    public ResponseEntity<?> createEmployee(
             @RequestBody Employee employee,
             @RequestParam(required = false) String userRole,
             HttpServletRequest httpRequest) {
@@ -67,18 +67,72 @@ public class EmployeeController {
             role = userRole;
         }
         if (role == null || (!role.equals("SUPER_ADMIN") && !role.equals("ADMIN"))) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "message", "Only SUPER_ADMIN or ADMIN can create employees"));
         }
 
-        Employee created = employeeService.createEmployee(Objects.requireNonNull(employee));
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        try {
+            // Validate that employee is not null
+            if (employee == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("success", false, "message", "Employee data is required"));
+            }
+            
+            Employee created = employeeService.createEmployee(employee);
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // Handle database constraint violations
+            e.printStackTrace();
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && errorMessage.contains("doesn't have a default value")) {
+                // Extract the field name from the error message
+                String fieldName = "unknown field";
+                if (errorMessage.contains("Field '")) {
+                    int start = errorMessage.indexOf("Field '") + 7;
+                    int end = errorMessage.indexOf("'", start);
+                    if (end > start) {
+                        fieldName = errorMessage.substring(start, end);
+                    }
+                }
+                errorMessage = "Required field '" + fieldName + "' is missing. Please ensure all required fields are provided.";
+            } else if (errorMessage != null && errorMessage.contains("cannot be null")) {
+                // Extract the column name from the error message
+                String columnName = "unknown column";
+                if (errorMessage.contains("Column '")) {
+                    int start = errorMessage.indexOf("Column '") + 8;
+                    int end = errorMessage.indexOf("'", start);
+                    if (end > start) {
+                        columnName = errorMessage.substring(start, end);
+                    }
+                }
+                errorMessage = "Required field '" + columnName + "' cannot be null. Please ensure all required fields are provided.";
+            } else if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "Database constraint violation occurred while creating the employee";
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("success", false, "message", errorMessage, "error", "DataIntegrityViolationException"));
+        } catch (Exception e) {
+            // Log the full exception for debugging
+            e.printStackTrace();
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "An unexpected error occurred while creating the employee: " + e.getClass().getSimpleName();
+            }
+            // Include the root cause if available
+            Throwable rootCause = e.getCause();
+            if (rootCause != null && rootCause.getMessage() != null) {
+                errorMessage += " - " + rootCause.getMessage();
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", errorMessage, "error", e.getClass().getSimpleName()));
+        }
     }
 
     // -------------------------------------------------------
     // UPDATE EMPLOYEE
     // -------------------------------------------------------
     @PutMapping("/{id}")
-    public ResponseEntity<Employee> updateEmployee(
+    public ResponseEntity<?> updateEmployee(
             @PathVariable @NonNull Long id,
             @RequestBody Employee employee,
             @RequestParam(required = false) String userRole,
@@ -89,11 +143,28 @@ public class EmployeeController {
             role = userRole;
         }
         if (role == null || (!role.equals("SUPER_ADMIN") && !role.equals("ADMIN"))) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "message", "Only SUPER_ADMIN or ADMIN can update employees"));
         }
 
-        Employee updated = employeeService.updateEmployee(Objects.requireNonNull(id), Objects.requireNonNull(employee));
-        return ResponseEntity.ok(updated);
+        try {
+            Employee updated = employeeService.updateEmployee(Objects.requireNonNull(id), Objects.requireNonNull(employee));
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            // Log the exception for debugging
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            // Log the full exception for debugging
+            e.printStackTrace();
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "An unexpected error occurred while updating the employee";
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", errorMessage, "error", e.getClass().getSimpleName()));
+        }
     }
 
     // -------------------------------------------------------

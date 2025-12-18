@@ -11,6 +11,7 @@ const Dashboard = () => {
   const [dashboardStats, setDashboardStats] = useState(null)
   const [isEmployee, setIsEmployee] = useState(false)
   const [employeeId, setEmployeeId] = useState(null)
+  const [employeeShift, setEmployeeShift] = useState(null)
   const navigate = useNavigate()
   const userRole = localStorage.getItem('userRole')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
@@ -20,9 +21,50 @@ const Dashboard = () => {
     const userType = localStorage.getItem('userType')
     const userId = localStorage.getItem('userId')
     setIsEmployee(userType === 'employee')
-    setEmployeeId(userId ? parseInt(userId) : null)
-    loadDashboardStats(userId && userType === 'employee' ? parseInt(userId) : null)
-  }, [])
+    const empId = userId ? parseInt(userId) : null
+    setEmployeeId(empId)
+    loadDashboardStats(empId && userType === 'employee' ? empId : null)
+    
+    // Load employee shift if user is an employee
+    if (empId && userType === 'employee') {
+      loadEmployeeShift(empId)
+    }
+  }, [employees]) // Re-run when employees data is loaded
+
+  const loadEmployeeShift = async (empId) => {
+    try {
+      console.log('Loading shift for employee ID:', empId)
+      
+      // First, try to get shift from API
+      const shift = await api.getShiftByEmployeeId(empId)
+      console.log('Shift from API:', shift)
+      
+      if (shift) {
+        setEmployeeShift(shift)
+        return
+      }
+      
+      // Fallback: Check if employee object has shift info
+      if (employees && Array.isArray(employees)) {
+        const employee = employees.find(emp => {
+          const empIdNum = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+          return empIdNum === empId
+        })
+        
+        if (employee && employee.shift) {
+          console.log('Found shift in employee object:', employee.shift)
+          setEmployeeShift(employee.shift)
+          return
+        }
+      }
+      
+      // If no shift found, set to null
+      setEmployeeShift(null)
+    } catch (error) {
+      console.error('Error loading employee shift:', error)
+      setEmployeeShift(null)
+    }
+  }
 
   const loadDashboardStats = async (empId = null) => {
     try {
@@ -271,6 +313,35 @@ const Dashboard = () => {
                 <p className="text-sm text-gray-600">Department</p>
                 <p className="text-lg font-semibold text-gray-800">{dashboardStats.department || 'N/A'}</p>
               </div>
+              {employeeShift && (
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="text-blue-600" size={20} />
+                    <p className="text-sm font-semibold text-blue-800">My Shift</p>
+                  </div>
+                  <p className="text-lg font-bold text-gray-800 mb-1">{employeeShift.name}</p>
+                  <p className="text-sm text-gray-600">
+                    {employeeShift.startTime ? employeeShift.startTime.substring(0, 5) : ''} - {employeeShift.endTime ? employeeShift.endTime.substring(0, 5) : ''}
+                  </p>
+                  {employeeShift.workingHours && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Working Hours: {employeeShift.workingHours.toFixed(2)} hrs
+                      {employeeShift.breakDuration && ` | Break: ${employeeShift.breakDuration} min`}
+                    </p>
+                  )}
+                  {employeeShift.description && (
+                    <p className="text-xs text-gray-600 mt-2">{employeeShift.description}</p>
+                  )}
+                </div>
+              )}
+              {!employeeShift && (
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <Clock className="text-gray-400" size={20} />
+                    <p className="text-sm text-gray-600">No shift assigned</p>
+                  </div>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-gray-600">Attendance Rate (Last 30 Days)</p>
                 <p className="text-lg font-semibold text-gray-800">{dashboardStats.attendanceRate?.toFixed(1) || 0}%</p>

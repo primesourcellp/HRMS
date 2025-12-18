@@ -6,8 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.lang.NonNull;
-import java.util.Objects;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,23 +25,23 @@ public class HRTicketController {
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<HRTicket>> getEmployeeTickets(@PathVariable @NonNull Long employeeId) {
-        return ResponseEntity.ok(ticketService.getEmployeeTickets(Objects.requireNonNull(employeeId)));
+    public ResponseEntity<List<HRTicket>> getEmployeeTickets(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(ticketService.getEmployeeTickets(employeeId));
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<HRTicket>> getTicketsByStatus(@PathVariable @NonNull String status) {
-        return ResponseEntity.ok(ticketService.getTicketsByStatus(Objects.requireNonNull(status)));
+    public ResponseEntity<List<HRTicket>> getTicketsByStatus(@PathVariable String status) {
+        return ResponseEntity.ok(ticketService.getTicketsByStatus(status));
     }
 
     @GetMapping("/assigned/{assignedTo}")
-    public ResponseEntity<List<HRTicket>> getAssignedTickets(@PathVariable @NonNull Long assignedTo) {
-        return ResponseEntity.ok(ticketService.getAssignedTickets(Objects.requireNonNull(assignedTo)));
+    public ResponseEntity<List<HRTicket>> getAssignedTickets(@PathVariable Long assignedTo) {
+        return ResponseEntity.ok(ticketService.getAssignedTickets(assignedTo));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<HRTicket> getTicketById(@PathVariable @NonNull Long id) {
-        return ticketService.getTicketById(Objects.requireNonNull(id))
+    public ResponseEntity<HRTicket> getTicketById(@PathVariable Long id) {
+        return ticketService.getTicketById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -52,7 +50,7 @@ public class HRTicketController {
     public ResponseEntity<Map<String, Object>> createTicket(@RequestBody HRTicket ticket) {
         Map<String, Object> response = new HashMap<>();
         try {
-            HRTicket created = ticketService.createTicket(Objects.requireNonNull(ticket));
+            HRTicket created = ticketService.createTicket(ticket);
             response.put("success", true);
             response.put("message", "Ticket created successfully");
             response.put("ticket", created);
@@ -65,10 +63,10 @@ public class HRTicketController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateTicket(@PathVariable @NonNull Long id, @RequestBody HRTicket ticket) {
+    public ResponseEntity<Map<String, Object>> updateTicket(@PathVariable Long id, @RequestBody HRTicket ticket) {
         Map<String, Object> response = new HashMap<>();
         try {
-            HRTicket updated = ticketService.updateTicket(Objects.requireNonNull(id), Objects.requireNonNull(ticket));
+            HRTicket updated = ticketService.updateTicket(id, ticket);
             response.put("success", true);
             response.put("message", "Ticket updated successfully");
             response.put("ticket", updated);
@@ -81,10 +79,10 @@ public class HRTicketController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteTicket(@PathVariable @NonNull Long id) {
+    public ResponseEntity<Map<String, Object>> deleteTicket(@PathVariable Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
-            ticketService.deleteTicket(Objects.requireNonNull(id));
+            ticketService.deleteTicket(id);
             response.put("success", true);
             response.put("message", "Ticket deleted successfully");
             return ResponseEntity.ok(response);
@@ -95,3 +93,4 @@ public class HRTicketController {
         }
     }
 }
+

@@ -351,4 +351,17 @@ public class PayrollService {
 
         return payrollRepository.save(payroll);
     }
+
+    @Transactional
+    public void deletePayroll(Long payrollId) {
+        Payroll payroll = payrollRepository.findById(payrollId)
+                .orElseThrow(() -> new RuntimeException("Payroll not found"));
+
+        // Only allow deletion for DRAFT or PENDING_APPROVAL status
+        if (!"DRAFT".equals(payroll.getStatus()) && !"PENDING_APPROVAL".equals(payroll.getStatus())) {
+            throw new RuntimeException("Payroll can only be deleted when status is DRAFT or PENDING_APPROVAL");
+        }
+
+        payrollRepository.delete(payroll);
+    }
 }

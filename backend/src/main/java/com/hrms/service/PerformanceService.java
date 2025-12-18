@@ -34,4 +34,37 @@ public class PerformanceService {
     public List<Performance> getTopPerformers(Integer minRating) {
         return performanceRepository.findByRatingGreaterThanEqual(minRating);
     }
+
+    @org.springframework.transaction.annotation.Transactional
+    public Performance updatePerformance(@NonNull Long id, Performance performanceDetails) {
+        Performance performance = performanceRepository.findById(java.util.Objects.requireNonNull(id))
+                .orElseThrow(() -> new RuntimeException("Performance not found with id: " + id));
+
+        if (performanceDetails.getEmployeeId() != null) {
+            performance.setEmployeeId(performanceDetails.getEmployeeId());
+        }
+        if (performanceDetails.getReviewDate() != null) {
+            performance.setReviewDate(performanceDetails.getReviewDate());
+        }
+        if (performanceDetails.getPeriod() != null) {
+            performance.setPeriod(performanceDetails.getPeriod());
+        }
+        if (performanceDetails.getRating() != null) {
+            performance.setRating(performanceDetails.getRating());
+        }
+        if (performanceDetails.getFeedback() != null) {
+            performance.setFeedback(performanceDetails.getFeedback());
+        }
+        if (performanceDetails.getGoals() != null) {
+            performance.setGoals(performanceDetails.getGoals());
+        }
+        if (performanceDetails.getAchievements() != null) {
+            performance.setAchievements(performanceDetails.getAchievements());
+        }
+        if (performanceDetails.getAreasForImprovement() != null) {
+            performance.setAreasForImprovement(performanceDetails.getAreasForImprovement());
+        }
+
+        return performanceRepository.save(performance);
+    }
 }

@@ -6,8 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.lang.NonNull;
-import java.util.Objects;
 
 import java.util.HashMap;
 import java.util.List;
@@ -32,8 +30,8 @@ public class LeaveTypeController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<LeaveType> getLeaveTypeById(@PathVariable @NonNull Long id) {
-        return leaveTypeService.getLeaveTypeById(Objects.requireNonNull(id))
+    public ResponseEntity<LeaveType> getLeaveTypeById(@PathVariable Long id) {
+        return leaveTypeService.getLeaveTypeById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -55,10 +53,10 @@ public class LeaveTypeController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateLeaveType(@PathVariable @NonNull Long id, @RequestBody LeaveType leaveType) {
+    public ResponseEntity<Map<String, Object>> updateLeaveType(@PathVariable Long id, @RequestBody LeaveType leaveType) {
         Map<String, Object> response = new HashMap<>();
         try {
-            LeaveType updated = leaveTypeService.updateLeaveType(Objects.requireNonNull(id), leaveType);
+            LeaveType updated = leaveTypeService.updateLeaveType(id, leaveType);
             response.put("success", true);
             response.put("message", "Leave type updated successfully");
             response.put("leaveType", updated);
@@ -71,10 +69,10 @@ public class LeaveTypeController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteLeaveType(@PathVariable @NonNull Long id) {
+    public ResponseEntity<Map<String, Object>> deleteLeaveType(@PathVariable Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
-            leaveTypeService.deleteLeaveType(Objects.requireNonNull(id));
+            leaveTypeService.deleteLeaveType(id);
             response.put("success", true);
             response.put("message", "Leave type deleted successfully");
             return ResponseEntity.ok(response);
@@ -85,3 +83,4 @@ public class LeaveTypeController {
         }
     }
 }
+

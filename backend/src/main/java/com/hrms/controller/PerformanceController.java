@@ -9,11 +9,10 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.lang.NonNull;
-import java.util.Objects;
 
 import com.hrms.entity.Performance;
 import com.hrms.service.PerformanceService;
@@ -38,15 +37,15 @@ public class PerformanceController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Performance> getPerformanceById(@PathVariable @NonNull Long id) {
-        return performanceService.getPerformanceById(Objects.requireNonNull(id))
+    public ResponseEntity<Performance> getPerformanceById(@PathVariable Long id) {
+        return performanceService.getPerformanceById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<Performance>> getPerformanceByEmployeeId(@PathVariable @NonNull Long employeeId) {
-        return ResponseEntity.ok(performanceService.getPerformanceByEmployeeId(Objects.requireNonNull(employeeId)));
+    public ResponseEntity<List<Performance>> getPerformanceByEmployeeId(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(performanceService.getPerformanceByEmployeeId(employeeId));
     }
 
     @GetMapping("/top/{minRating}")
@@ -58,4 +57,18 @@ public class PerformanceController {
     public ResponseEntity<Performance> createPerformance(@RequestBody Performance performance) {
         return ResponseEntity.status(HttpStatus.CREATED).body(performanceService.createPerformance(performance));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updatePerformance(@PathVariable Long id, @RequestBody Performance performance) {
+        try {
+            Performance updated = performanceService.updatePerformance(id, performance);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            java.util.Map<String, Object> errorResponse = new java.util.HashMap<>();
+            errorResponse.put("error", "Failed to update performance review");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
+    }
 }
+

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
 import com.hrms.entity.Attendance;
 import com.hrms.service.AttendanceService;
 
@@ -40,7 +41,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Attendance> getAttendanceById(@PathVariable long id) {
+    public ResponseEntity<Attendance> getAttendanceById(@PathVariable Long id) {
         return attendanceService.getAttendanceById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -58,7 +59,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<?> getAttendanceByEmployeeId(@PathVariable long employeeId) {
+    public ResponseEntity<?> getAttendanceByEmployeeId(@PathVariable Long employeeId) {
         try {
             return ResponseEntity.ok(attendanceService.getAttendanceByEmployeeId(employeeId));
         } catch (Exception e) {
@@ -127,8 +128,7 @@ public class AttendanceController {
             // Get client IP address
             String ipAddress = getClientIpAddress(httpRequest);
             
-            Attendance attendance = attendanceService.checkIn(employeeId.longValue(),
-                date, checkInTime,
+            Attendance attendance = attendanceService.checkIn(employeeId, date, checkInTime, 
                 shiftId, latitude, longitude, location, ipAddress, method);
             response.put("success", true);
             response.put("message", "Check-in successful");
@@ -194,7 +194,7 @@ public class AttendanceController {
             // Get client IP address
             String ipAddress = getClientIpAddress(httpRequest);
             
-            Attendance attendance = attendanceService.checkOut(employeeId.longValue(), date, checkOutTime,
+            Attendance attendance = attendanceService.checkOut(employeeId, date, checkOutTime, 
                 latitude, longitude, location, ipAddress, method);
             response.put("success", true);
             response.put("message", "Check-out successful");
@@ -234,7 +234,7 @@ public class AttendanceController {
 
     @GetMapping("/employee/{employeeId}/weekly")
     public ResponseEntity<Map<String, Object>> getWeeklyHours(
-            @PathVariable long employeeId,
+            @PathVariable Long employeeId, 
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
         Map<String, Object> response = new HashMap<>();
         double weeklyHours = attendanceService.getWeeklyHours(employeeId, weekStart);
@@ -251,6 +251,7 @@ public class AttendanceController {
         String checkIn = request.containsKey("checkIn") ? request.get("checkIn").toString() : null;
         String checkOut = request.containsKey("checkOut") ? request.get("checkOut").toString() : null;
         
-        return ResponseEntity.ok(attendanceService.markAttendance(employeeId.longValue(), date, status, checkIn, checkOut));
+        return ResponseEntity.ok(attendanceService.markAttendance(employeeId, date, status, checkIn, checkOut));
     }
 }
+

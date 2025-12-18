@@ -6,8 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.lang.NonNull;
-import java.util.Objects;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -55,10 +53,10 @@ public class HolidayController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateHoliday(@PathVariable @NonNull Long id, @RequestBody Holiday holiday) {
+    public ResponseEntity<Map<String, Object>> updateHoliday(@PathVariable Long id, @RequestBody Holiday holiday) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Holiday updated = holidayService.updateHoliday(Objects.requireNonNull(id), holiday);
+            Holiday updated = holidayService.updateHoliday(id, holiday);
             response.put("success", true);
             response.put("message", "Holiday updated successfully");
             response.put("holiday", updated);
@@ -71,10 +69,10 @@ public class HolidayController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteHoliday(@PathVariable @NonNull Long id) {
+    public ResponseEntity<Map<String, Object>> deleteHoliday(@PathVariable Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
-            holidayService.deleteHoliday(Objects.requireNonNull(id));
+            holidayService.deleteHoliday(id);
             response.put("success", true);
             response.put("message", "Holiday deleted successfully");
             return ResponseEntity.ok(response);
@@ -85,3 +83,4 @@ public class HolidayController {
         }
     }
 }
+

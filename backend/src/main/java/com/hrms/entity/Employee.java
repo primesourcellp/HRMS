@@ -84,6 +84,7 @@ public class Employee {
     private String lastName;
     private String nickName;
     private String email;
+    private String name;
 
     @Column(name = "password", length = 255)
     private String password; // BCrypt hash
@@ -92,9 +93,16 @@ public class Employee {
     private String role;
     private String department;
     private String location;
+    
+    @Column(name = "position")
     private String designation;
+    
     private String employmentType;
     private String employeeStatus;
+    
+    @Column(name = "status")
+    private String status;
+    
     private String sourceOfHire;
     
     @Column(name = "join_date")
@@ -148,7 +156,13 @@ public class Employee {
     private String phone;
     
     private String avatar;
-    // Removed duplicate shiftId field
+
+    // Shift Assignment Dates
+    @Column(name = "shift_assignment_start_date")
+    private LocalDate shiftAssignmentStartDate;
+
+    @Column(name = "shift_assignment_end_date")
+    private LocalDate shiftAssignmentEndDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id", insertable = false, updatable = false)
@@ -163,6 +177,7 @@ public class Employee {
 
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DependentDetail> dependentDetails;
+
     public String getExpertise() { return expertise; }
     public void setExpertise(String expertise) { this.expertise = expertise; }
 
@@ -243,6 +258,13 @@ public class Employee {
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }
 
+    // Shift Assignment Dates
+    public LocalDate getShiftAssignmentStartDate() { return shiftAssignmentStartDate; }
+    public void setShiftAssignmentStartDate(LocalDate shiftAssignmentStartDate) { this.shiftAssignmentStartDate = shiftAssignmentStartDate; }
+
+    public LocalDate getShiftAssignmentEndDate() { return shiftAssignmentEndDate; }
+    public void setShiftAssignmentEndDate(LocalDate shiftAssignmentEndDate) { this.shiftAssignmentEndDate = shiftAssignmentEndDate; }
+
     // Removed duplicate shiftId getter/setter
 
     public com.hrms.entity.Shift getShift() { return shift; }
@@ -262,16 +284,111 @@ public class Employee {
         if (firstName != null && lastName != null) {
             return firstName + " " + lastName;
         }
-        return firstName != null ? firstName : lastName;
+        if (firstName != null) {
+            return firstName;
+        }
+        if (lastName != null) {
+            return lastName;
+        }
+        return ""; // Return empty string instead of null to prevent NullPointerException
     }
 
-    public String getStatus() { return employeeStatus; }
-    public void setStatus(String status) { this.employeeStatus = status; }
+    public void setName(String name) {
+        this.name = name;
+        // If name is provided but firstName/lastName are not set, try to split the name
+        if (name != null && !name.trim().isEmpty()) {
+            if ((firstName == null || firstName.trim().isEmpty()) && 
+                (lastName == null || lastName.trim().isEmpty())) {
+                String[] parts = name.trim().split("\\s+", 2);
+                if (parts.length > 0 && firstName == null) {
+                    firstName = parts[0];
+                }
+                if (parts.length > 1 && lastName == null) {
+                    lastName = parts[1];
+                } else if (parts.length == 1 && lastName == null) {
+                    // If only one part, set it as firstName
+                    firstName = parts[0];
+                }
+            }
+        }
+    }
+
+    public String getStatus() { 
+        // Return status field if set, otherwise fall back to employeeStatus for backwards compatibility
+        if (status != null && !status.trim().isEmpty()) {
+            return status;
+        }
+        return employeeStatus; 
+    }
+    public void setStatus(String status) { 
+        this.status = status;
+        // Also set employeeStatus for backwards compatibility
+        if (status != null) {
+            this.employeeStatus = status;
+        }
+    }
 
     public String getPosition() { return designation; }
     public void setPosition(String position) { this.designation = position; }
 
     public LocalDate getJoinDate() { return dateOfJoining; }
     public void setJoinDate(LocalDate joinDate) { this.dateOfJoining = joinDate; }
-}
 
+    // JPA lifecycle callbacks to ensure required fields are always set before saving
+    @PrePersist
+    @PreUpdate
+    private void ensureRequiredFields() {
+        // Ensure name field is set
+        if (name == null || name.trim().isEmpty()) {
+            if (firstName != null && !firstName.trim().isEmpty() && lastName != null && !lastName.trim().isEmpty()) {
+                name = firstName.trim() + " " + lastName.trim();
+            } else if (firstName != null && !firstName.trim().isEmpty()) {
+                name = firstName.trim();
+            } else if (lastName != null && !lastName.trim().isEmpty()) {
+                name = lastName.trim();
+            } else {
+                // If both firstName and lastName are null or empty, set name to empty string
+                // (database might require NOT NULL, so we use empty string instead)
+                name = "";
+            }
+        }
+        
+        // Ensure designation (position) field is set
+        if (designation == null || designation.trim().isEmpty()) {
+            designation = ""; // Set empty string to satisfy NOT NULL constraint
+        }
+        
+        // Ensure phone field is set
+        if (phone == null || phone.trim().isEmpty()) {
+            if (personalMobileNumber != null && !personalMobileNumber.trim().isEmpty()) {
+                phone = personalMobileNumber;
+            } else if (workPhoneNumber != null && !workPhoneNumber.trim().isEmpty()) {
+                phone = workPhoneNumber;
+            } else {
+                phone = ""; // Set empty string to satisfy NOT NULL constraint
+            }
+        }
+        
+        // Ensure avatar is set (generate from initials if not provided)
+        if (avatar == null || avatar.trim().isEmpty()) {
+            if (firstName != null && !firstName.trim().isEmpty() && lastName != null && !lastName.trim().isEmpty()) {
+                avatar = (firstName.charAt(0) + "" + lastName.charAt(0)).toUpperCase();
+            } else if (firstName != null && !firstName.trim().isEmpty()) {
+                avatar = firstName.substring(0, 1).toUpperCase();
+            } else if (lastName != null && !lastName.trim().isEmpty()) {
+                avatar = lastName.substring(0, 1).toUpperCase();
+            } else {
+                avatar = "U"; // Default to "U" for Unknown
+            }
+        }
+        
+        // Ensure status field is set (map from employeeStatus if not set)
+        if (status == null || status.trim().isEmpty()) {
+            if (employeeStatus != null && !employeeStatus.trim().isEmpty()) {
+                status = employeeStatus;
+            } else {
+                status = "Active"; // Default to "Active" if not provided
+            }
+        }
+    }
+}

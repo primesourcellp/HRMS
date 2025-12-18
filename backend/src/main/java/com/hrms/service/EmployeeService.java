@@ -40,9 +40,16 @@ public class EmployeeService {
 
         // Auto-generate avatar if missing (using first & last name initials)
         if (employee.getAvatar() == null || employee.getAvatar().isEmpty()) {
-            if (employee.getFirstName() != null && employee.getLastName() != null) {
-                String avatar = employee.getFirstName().charAt(0) + "" + employee.getLastName().charAt(0);
+            if (employee.getFirstName() != null && !employee.getFirstName().trim().isEmpty() && 
+                employee.getLastName() != null && !employee.getLastName().trim().isEmpty()) {
+                String avatar = employee.getFirstName().trim().charAt(0) + "" + employee.getLastName().trim().charAt(0);
                 employee.setAvatar(avatar.toUpperCase());
+            } else if (employee.getFirstName() != null && !employee.getFirstName().trim().isEmpty()) {
+                employee.setAvatar(employee.getFirstName().trim().substring(0, 1).toUpperCase());
+            } else if (employee.getLastName() != null && !employee.getLastName().trim().isEmpty()) {
+                employee.setAvatar(employee.getLastName().trim().substring(0, 1).toUpperCase());
+            } else {
+                employee.setAvatar("U"); // Default to "U" for Unknown
             }
         }
 
@@ -63,6 +70,71 @@ public class EmployeeService {
                 employee.setPhone("");
             }
         }
+        
+        // Ensure `name` field is set before saving (safety check in addition to @PrePersist)
+        // Build name from firstName and lastName if name is not already set
+        if (employee.getFirstName() != null && !employee.getFirstName().trim().isEmpty() && 
+            employee.getLastName() != null && !employee.getLastName().trim().isEmpty()) {
+            employee.setName(employee.getFirstName().trim() + " " + employee.getLastName().trim());
+        } else if (employee.getFirstName() != null && !employee.getFirstName().trim().isEmpty()) {
+            employee.setName(employee.getFirstName().trim());
+        } else if (employee.getLastName() != null && !employee.getLastName().trim().isEmpty()) {
+            employee.setName(employee.getLastName().trim());
+        } else {
+            // If both firstName and lastName are null/empty, set name to empty string
+            // The @PrePersist callback will also handle this, but this is a safety check
+            employee.setName("");
+        }
+        
+        // Ensure `designation` (maps to `position` column) is set to avoid NOT NULL constraint error
+        if (employee.getDesignation() == null || employee.getDesignation().trim().isEmpty()) {
+            employee.setDesignation(""); // Set empty string to satisfy NOT NULL constraint
+        }
+        
+        // Ensure `status` field is set (maps to database `status` column)
+        // Use employeeStatus if status is not set, or default to "Active"
+        if (employee.getStatus() == null || employee.getStatus().trim().isEmpty()) {
+            if (employee.getEmployeeStatus() != null && !employee.getEmployeeStatus().trim().isEmpty()) {
+                employee.setStatus(employee.getEmployeeStatus());
+            } else {
+                employee.setStatus("Active"); // Default to "Active" if not provided
+            }
+        }
+        
+        // Initialize nested collections if they are null to avoid issues
+        if (employee.getWorkExperiences() == null) {
+            employee.setWorkExperiences(new java.util.ArrayList<>());
+        }
+        if (employee.getEducationDetails() == null) {
+            employee.setEducationDetails(new java.util.ArrayList<>());
+        }
+        if (employee.getDependentDetails() == null) {
+            employee.setDependentDetails(new java.util.ArrayList<>());
+        }
+        
+        // Ensure each nested entity has the employee reference set
+        if (employee.getWorkExperiences() != null) {
+            for (com.hrms.entity.WorkExperience we : employee.getWorkExperiences()) {
+                if (we != null) {
+                    we.setEmployee(employee);
+                }
+            }
+        }
+        if (employee.getEducationDetails() != null) {
+            for (com.hrms.entity.EducationDetail ed : employee.getEducationDetails()) {
+                if (ed != null) {
+                    ed.setEmployee(employee);
+                }
+            }
+        }
+        if (employee.getDependentDetails() != null) {
+            for (com.hrms.entity.DependentDetail dd : employee.getDependentDetails()) {
+                if (dd != null) {
+                    dd.setEmployee(employee);
+                }
+            }
+        }
+        
         return employeeRepository.save(employee);
     }
 

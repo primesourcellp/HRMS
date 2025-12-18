@@ -32,6 +32,7 @@ firstName: '',
 lastName: '', 
 
 email: '', 
+password: '', 
 role: '', 
 department: '', 
 location: '', 
@@ -69,8 +70,8 @@ permanentCountry: '',
 permanentState: '', 
 permanentPostalCode: '', 
 dateOfExit: '', 
- 
-}) 
+
+})
 const [workExperiences, setWorkExperiences] = useState([]) 
 const [educationDetails, setEducationDetails] = useState([]) 
 const [docFormData, setDocFormData] = useState({ 
@@ -94,6 +95,7 @@ firstName: editingEmployee.firstName || '',
 lastName: editingEmployee.lastName || '', 
 
 email: editingEmployee.email || '', 
+password: '', // Don't populate password when editing (leave empty to keep current)
 role: editingEmployee.role || '', 
 department: editingEmployee.department || '', 
 location: editingEmployee.location || '', 
@@ -143,6 +145,7 @@ firstName: '',
 lastName: '', 
  
 email: '', 
+password: '', 
 role: '', 
 department: '', 
 location: '', 
@@ -282,6 +285,7 @@ firstName: fullEmployee.firstName || '',
 lastName: fullEmployee.lastName || '', 
  
 email: fullEmployee.email || '', 
+password: '', // Don't populate password when editing (leave empty to keep current)
 role: fullEmployee.role || '', 
 department: fullEmployee.department || '', 
 location: fullEmployee.location || '', 
@@ -335,6 +339,7 @@ firstName: employee.firstName || '',
 lastName: employee.lastName || '', 
 
 email: employee.email || '', 
+password: '', // Don't populate password when editing (leave empty to keep current)
 role: employee.role || '', 
 department: employee.department || '', 
 location: employee.location || '', 
@@ -372,11 +377,14 @@ permanentCountry: employee.permanentCountry || '',
 permanentState: employee.permanentState || '', 
 permanentPostalCode: employee.permanentPostalCode || '', 
 dateOfExit: formatDateForInput(employee.dateOfExit), 
+salary: employee.salary || '', 
 
 }) 
- 
+setWorkExperiences(employee.workExperiences || [])
+setEducationDetails(employee.educationDetails || [])
+
 	}
-} catch (error) { 
+} catch (error) {
 console.error('Error fetching employee details:', error) 
 // Fallback to the employee object passed 
 setEditingEmployee(employee) 
@@ -388,6 +396,7 @@ firstName: employee.firstName || '',
 lastName: employee.lastName || '', 
  
 email: employee.email || '', 
+password: '', // Don't populate password when editing (leave empty to keep current)
 role: employee.role || '', 
 department: employee.department || '', 
 location: employee.location || '', 
@@ -425,8 +434,11 @@ permanentCountry: employee.permanentCountry || '',
 permanentState: employee.permanentState || '', 
 permanentPostalCode: employee.permanentPostalCode || '', 
 dateOfExit: formatDateForInput(employee.dateOfExit), 
+salary: employee.salary || '', 
 
 }) 
+setWorkExperiences(employee.workExperiences || [])
+setEducationDetails(employee.educationDetails || [])
 
 } 
 } else { 
@@ -438,6 +450,7 @@ firstName: '',
 lastName: '', 
 
 email: '', 
+password: '', 
 role: '', 
 department: '', 
 location: '', 
@@ -475,12 +488,13 @@ permanentCountry: '',
 permanentState: '', 
 permanentPostalCode: '', 
 dateOfExit: '', 
- 
+salary: '', 
+
 }) 
 setWorkExperiences([])
 setEducationDetails([])
 } 
-setShowModal(true) 
+setShowModal(true)
 } 
 // Fetch and show full employee details in view modal (module-level)
 const handleViewEmployee = async (employee) => {
@@ -507,9 +521,16 @@ const employeeData = {
 
 // The backend expects a top-level `phone` field. If the form doesn't
 // include a dedicated `phone`, fall back to `personalMobileNumber` or
-// `workPhoneNumber` before saving. If neither is provided, ask the user
-// for a phone number to avoid a DB NOT NULL violation.
-const fallbackPhone = (formData.personalMobileNumber && formData.personalMobileNumber.trim()) || (formData.workPhoneNumber && formData.workPhoneNumber.trim()) || ''
+// `workPhoneNumber` before saving. If editing and employee already has a phone, use it.
+// If neither is provided, ask the user for a phone number to avoid a DB NOT NULL violation.
+let fallbackPhone = (formData.personalMobileNumber && formData.personalMobileNumber.trim()) || 
+                   (formData.workPhoneNumber && formData.workPhoneNumber.trim()) || ''
+
+// If editing and no phone in form but employee has one, use existing phone
+if (editingEmployee && !fallbackPhone && editingEmployee.phone) {
+	fallbackPhone = editingEmployee.phone
+}
+
 if (!fallbackPhone) {
 	setLoading(false)
 	alert('Please enter a phone number in Personal Mobile Number or Work Phone Number')
@@ -517,6 +538,46 @@ if (!fallbackPhone) {
 }
 // Use fallbackPhone for the required `phone` property
 employeeData.phone = fallbackPhone
+
+// Build name field from firstName and lastName if not explicitly set
+if (!employeeData.name || employeeData.name.trim() === '') {
+	if (employeeData.firstName && employeeData.firstName.trim() && 
+		employeeData.lastName && employeeData.lastName.trim()) {
+		employeeData.name = employeeData.firstName.trim() + ' ' + employeeData.lastName.trim()
+	} else if (employeeData.firstName && employeeData.firstName.trim()) {
+		employeeData.name = employeeData.firstName.trim()
+	} else if (employeeData.lastName && employeeData.lastName.trim()) {
+		employeeData.name = employeeData.lastName.trim()
+	} else {
+		employeeData.name = '' // Ensure it's not null
+	}
+}
+
+// Set status field from employeeStatus if not explicitly set
+if (!employeeData.status || employeeData.status.trim() === '') {
+	if (employeeData.employeeStatus && employeeData.employeeStatus.trim()) {
+		employeeData.status = employeeData.employeeStatus
+	} else {
+		employeeData.status = 'Active' // Default to Active
+	}
+}
+
+// Handle password: if editing and password is empty, don't send it (to keep current password)
+// If creating new employee, password is required
+if (editingEmployee) {
+	if (!employeeData.password || employeeData.password.trim() === '') {
+		// Remove password from data so backend doesn't update it
+		delete employeeData.password
+	}
+} else {
+	// For new employees, password is required
+	if (!employeeData.password || employeeData.password.trim() === '') {
+		setLoading(false)
+		alert('Password is required for new employees')
+		return
+	}
+}
+
 try { 
 if (editingEmployee) { 
 await api.updateEmployee(editingEmployee.id, employeeData, userRole) 
@@ -533,6 +594,7 @@ firstName: '',
 lastName: '', 
 
 email: '', 
+password: '', 
 role: '', 
 department: '', 
 location: '', 
@@ -570,6 +632,7 @@ permanentCountry: '',
 permanentState: '', 
 permanentPostalCode: '', 
 dateOfExit: '', 
+salary: '', 
 
 }) 
 setWorkExperiences([])
@@ -840,15 +903,15 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 <table className="w-full"> 
 <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white"> 
 <tr> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Employee ID</th> 
+<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">EID</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Date of Birth</th> 
+<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">DOB</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Joining Date</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Designation</th>
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Salary</th>
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Phone</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Email</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Employee Status</th> 
+<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Actions</th> 
 </tr> 
 </thead> 
@@ -992,6 +1055,7 @@ firstName: '',
 lastName: '', 
 
 email: '', 
+password: '', 
 role: '', 
 department: '', 
 location: '', 
@@ -1083,6 +1147,17 @@ value={formData.email}
 onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 required 
+/> 
+</div> 
+<div> 
+<label className="block text-sm font-semibold text-gray-700 mb-2">Password {editingEmployee ? '(leave empty to keep current)' : '*'}</label> 
+<input 
+type="password" 
+value={formData.password} 
+onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+required={!editingEmployee}
+placeholder={editingEmployee ? "Leave empty to keep current password" : "Enter password"}
 /> 
 </div> 
 
@@ -1710,6 +1785,7 @@ firstName: '',
 lastName: '', 
 
 email: '', 
+password: '', 
 role: '', 
 department: '', 
 location: '', 

@@ -52,83 +52,103 @@ const fetchWithAuth = async (url, options = {}) => {
     headers['Content-Type'] = 'application/json'
   }
 
-  // Include credentials (cookies) in all requests
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include' // Required for HttpOnly cookies
-  })
+  try {
+    // Include credentials (cookies) in all requests
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include' // Required for HttpOnly cookies
+    })
 
-  // If token is invalid or expired, try to refresh
-  if (response.status === 401) {
-    const currentPath = window.location.pathname
+    // If token is invalid or expired, try to refresh
+    if (response.status === 401) {
+      const currentPath = window.location.pathname
 
-    // Don't redirect if already on login/register page
-    if (currentPath === '/login' || currentPath === '/register') {
-      return response
+      // Don't redirect if already on login/register page
+      if (currentPath === '/login' || currentPath === '/register') {
+        return response
+      }
+
+      try {
+        // Refresh token is also in HttpOnly cookie, so just call refresh endpoint
+        const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include' // Cookies are automatically sent
+        })
+
+        if (refreshResponse.ok) {
+          // New access token is set in cookie by backend
+          // Retry original request
+          return fetch(url, {
+            ...options,
+            headers,
+            credentials: 'include'
+          })
+        }
+      } catch (err) {
+        console.error('Token refresh failed:', err)
+      }
+
+      // If refresh fails (401 or 400), handle redirect
+      // Use sessionStorage to prevent redirect loops across page loads
+      if (!getRedirectFlag()) {
+        const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
+
+        // If user appears authenticated but got 401, session expired - redirect
+        // If not authenticated, ProtectedRoute should handle it, but redirect anyway to be safe
+        if (isAuthenticated || currentPath.startsWith('/dashboard') || currentPath.startsWith('/employees') ||
+          currentPath.startsWith('/attendance') || currentPath.startsWith('/leave') ||
+          currentPath.startsWith('/payroll') || currentPath.startsWith('/performance')) {
+          setRedirectFlag(true)
+          // Redirect immediately - no delay needed since we have the flag
+          console.log('Authentication failed, redirecting to login...')
+          localStorage.removeItem('isAuthenticated')
+          window.location.href = '/login'
+          // Return a response that won't cause errors
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+      }
     }
 
-    try {
-      // Refresh token is also in HttpOnly cookie, so just call refresh endpoint
-      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include' // Cookies are automatically sent
-      })
-
-      if (refreshResponse.ok) {
-        // New access token is set in cookie by backend
-        // Retry original request
-        return fetch(url, {
-          ...options,
-          headers,
-          credentials: 'include'
-        })
-      }
-    } catch (err) {
-      console.error('Token refresh failed:', err)
-    }
-
-    // If refresh fails (401 or 400), handle redirect
-    // Use sessionStorage to prevent redirect loops across page loads
-    if (!getRedirectFlag()) {
-      const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
-
-      // If user appears authenticated but got 401, session expired - redirect
-      // If not authenticated, ProtectedRoute should handle it, but redirect anyway to be safe
-      if (isAuthenticated || currentPath.startsWith('/dashboard') || currentPath.startsWith('/employees') ||
-        currentPath.startsWith('/attendance') || currentPath.startsWith('/leave') ||
-        currentPath.startsWith('/payroll') || currentPath.startsWith('/performance')) {
-        setRedirectFlag(true)
-        // Redirect immediately - no delay needed since we have the flag
-        console.log('Authentication failed, redirecting to login...')
-        localStorage.removeItem('isAuthenticated')
-        window.location.href = '/login'
-        // Return a response that won't cause errors
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        })
-      }
+    return response
+  } catch (error) {
+    // Handle network errors (backend not running, CORS, etc.)
+    console.error('Network error in fetchWithAuth:', error)
+    // Return a response-like object that won't break the calling code
+    return {
+      ok: false,
+      status: 0,
+      statusText: 'Network Error',
+      json: async () => ({ error: 'Network error', message: 'Backend server may not be running or there is a network issue' }),
+      text: async () => 'Network error: Backend server may not be running or there is a network issue'
     }
   }
-
-  return response
 }
 
 const api = {
   // Authentication
-  register: (userData) => fetch(`${API_BASE_URL}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData),
-    credentials: 'include'
-  }).then(async (res) => {
-    if (!res.ok) {
-      const body = await readResponseBody(res)
-      throw new Error(body?.message || body || `Register failed (${res.status})`)
+  register: async (userData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Register failed (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Register API error:', error)
+      // Re-throw to let the calling code handle it
+      throw error
     }
-    return res.json()
-  }),
+  },
 
   login: async (email, password) => {
     try {
@@ -172,23 +192,77 @@ const api = {
     }
   },
 
-  checkAuth: (email) => fetch(`${API_BASE_URL}/auth/check?email=${encodeURIComponent(email)}`, {
-    credentials: 'include'
-  }).then(res => res.json()),
+  checkAuth: async (email) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/check?email=${encodeURIComponent(email)}`, {
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        console.error('Check auth API error:', response.status, response.statusText)
+        return { authenticated: false }
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error checking auth:', error)
+      return { authenticated: false }
+    }
+  },
 
-  checkSuperAdminExists: () => fetch(`${API_BASE_URL}/auth/check-superadmin`, {
-    credentials: 'include'
-  }).then(res => res.json()),
+  checkSuperAdminExists: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/check-superadmin`, {
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        console.error('Check super admin API error:', response.status, response.statusText)
+        return { exists: false }
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error checking super admin:', error)
+      // Return default value instead of throwing to prevent app crash
+      return { exists: false }
+    }
+  },
 
-  refreshToken: () => fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include' // Cookies are automatically sent
-  }).then(res => res.json()),
+  refreshToken: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include' // Cookies are automatically sent
+      })
+      if (!response.ok) {
+        console.error('Refresh token API error:', response.status, response.statusText)
+        return { success: false, message: 'Token refresh failed' }
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error refreshing token:', error)
+      return { success: false, message: 'Network error: Backend server may not be running' }
+    }
+  },
 
-  logout: () => fetch(`${API_BASE_URL}/auth/logout`, {
-    method: 'POST',
-    credentials: 'include' // Cookies are automatically sent
-  }).then(res => res.json()),
+  logout: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include' // Cookies are automatically sent
+      })
+      if (!response.ok) {
+        console.error('Logout API error:', response.status, response.statusText)
+        return { success: false, message: 'Logout failed' }
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error logging out:', error)
+      // Even if logout fails, clear local storage
+      localStorage.removeItem('isAuthenticated')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userType')
+      return { success: false, message: 'Network error during logout' }
+    }
+  },
 
   // Users
   getUsers: async (role) => {
@@ -380,6 +454,90 @@ const api = {
       throw error
     }
   },
+
+  getAttendanceByDate: async (date) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/date/${date}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch attendance (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching attendance by date:', error)
+      throw error
+    }
+  },
+
+  getAttendanceByEmployee: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/employee/${employeeId}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch attendance (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching attendance by employee:', error)
+      throw error
+    }
+  },
+
+  checkIn: async (data) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/check-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Check-in failed (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error checking in:', error)
+      throw error
+    }
+  },
+
+  checkOut: async (data) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/check-out`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Check-out failed (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error checking out:', error)
+      throw error
+    }
+  },
+
+  markAttendance: async (data) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/mark`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to mark attendance (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error marking attendance:', error)
+      throw error
+    }
+  },
   // ... you can bring back the rest of helpers from your original file unchanged,
   // or apply the same response.ok + readResponseBody checks everywhere as above.
 
@@ -405,11 +563,23 @@ const api = {
   getPendingLeaves: () => fetchWithAuth(`${API_BASE_URL}/leaves/pending`).then(res => res.json()),
   getLeavesByEmployee: (employeeId) => fetchWithAuth(`${API_BASE_URL}/leaves/employee/${employeeId}`).then(res => res.json()),
   deleteLeave: (id) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}`, { method: 'DELETE' }).then(res => res.json()),
-  createLeave: (leave) => fetchWithAuth(`${API_BASE_URL}/leaves`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(leave)
-  }).then(res => res.json()),
+  createLeave: async (leave) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/leaves`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leave)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create leave (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating leave:', error)
+      throw error
+    }
+  },
   approveLeave: (id, approvedBy) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -449,11 +619,49 @@ const api = {
       return []
     }
   },
+  getPerformanceByEmployee: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/performance/employee/${employeeId}`)
+      if (!response.ok) {
+        console.error('Employee Performance API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching employee performance:', error)
+      return []
+    }
+  },
   createPerformance: (performance) => fetchWithAuth(`${API_BASE_URL}/performance`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(performance)
   }).then(res => res.json()),
+  updatePerformance: async (id, performance) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/performance/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(performance)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating performance:', error)
+      return { success: false, message: error.message }
+    }
+  },
+  deletePerformance: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/performance/${id}`, {
+        method: 'DELETE'
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error deleting performance:', error)
+      return { success: false, message: error.message }
+    }
+  },
 
   // Dashboard
   getDashboardStats: async (date, employeeId) => {
@@ -542,6 +750,93 @@ const api = {
     body: JSON.stringify(shift)
   }).then(res => res.json()),
   deleteShift: (id) => fetchWithAuth(`${API_BASE_URL}/shifts/${id}`, { method: 'DELETE' }).then(res => res.json()),
+  getEmployeesByShift: async (shiftId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shifts/${shiftId}/employees`)
+      if (!response.ok) {
+        console.error('Get employees by shift API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching employees by shift:', error)
+      return []
+    }
+  },
+  assignEmployeeToShift: async (shiftId, assignmentData) => {
+    try {
+      // Handle both old format (just employeeId) and new format (object with dates)
+      const requestBody = typeof assignmentData === 'object' && assignmentData !== null
+        ? assignmentData
+        : { employeeId: assignmentData }
+      
+      const response = await fetchWithAuth(`${API_BASE_URL}/shifts/${shiftId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error assigning employee to shift:', error)
+      throw error
+    }
+  },
+  updateEmployeeAssignment: async (shiftId, assignmentData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shifts/${shiftId}/assignment`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assignmentData)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating employee assignment:', error)
+      throw error
+    }
+  },
+  unassignEmployeeFromShift: async (shiftId, employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shifts/${shiftId}/unassign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId })
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error unassigning employee from shift:', error)
+      throw error
+    }
+  },
+  getShiftByEmployeeId: async (employeeId) => {
+    try {
+      console.log('Fetching shift for employee:', employeeId)
+      const response = await fetchWithAuth(`${API_BASE_URL}/shifts/employee/${employeeId}`)
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('No shift assigned to employee:', employeeId)
+          return null // Employee has no shift assigned
+        }
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        console.error('Get shift by employee API error:', response.status, errorData)
+        return null
+      }
+      
+      const shift = await response.json()
+      console.log('Shift data received:', shift)
+      
+      // Handle case where response might be wrapped in success object
+      if (shift && shift.shift) {
+        return shift.shift
+      }
+      
+      return shift
+    } catch (error) {
+      console.error('Error fetching shift by employee:', error)
+      return null
+    }
+  },
 
   // Leave Types
   getLeaveTypes: async () => {
@@ -594,21 +889,63 @@ const api = {
   }).then(res => res.json()),
 
   // Leave Balances
-  getLeaveBalances: (employeeId, year) => {
-    const url = year ? `${API_BASE_URL}/leave-balances/employee/${employeeId}?year=${year}` : `${API_BASE_URL}/leave-balances/employee/${employeeId}`
-    return fetchWithAuth(url).then(res => res.json())
+  getLeaveBalances: async (employeeId, year) => {
+    try {
+      if (!employeeId || isNaN(employeeId)) {
+        console.warn('Invalid employeeId provided to getLeaveBalances:', employeeId)
+        return []
+      }
+      const url = year ? `${API_BASE_URL}/leave-balances/employee/${employeeId}?year=${year}` : `${API_BASE_URL}/leave-balances/employee/${employeeId}`
+      const response = await fetchWithAuth(url)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        console.error('Leave balances API error:', response.status, body)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching leave balances:', error)
+      return []
+    }
   },
-  initializeLeaveBalances: (employeeId, year) => {
-    const url = year 
-      ? `${API_BASE_URL}/leave-balances/initialize/${employeeId}?year=${year}`
-      : `${API_BASE_URL}/leave-balances/initialize/${employeeId}`
-    return fetchWithAuth(url, { method: 'POST' }).then(res => res.json())
+  initializeLeaveBalances: async (employeeId, year) => {
+    try {
+      if (!employeeId || isNaN(employeeId)) {
+        throw new Error('Invalid employee ID')
+      }
+      const url = year 
+        ? `${API_BASE_URL}/leave-balances/initialize/${employeeId}?year=${year}`
+        : `${API_BASE_URL}/leave-balances/initialize/${employeeId}`
+      const response = await fetchWithAuth(url, { method: 'POST' })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to initialize leave balances (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error initializing leave balances:', error)
+      throw error
+    }
   },
-  assignLeaveBalance: (employeeId, leaveTypeId, totalDays, year) => {
-    const url = year 
-      ? `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}&year=${year}`
-      : `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}`
-    return fetchWithAuth(url, { method: 'POST' }).then(res => res.json())
+  assignLeaveBalance: async (employeeId, leaveTypeId, totalDays, year) => {
+    try {
+      if (!employeeId || isNaN(employeeId) || !leaveTypeId || isNaN(leaveTypeId)) {
+        throw new Error('Invalid employee ID or leave type ID')
+      }
+      const url = year 
+        ? `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}&year=${year}`
+        : `${API_BASE_URL}/leave-balances/assign?employeeId=${employeeId}&leaveTypeId=${leaveTypeId}&totalDays=${totalDays}`
+      const response = await fetchWithAuth(url, { method: 'POST' })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to assign leave balance (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error assigning leave balance:', error)
+      throw error
+    }
   },
 
   // Salary Structures
@@ -776,6 +1113,17 @@ const api = {
       return { success: false, message: error.message }
     }
   },
+  deletePayroll: async (payrollId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${payrollId}`, {
+        method: 'DELETE'
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error deleting payroll:', error)
+      return { success: false, message: error.message }
+    }
+  },
   downloadPayslip: async (id) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${id}/payslip`)
@@ -822,7 +1170,102 @@ const api = {
       throw error
     }
   },
-  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob())
+  downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob()),
+  
+  // Shift Change Requests
+  createShiftChangeRequest: async (requestData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shift-change-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData)
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to create shift change request')
+      }
+      return data
+    } catch (error) {
+      console.error('Error creating shift change request:', error)
+      throw error
+    }
+  },
+  getShiftChangeRequestsByEmployee: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shift-change-requests/employee/${employeeId}`)
+      if (!response.ok) {
+        console.error('Get shift change requests API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching shift change requests:', error)
+      return []
+    }
+  },
+  getAllShiftChangeRequests: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shift-change-requests`)
+      if (!response.ok) {
+        console.error('Get all shift change requests API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching all shift change requests:', error)
+      return []
+    }
+  },
+  getPendingShiftChangeRequests: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shift-change-requests/pending`)
+      if (!response.ok) {
+        console.error('Get pending shift change requests API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching pending shift change requests:', error)
+      return []
+    }
+  },
+  approveShiftChangeRequest: async (requestId, reviewedBy) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shift-change-requests/${requestId}/approve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewedBy })
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to approve shift change request')
+      }
+      return data
+    } catch (error) {
+      console.error('Error approving shift change request:', error)
+      throw error
+    }
+  },
+  rejectShiftChangeRequest: async (requestId, reviewedBy, rejectionReason) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shift-change-requests/${requestId}/reject`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewedBy, rejectionReason })
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to reject shift change request')
+      }
+      return data
+    } catch (error) {
+      console.error('Error rejecting shift change request:', error)
+      throw error
+    }
+  }
 }
 
 export default api
