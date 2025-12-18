@@ -47,7 +47,6 @@ const Shifts = () => {
   const [requestStatusFilter, setRequestStatusFilter] = useState('all')
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
-
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
@@ -750,7 +749,7 @@ const Shifts = () => {
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
               >
                 <Send size={16} />
-                Request Shift Change
+                Apply Change Shift
               </button>
             </div>
             {shiftChangeRequests.length === 0 ? (
@@ -1477,7 +1476,7 @@ const Shifts = () => {
       {showRequestModal && employeeShift && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">Request Shift Change</h3>
+            <h3 className="text-xl font-bold mb-4">Apply Change Shift</h3>
             <form onSubmit={handleSubmitShiftChangeRequest} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Select New Shift *</label>
