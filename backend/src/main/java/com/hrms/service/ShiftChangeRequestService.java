@@ -1,7 +1,6 @@
 package com.hrms.service;
 
 import com.hrms.entity.Employee;
-import com.hrms.entity.Shift;
 import com.hrms.entity.ShiftChangeRequest;
 import com.hrms.repository.EmployeeRepository;
 import com.hrms.repository.ShiftChangeRequestRepository;
@@ -31,10 +30,6 @@ public class ShiftChangeRequestService {
     private ShiftService shiftService;
 
     public ShiftChangeRequest createRequest(@NonNull Long employeeId, @NonNull Long requestedShiftId, String reason) {
-        // Verify employee exists
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
-        
         // Get current shift ID
         Long currentShiftId = employeeRepository.getShiftIdByEmployeeId(employeeId);
         if (currentShiftId == null || currentShiftId == 0) {

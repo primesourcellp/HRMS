@@ -2,8 +2,6 @@ package com.hrms.controller;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
 import com.hrms.dto.EmployeeDTO;
 import com.hrms.mapper.EmployeeMapper;
 
@@ -188,50 +186,5 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
-    // -------------------------------------------------------
-    // CHANGE PASSWORD
-    // -------------------------------------------------------
-    @PutMapping("/{id}/change-password")
-    public ResponseEntity<?> changePassword(
-            @PathVariable @NonNull Long id,
-            @RequestBody Map<String, Object> request) {
-
-        try {
-            String currentPassword = (String) request.get("currentPassword");
-            String newPassword = (String) request.get("newPassword");
-
-            if (currentPassword == null || newPassword == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(Map.of("error", "Current password and new password are required"));
-            }
-
-            // Fetch employee
-            Optional<Employee> employeeOpt = employeeService.getEmployeeById(Objects.requireNonNull(id));
-            if (employeeOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("error", "Employee not found"));
-            }
-
-            Employee employee = employeeOpt.get();
-
-            // Validate current password
-            if (!employeeService.authenticate(employee.getEmail(), currentPassword)) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Current password is incorrect"));
-            }
-
-            // Update password only
-            Employee passwordWrapper = new Employee();
-            passwordWrapper.setPassword(newPassword);
-            employeeService.updateEmployee(Objects.requireNonNull(id), java.util.Objects.requireNonNull(passwordWrapper));
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Password changed successfully"));
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
-        }
-    }
+   
 }

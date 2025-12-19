@@ -23,14 +23,10 @@ public class Employee {
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
 
-    public String getNickName() { return nickName; }
-    public void setNickName(String nickName) { this.nickName = nickName; }
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
@@ -52,6 +48,9 @@ public class Employee {
 
     public String getSourceOfHire() { return sourceOfHire; }
     public void setSourceOfHire(String sourceOfHire) { this.sourceOfHire = sourceOfHire; }
+    
+    public String getClient() { return client; }
+    public void setClient(String client) { this.client = client; }
 
     public LocalDate getDateOfJoining() { return dateOfJoining; }
     public void setDateOfJoining(LocalDate dateOfJoining) { this.dateOfJoining = dateOfJoining; }
@@ -82,12 +81,10 @@ public class Employee {
     private String employeeId;
     private String firstName;
     private String lastName;
-    private String nickName;
+ 
     private String email;
     private String name;
 
-    @Column(name = "password", length = 255)
-    private String password; // BCrypt hash
 
     // Work Information
     private String role;
@@ -108,7 +105,12 @@ public class Employee {
     @Column(name = "join_date")
     private LocalDate dateOfJoining;
     
+    @Column(name = "salary")
     private Double salary;
+
+    @Column(name = "client")
+    private String client;
+
 
     // Personal Details
     private LocalDate dateOfBirth;
@@ -122,7 +124,7 @@ public class Employee {
     private String expertise;
 
     // Identity Info
-    private String uan;
+   
     private String pan;
     private String aadhaar;
 
@@ -181,8 +183,7 @@ public class Employee {
     public String getExpertise() { return expertise; }
     public void setExpertise(String expertise) { this.expertise = expertise; }
 
-    public String getUan() { return uan; }
-    public void setUan(String uan) { this.uan = uan; }
+    
 
     public String getPan() { return pan; }
     public void setPan(String pan) { this.pan = pan; }

@@ -19,6 +19,7 @@ const [employees, setEmployees] = useState([])
 const [documents, setDocuments] = useState({}) 
 const [searchTerm, setSearchTerm] = useState('') 
 const [statusFilter, setStatusFilter] = useState('All') 
+const [clientFilter, setClientFilter] = useState('All') 
 const [showModal, setShowModal] = useState(false) 
 const [showDocModal, setShowDocModal] = useState(false) 
 const [showViewModal, setShowViewModal] = useState(false) 
@@ -29,10 +30,9 @@ const [error, setError] = useState(null)
 const [formData, setFormData] = useState({ 
 employeeId: '', 
 firstName: '', 
-lastName: '', 
-
+lastName: '',
+client: '', 
 email: '', 
-password: '', 
 role: '', 
 department: '', 
 location: '', 
@@ -92,10 +92,10 @@ setFormData(prev => ({
 ...prev, 
 employeeId: editingEmployee.employeeId || '', 
 firstName: editingEmployee.firstName || '', 
-lastName: editingEmployee.lastName || '', 
+lastName: editingEmployee.lastName || '',
+client: editingEmployee.client || '', 
 
 email: editingEmployee.email || '', 
-password: '', // Don't populate password when editing (leave empty to keep current)
 role: editingEmployee.role || '', 
 department: editingEmployee.department || '', 
 location: editingEmployee.location || '', 
@@ -142,7 +142,8 @@ setEducationDetails(editingEmployee.educationDetails || [])
 setFormData({ 
 employeeId: '', 
 firstName: '', 
-lastName: '', 
+lastName: '',
+client: '', 
  
 email: '', 
 password: '', 
@@ -201,9 +202,6 @@ const loadEmployees = async () => {
 		try { 
 			setLoading(true) 
 			setError(null) 
-			// Attempt to load employees regardless of local auth flag
-			// (fetchWithAuth will handle 401/redirects). This makes the
-			// page usable during development and surfaces real API errors.
 			const data = await api.getEmployees() 
 			console.log('Employees loaded:', data, 'Type:', typeof data, 'IsArray:', Array.isArray(data)) 
 			if (Array.isArray(data)) { 
@@ -215,8 +213,6 @@ const loadEmployees = async () => {
 			} else { 
 				console.error('Invalid data format:', data) 
 				setEmployees([]) 
-				// If we receive something other than an array, surface the
-				// server response so it's easier to debug (e.g., {error:...}).
 				const message = data && data.error ? data.error : 'Failed to load employees. Invalid data format received.'
 				setError(message) 
 			} 
@@ -242,32 +238,50 @@ setDocuments(prev => ({ ...prev, [employeeId]: [] }))
 } 
 } 
 const filteredEmployees = (Array.isArray(employees) ? employees : []).filter(emp => { 
-const matchesSearch = 
-emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-emp.department?.toLowerCase().includes(searchTerm.toLowerCase()) 
-const matchesStatus = statusFilter === 'All' || emp.employeeStatus === statusFilter 
-return matchesSearch && matchesStatus 
-}) 
+  const matchesSearch = 
+    emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    emp.department?.toLowerCase().includes(searchTerm.toLowerCase());
+  const matchesStatus = statusFilter === 'All' || emp.employeeStatus === statusFilter;
+  const matchesClient = clientFilter === 'All' || emp.client === clientFilter;
+  return matchesSearch && matchesStatus && matchesClient;
+})
+// Format date to DD/MM/YYYY
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    console.error('Error formatting date:', e);
+    return 'N/A';
+  }
+};
+
+// Format date for input fields (YYYY-MM-DD)
 const formatDateForInput = (dateString) => { 
-if (!dateString) return '' 
-// If already in YYYY-MM-DD format, return as is 
-if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateString)) { 
-return dateString.split('T')[0] // Remove time part if present 
-} 
-// Try to parse and format the date 
-try { 
-const date = new Date(dateString) 
-if (isNaN(date.getTime())) return '' 
-const year = date.getFullYear() 
-const month = String(date.getMonth() + 1).padStart(2, '0') 
-const day = String(date.getDate()).padStart(2, '0') 
-return `${year}-${month}-${day}` 
-} catch (e) { 
-console.error('Error formatting date:', e) 
-return '' 
+  if (!dateString) return '';
+  // If already in YYYY-MM-DD format, return as is 
+  if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateString)) { 
+    return dateString.split('T')[0]; // Remove time part if present 
+  } 
+  // Try to parse and format the date 
+  try { 
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (e) { 
+    console.error('Error formatting date:', e);
+    return '';
 } 
 } 
 const handleOpenModal = async (employee = null) => { 
@@ -285,7 +299,6 @@ firstName: fullEmployee.firstName || '',
 lastName: fullEmployee.lastName || '', 
  
 email: fullEmployee.email || '', 
-password: '', // Don't populate password when editing (leave empty to keep current)
 role: fullEmployee.role || '', 
 department: fullEmployee.department || '', 
 location: fullEmployee.location || '', 
@@ -339,7 +352,6 @@ firstName: employee.firstName || '',
 lastName: employee.lastName || '', 
 
 email: employee.email || '', 
-password: '', // Don't populate password when editing (leave empty to keep current)
 role: employee.role || '', 
 department: employee.department || '', 
 location: employee.location || '', 
@@ -396,7 +408,6 @@ firstName: employee.firstName || '',
 lastName: employee.lastName || '', 
  
 email: employee.email || '', 
-password: '', // Don't populate password when editing (leave empty to keep current)
 role: employee.role || '', 
 department: employee.department || '', 
 location: employee.location || '', 
@@ -447,7 +458,8 @@ setEditingEmployee(null)
 setFormData({ 
 employeeId: '', 
 firstName: '', 
-lastName: '', 
+lastName: '',
+client: '', 
 
 email: '', 
 password: '', 
@@ -516,7 +528,8 @@ setLoading(true)
 const employeeData = { 
 	...formData, 
 	workExperiences: workExperiences, 
-	educationDetails: educationDetails
+	educationDetails: educationDetails,
+	client: formData.client,
 }
 
 // The backend expects a top-level `phone` field. If the form doesn't
@@ -562,21 +575,7 @@ if (!employeeData.status || employeeData.status.trim() === '') {
 	}
 }
 
-// Handle password: if editing and password is empty, don't send it (to keep current password)
-// If creating new employee, password is required
-if (editingEmployee) {
-	if (!employeeData.password || employeeData.password.trim() === '') {
-		// Remove password from data so backend doesn't update it
-		delete employeeData.password
-	}
-} else {
-	// For new employees, password is required
-	if (!employeeData.password || employeeData.password.trim() === '') {
-		setLoading(false)
-		alert('Password is required for new employees')
-		return
-	}
-}
+// Password field has been removed
 
 try { 
 if (editingEmployee) { 
@@ -591,7 +590,8 @@ setEditingEmployee(null)
 setFormData({ 
 employeeId: '', 
 firstName: '', 
-lastName: '', 
+lastName: '',
+client: '', 
 
 email: '', 
 password: '', 
@@ -851,6 +851,21 @@ return (
 ); 
 } 
     
+// Calculate employee counts by client
+const getEmployeeCountsByClient = () => {
+  const counts = { 'Total': employees.length };
+  
+  employees.forEach(emp => {
+    const client = emp.client || 'Unassigned';
+    counts[client] = (counts[client] || 0) + 1;
+  });
+  
+  return counts;
+};
+
+const employeeCounts = getEmployeeCountsByClient();
+const activeClients = Object.keys(employeeCounts).filter(key => key !== 'Total');
+
 return ( 
 <div className="space-y-6 bg-gray-50 min-h-screen p-6"> 
 {/* Header Section */} 
@@ -868,7 +883,39 @@ className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex it
 Add Employee 
 </button> 
 </div> 
-</div> 
+</div>
+
+{/* Client Cards Section */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  {/* Total Employees Card */}
+  <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-500">Total Employees</p>
+        <p className="text-2xl font-bold text-gray-900">{employeeCounts['Total'] || 0}</p>
+      </div>
+      <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+        <User size={24} />
+      </div>
+    </div>
+  </div>
+
+  {/* Client Cards */}
+  {activeClients.map(client => (
+    <div key={client} className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-500">{client}</p>
+          <p className="text-2xl font-bold text-gray-900">{employeeCounts[client] || 0}</p>
+        </div>
+        <div className="p-3 rounded-full bg-green-100 text-green-600">
+          <Shield size={24} />
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
+
 {/* Search and Filters - Redesigned */} 
 <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200"> 
 <div className="flex gap-4"> 
@@ -891,6 +938,16 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 <option value="Active">Active</option> 
 <option value="Inactive">Inactive</option> 
 </select> 
+<select 
+  value={clientFilter} 
+  onChange={(e) => setClientFilter(e.target.value)} 
+  className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
+> 
+  <option value="All">All Clients</option>
+  <option value="IBM">IBM</option>
+  <option value="KITCO">KITCO</option>
+  <option value="BORDERLESS">BORDERLESS</option>
+</select>
 </div> 
 </div> 
 {/* Employees Table - Redesigned */} 
@@ -901,11 +958,9 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 <tr> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">S.No</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">DOB</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Joining Date</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Designation</th>
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Salary</th>
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Phone</th> 
+<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Client</th>
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Email</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th> 
 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Actions</th> 
@@ -929,25 +984,14 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 	</div> 
 </td> 
 <td className="px-6 py-4 whitespace-nowrap"> 
-	<span className="text-sm text-gray-700">{employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString() : 'N/A'}</span> 
-</td> 
-<td className="px-6 py-4 whitespace-nowrap"> 
-	<span className="text-sm text-gray-700">{employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString() : 'N/A'}</span> 
+	<span className="text-sm text-gray-700">{employee.dateOfJoining ? formatDate(employee.dateOfJoining) : 'N/A'}</span> 
 </td> 
 <td className="px-6 py-4 whitespace-nowrap"> 
 	<span className="text-sm text-gray-700">{employee.designation || 'N/A'}</span> 
 </td>
-<td className="px-6 py-4 whitespace-nowrap">
-	<span className="text-sm text-gray-700">
-		{employee.salary ? `₹${parseFloat(employee.salary).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'N/A'}
-	</span>
-</td>
 <td className="px-6 py-4 whitespace-nowrap"> 
-	<div className="flex items-center gap-2"> 
-		<Phone size={16} className="text-gray-400" /> 
-		<span className="text-sm text-gray-700">{employee.personalMobileNumber || employee.workPhoneNumber || 'N/A'}</span> 
-	</div> 
-</td> 
+	<span className="text-sm text-gray-700">{employee.client || 'N/A'}</span> 
+</td>
 <td className="px-6 py-4 whitespace-nowrap"> 
 	<div className="flex items-center gap-2"> 
 		<Mail size={16} className="text-gray-400" /> 
@@ -1006,7 +1050,8 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 {filteredEmployees.length === 0 && ( 
 <div className="text-center py-12"> 
 {error ? ( 
-<div className="bg-red-50 border border-red-200 rounded-lg p-4"> 
+<div className="bg-red-50 border border-red-
+200 rounded-lg p-4"> 
 <p className="text-red-800 font-semibold">{error}</p> 
 <button 
 onClick={loadEmployees} 
@@ -1048,7 +1093,8 @@ setEditingEmployee(null)
 setFormData({ 
 employeeId: '', 
 firstName: '', 
-lastName: '', 
+lastName: '',
+client: '', 
 
 email: '', 
 password: '', 
@@ -1153,14 +1199,17 @@ required
 <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
 <div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Department *</label> 
-<input 
-type="text" 
+<label className="block text-sm font-semibold text-gray-700 mb-2">Department</label> 
+<select 
 value={formData.department} 
 onChange={(e) => setFormData({ ...formData, department: e.target.value })} 
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
-/> 
+> 
+<option value="">Select</option> 
+<option value="IT">Information Technology</option> 
+<option value="CSE">Computer Science Engineering</option> 
+<option value="ADS">Artificial Intelligence and Data Science</option> 
+</select> 
 </div> 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label> 
@@ -1176,21 +1225,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 <option value="SUPER_ADMIN">Super Admin</option> 
 </select> 
 </div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label> 
-<select 
-type="text" 
-value={formData.location} 
-onChange={(e) => setFormData({ ...formData, location: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
->
-<option value="">Select</option> 
-<option value="Madurai">Madurai</option> 
-<option value="Tenkasi">Tenkasi</option> 
-<option value="Chennai">Chennai</option> 
-</select>
-</div> 
+
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type</label> 
 <select 
@@ -1222,6 +1257,21 @@ required
 </select> 
 </div> 
 <div> 
+<label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label> 
+<select 
+type="text" 
+value={formData.client} 
+onChange={(e) => setFormData({ ...formData, client: e.target.value })} 
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+required 
+>
+<option value="">Select</option> 
+<option value="IBM">IBM</option> 
+<option value="KITCO">KITCO</option> 
+<option value="BORDERLESS">BORDERLESS</option> 
+</select>
+</div> 
+<div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Status</label> 
 <select 
 value={formData.employeeStatus} 
@@ -1230,10 +1280,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 > 
 <option value="Active">Active</option> 
 <option value="Inactive">Inactive</option> 
-<option value="On Leave">On Leave</option> 
-<option value="Resigned">Resigned</option> 
-<option value="Terminated">Terminated</option> 
-<option value="Suspended">Suspended</option> 
+
 </select> 
 </div> 
 <div> 
@@ -1275,6 +1322,21 @@ onChange={(e) => setFormData({ ...formData, dateOfJoining: e.target.value })}
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 required 
 /> 
+</div> 
+<div> 
+<label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label> 
+<select 
+type="text" 
+value={formData.location} 
+onChange={(e) => setFormData({ ...formData, location: e.target.value })} 
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+required 
+>
+<option value="">Select</option> 
+<option value="Madurai">Madurai</option> 
+<option value="Tenkasi">Tenkasi</option> 
+<option value="Chennai">Chennai</option> 
+</select>
 </div> 
 </div> 
 </div> 
@@ -1767,7 +1829,8 @@ setEditingEmployee(null)
 setFormData({ 
 employeeId: '', 
 firstName: '', 
-lastName: '', 
+lastName: '',
+client: '', 
 
 email: '', 
 password: '', 
@@ -2019,7 +2082,7 @@ className="text-gray-500 hover:text-gray-700"
 			</div> 
 			<div> 
 				<p className="text-sm text-gray-600 mb-1">Date of Birth</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.dateOfBirth ? new Date(selectedEmployee.dateOfBirth).toLocaleDateString() : 'N/A'}</p> 
+				<p className="text-base font-semibold text-gray-900">{selectedEmployee.dateOfBirth ? formatDate(selectedEmployee.dateOfBirth) : 'N/A'}</p> 
 			</div> 
 			<div> 
 				<p className="text-sm text-gray-600 mb-1">Age</p> 
@@ -2059,6 +2122,10 @@ className="text-gray-500 hover:text-gray-700"
 				<p className="text-base font-semibold text-gray-900">{selectedEmployee.role || 'N/A'}</p> 
 			</div> 
 			<div> 
+				<p className="text-sm text-gray-600 mb-1">Client</p> 
+				<p className="text-base font-semibold text-gray-900">{selectedEmployee.client || 'N/A'}</p> 
+			</div>
+			<div> 
 				<p className="text-sm text-gray-600 mb-1">Location</p> 
 				<p className="text-base font-semibold text-gray-900">{selectedEmployee.location || 'N/A'}</p> 
 			</div> 
@@ -2072,7 +2139,7 @@ className="text-gray-500 hover:text-gray-700"
 			</div> 
 			<div> 
 				<p className="text-sm text-gray-600 mb-1">Date of Joining</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.dateOfJoining ? new Date(selectedEmployee.dateOfJoining).toLocaleDateString() : 'N/A'}</p> 
+				<p className="text-base font-semibold text-gray-900">{selectedEmployee.dateOfJoining ? formatDate(selectedEmployee.dateOfJoining) : 'N/A'}</p> 
 			</div> 
 			
 			<div> 
@@ -2116,7 +2183,7 @@ className="text-gray-500 hover:text-gray-700"
 						)}
 					</div>
 					<p className="text-sm text-gray-500">
-						{exp.fromDate ? new Date(exp.fromDate).toLocaleDateString() : 'N/A'} - {exp.toDate ? new Date(exp.toDate).toLocaleDateString() : 'Present'}
+						{exp.fromDate ? formatDate(exp.fromDate) : 'N/A'} - {exp.toDate ? formatDate(exp.toDate) : 'Present'}
 					</p>
 					{exp.jobDescription && (
 						<p className="text-sm text-gray-600 mt-2">{exp.jobDescription}</p>
@@ -2139,7 +2206,7 @@ className="text-gray-500 hover:text-gray-700"
 					<p className="text-base font-semibold text-gray-900">{edu.degree || 'N/A'}</p>
 					<p className="text-sm text-gray-600">{edu.institutionName || 'N/A'}</p>
 					<p className="text-sm text-gray-500">
-						{edu.fromDate ? new Date(edu.fromDate).toLocaleDateString() : 'N/A'} - {edu.toDate ? new Date(edu.toDate).toLocaleDateString() : 'Present'}
+						{edu.fromDate ? formatDate(edu.fromDate) : 'N/A'} - {edu.toDate ? formatDate(edu.toDate) : 'Present'}
 					</p>
 				</div>
 			))}

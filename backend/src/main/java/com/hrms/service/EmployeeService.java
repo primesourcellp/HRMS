@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.lang.NonNull;
 
@@ -18,8 +17,6 @@ public class EmployeeService {
 
     @Autowired
     private EmployeeRepository employeeRepository;
-
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     // -------------------- GET ALL EMPLOYEES --------------------
     public List<Employee> getAllEmployees() {
@@ -54,9 +51,8 @@ public class EmployeeService {
         }
 
         // Hash password if provided
-        if (employee.getPassword() != null && !employee.getPassword().isEmpty()) {
-            employee.setPassword(passwordEncoder.encode(employee.getPassword()));
-        }
+       
+        
         // Ensure `phone` is populated to avoid DB NOT NULL constraint errors.
         // Prefer explicit `phone`, otherwise fall back to personalMobileNumber or workPhoneNumber.
         if (employee.getPhone() == null || employee.getPhone().trim().isEmpty()) {
@@ -148,10 +144,11 @@ public class EmployeeService {
         if (newData.getEmployeeId() != null) emp.setEmployeeId(newData.getEmployeeId());
         if (newData.getFirstName() != null) emp.setFirstName(newData.getFirstName());
         if (newData.getLastName() != null) emp.setLastName(newData.getLastName());
-        if (newData.getNickName() != null) emp.setNickName(newData.getNickName());
+        
         if (newData.getEmail() != null) emp.setEmail(newData.getEmail());
-
+        if (newData.getSalary() != null) emp.setSalary(newData.getSalary());
         if (newData.getRole() != null) emp.setRole(newData.getRole());
+        if (newData.getClient() != null) emp.setClient(newData.getClient());
         if (newData.getDepartment() != null) emp.setDepartment(newData.getDepartment());
         if (newData.getLocation() != null) emp.setLocation(newData.getLocation());
         if (newData.getDesignation() != null) emp.setDesignation(newData.getDesignation());
@@ -167,7 +164,6 @@ public class EmployeeService {
         if (newData.getAboutMe() != null) emp.setAboutMe(newData.getAboutMe());
         if (newData.getExpertise() != null) emp.setExpertise(newData.getExpertise());
 
-        if (newData.getUan() != null) emp.setUan(newData.getUan());
         if (newData.getPan() != null) emp.setPan(newData.getPan());
         if (newData.getAadhaar() != null) emp.setAadhaar(newData.getAadhaar());
 
@@ -199,10 +195,7 @@ public class EmployeeService {
         if (newData.getAvatar() != null) emp.setAvatar(newData.getAvatar());
         if (newData.getShift() != null) emp.setShift(newData.getShift());
 
-        // Update password (hashed)
-        if (newData.getPassword() != null && !newData.getPassword().isEmpty()) {
-            emp.setPassword(passwordEncoder.encode(newData.getPassword()));
-        }
+     
 
         // Update nested collections (work experiences, education details, dependent details)
         if (newData.getWorkExperiences() != null) {
@@ -262,13 +255,6 @@ public class EmployeeService {
             employee.get().getEmployeeStatus() != null &&
             employee.get().getEmployeeStatus().equalsIgnoreCase("Active")) {
 
-            String storedPassword = employee.get().getPassword();
-
-            if (storedPassword == null || storedPassword.isEmpty()) {
-                return false;
-            }
-
-            return passwordEncoder.matches(password, storedPassword);
         }
 
         return false;

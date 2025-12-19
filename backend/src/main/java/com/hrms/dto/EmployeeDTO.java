@@ -11,6 +11,7 @@ public class EmployeeDTO {
     private String lastName;
     private String nickName;
     private String email;
+    private String client;
     private String role;
     private String department;
     private String location;
@@ -78,6 +79,9 @@ public class EmployeeDTO {
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    
+    public String getClient() { return client; }
+    public void setClient(String client) { this.client = client; }
 
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
