@@ -311,24 +311,25 @@ const Attendance = () => {
   const canCheckOut = todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-4 md:p-6 bg-gray-50 max-w-full overflow-x-hidden">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
+      <div className="mb-4 md:mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-              <Clock className="w-8 h-8 text-blue-600" />
-              Attendance Management
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2">
+              <Clock className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-600" />
+              <span className="break-words">Attendance Management</span>
             </h1>
-            <p className="text-gray-600 mt-1">Track and manage employee attendance</p>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Track and manage employee attendance</p>
           </div>
           {isAdmin && (
             <button
               onClick={handleExportAttendance}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base w-full sm:w-auto justify-center"
             >
               <Download className="w-4 h-4" />
-              Export CSV
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">Export</span>
             </button>
           )}
         </div>
@@ -349,11 +350,11 @@ const Attendance = () => {
 
         {/* Employee Check-in/Check-out Card */}
         {isEmployee && employeeId && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-blue-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Today's Attendance</h2>
-                <p className="text-gray-600">{format(new Date(), 'EEEE, MMMM dd, yyyy')}</p>
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-4 md:mb-6 border-2 border-blue-100">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex-1">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">Today's Attendance</h2>
+                <p className="text-sm sm:text-base text-gray-600">{format(new Date(), 'EEEE, MMMM dd, yyyy')}</p>
                 {todayAttendance && (
                   <div className="mt-4 space-y-2">
                     {todayAttendance.checkIn && (
@@ -377,14 +378,14 @@ const Attendance = () => {
                   </div>
                 )}
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
                 {canCheckIn && (
                   <button
                     onClick={() => handleCheckIn(employeeId)}
                     disabled={loading}
-                    className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base w-full sm:w-auto"
                   >
-                    <LogIn className="w-5 h-5" />
+                    <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
                     Check In
                   </button>
                 )}
@@ -392,9 +393,9 @@ const Attendance = () => {
                   <button
                     onClick={() => handleCheckOut(employeeId)}
                     disabled={loading}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base w-full sm:w-auto"
                   >
-                    <LogOut className="w-5 h-5" />
+                    <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
                     Check Out
                   </button>
                 )}
@@ -404,8 +405,8 @@ const Attendance = () => {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="flex flex-wrap gap-4 items-center">
+        <div className="bg-white rounded-xl shadow-md p-3 sm:p-4 mb-4 md:mb-6">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-center">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-gray-600" />
               <input
@@ -462,12 +463,12 @@ const Attendance = () => {
 
       {/* Attendance Table */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="overflow-x-auto -mx-3 sm:mx-0">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Department</th>
+                <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider hidden sm:table-cell">Department</th>
                 <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Date</th>
                 <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Check In</th>
                 <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Check Out</th>

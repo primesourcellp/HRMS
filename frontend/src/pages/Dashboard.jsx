@@ -12,6 +12,8 @@ const Dashboard = () => {
   const [isEmployee, setIsEmployee] = useState(false)
   const [employeeId, setEmployeeId] = useState(null)
   const [employeeShift, setEmployeeShift] = useState(null)
+  const [weeklyAttendanceData, setWeeklyAttendanceData] = useState([])
+  const [loadingWeeklyAttendance, setLoadingWeeklyAttendance] = useState(false)
   const navigate = useNavigate()
   const userRole = localStorage.getItem('userRole')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
@@ -28,6 +30,11 @@ const Dashboard = () => {
     // Load employee shift if user is an employee
     if (empId && userType === 'employee') {
       loadEmployeeShift(empId)
+    }
+
+    // Load weekly attendance data for admin
+    if (userType !== 'employee') {
+      loadWeeklyAttendanceData()
     }
   }, [employees]) // Re-run when employees data is loaded
 
@@ -72,6 +79,92 @@ const Dashboard = () => {
       setDashboardStats(stats)
     } catch (error) {
       console.error('Error loading dashboard stats:', error)
+    }
+  }
+
+  const loadWeeklyAttendanceData = async () => {
+    try {
+      setLoadingWeeklyAttendance(true)
+      const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Reset time to start of day
+      const weekData = []
+
+      // Get all employees to calculate total count
+      let allEmployees = []
+      try {
+        const employeesData = await api.getEmployees()
+        allEmployees = Array.isArray(employeesData) ? employeesData : []
+      } catch (error) {
+        console.error('Error fetching employees for weekly attendance:', error)
+        // Fallback to context employees
+        allEmployees = Array.isArray(employees) ? employees : []
+      }
+
+      const totalEmployees = allEmployees.length
+
+      // Fetch attendance for each day of the past week
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today)
+        date.setDate(date.getDate() - i)
+        const dateStr = format(date, 'yyyy-MM-dd')
+        
+        try {
+          // Fetch attendance for this date
+          const attendanceRecords = await api.getAttendanceByDate(dateStr)
+          const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+          
+          // Count present and absent
+          let present = 0
+          let absent = 0
+          
+          if (attendanceArray.length > 0) {
+            // Count present employees
+            present = attendanceArray.filter(a => 
+              a.status === 'Present' || a.status === 'PRESENT'
+            ).length
+            
+            // Calculate absent: total employees - present
+            absent = Math.max(0, totalEmployees - present)
+          } else {
+            // If no attendance records, check if it's today or future
+            const dateOnly = new Date(date)
+            dateOnly.setHours(0, 0, 0, 0)
+            const todayOnly = new Date(today)
+            todayOnly.setHours(0, 0, 0, 0)
+            
+            // For past dates with no records, count as absent
+            // For today and future dates, don't count as absent yet
+            if (dateOnly < todayOnly) {
+              absent = totalEmployees
+            }
+          }
+          
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: present,
+            absent: absent
+          })
+        } catch (error) {
+          console.error(`Error fetching attendance for ${dateStr}:`, error)
+          // On error, add default values
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setWeeklyAttendanceData(weekData)
+    } catch (error) {
+      console.error('Error loading weekly attendance data:', error)
+      // Set empty data on error
+      setWeeklyAttendanceData([])
+    } finally {
+      setLoadingWeeklyAttendance(false)
     }
   }
 
@@ -208,15 +301,19 @@ const Dashboard = () => {
       
       return weekData
     } else {
-      // For admin, show aggregated data (mock data for now)
+      // For admin, use dynamically loaded weekly attendance data
+      if (weeklyAttendanceData.length > 0) {
+        return weeklyAttendanceData
+      }
+      // Return empty data while loading
       return [
-        { name: 'Mon', present: 45, absent: 5 },
-        { name: 'Tue', present: 47, absent: 3 },
-        { name: 'Wed', present: 46, absent: 4 },
-        { name: 'Thu', present: 48, absent: 2 },
-        { name: 'Fri', present: 44, absent: 6 },
-        { name: 'Sat', present: 30, absent: 20 },
-        { name: 'Sun', present: 10, absent: 40 }
+        { name: 'Mon', present: 0, absent: 0 },
+        { name: 'Tue', present: 0, absent: 0 },
+        { name: 'Wed', present: 0, absent: 0 },
+        { name: 'Thu', present: 0, absent: 0 },
+        { name: 'Fri', present: 0, absent: 0 },
+        { name: 'Sat', present: 0, absent: 0 },
+        { name: 'Sun', present: 0, absent: 0 }
       ]
     }
   }
@@ -233,49 +330,58 @@ const Dashboard = () => {
         .slice(0, 5))
 
   return (
-    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
+    <div className="space-y-4 sm:space-y-6 bg-gray-50 p-3 sm:p-4 md:p-6 max-w-full overflow-x-hidden">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <div key={index} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className="bg-blue-600 p-4 rounded-xl shadow-md">
-                  <Icon className="w-6 h-6 text-white" />
+            <div key={index} className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:-translate-y-1">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="bg-blue-600 p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl shadow-md">
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" />
                 </div>
-                <div className={`flex items-center gap-1 text-sm font-semibold px-3 py-1 rounded-full ${
+                <div className={`flex items-center gap-1 text-xs sm:text-sm font-semibold px-2 sm:px-3 py-1 rounded-full ${
                   stat.trend === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                 }`}>
-                  {stat.trend === 'up' ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
-                  {stat.change}
+                  {stat.trend === 'up' ? <ArrowUp size={12} className="sm:w-4 sm:h-4" /> : <ArrowDown size={12} className="sm:w-4 sm:h-4" />}
+                  <span className="hidden sm:inline">{stat.change}</span>
                 </div>
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-1">{stat.value}</h3>
-              <p className="text-sm text-gray-600">{stat.title}</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-1">{stat.value}</h3>
+              <p className="text-xs sm:text-sm text-gray-600">{stat.title}</p>
             </div>
           )
         })}
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Attendance Chart */}
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-          <h3 className="text-xl font-bold text-blue-600 mb-4">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-2 border-gray-200">
+          <h3 className="text-lg sm:text-xl font-bold text-blue-600 mb-3 sm:mb-4">
             {isEmployee ? 'My Weekly Attendance' : 'Weekly Attendance'}
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={attendanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="present" fill="#10b981" name="Present" />
-              <Bar dataKey="absent" fill="#ef4444" name="Absent" />
-            </BarChart>
-          </ResponsiveContainer>
+          {loadingWeeklyAttendance && !isEmployee ? (
+            <div className="flex items-center justify-center h-[300px]">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <p className="text-gray-600">Loading attendance data...</p>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={attendanceData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="present" fill="#10b981" name="Present" />
+                <Bar dataKey="absent" fill="#ef4444" name="Absent" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Department Distribution - Only show for admin */}

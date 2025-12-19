@@ -138,7 +138,7 @@ const Recruitment = () => {
   }
 
   return (
-    <div className="space-y-6 bg-gray-50 min-h-screen p-6">
+    <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
       {/* Header Section */}
       <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
         <div className="flex items-center justify-between">

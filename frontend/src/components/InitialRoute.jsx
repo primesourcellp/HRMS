@@ -9,14 +9,18 @@ const InitialRoute = () => {
 
   useEffect(() => {
     const checkAndRedirect = async () => {
-      // First check if user is already authenticated
-      if (isAuthenticated()) {
-        navigate('/dashboard', { replace: true })
-        setChecking(false)
-        return
-      }
+      // Clear authentication on app start to force login every time
+      // This ensures users must login when starting the app fresh
+      localStorage.removeItem('isAuthenticated')
+      localStorage.removeItem('userEmail')
+      localStorage.removeItem('userName')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userType')
+      localStorage.removeItem('employeeDepartment')
+      localStorage.removeItem('employeePosition')
 
-      // If not authenticated, check if super admin exists
+      // Check if super admin exists to determine where to redirect
       try {
         const response = await api.checkSuperAdminExists()
         if (response.exists) {
@@ -26,7 +30,7 @@ const InitialRoute = () => {
         }
       } catch (err) {
         console.error('Error checking super admin:', err)
-        navigate('/register', { replace: true })
+        navigate('/login', { replace: true })
       } finally {
         setChecking(false)
       }

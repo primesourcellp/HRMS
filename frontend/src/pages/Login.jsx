@@ -14,12 +14,8 @@ const Login = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // If already authenticated, redirect to dashboard
-    if (isAuthenticated()) {
-      navigate('/dashboard', { replace: true })
-      return
-    }
-
+    // Always show login form - don't auto-redirect
+    // User must login every time they access the login page
     const checkSuperAdmin = async () => {
       try {
         const response = await api.checkSuperAdminExists()

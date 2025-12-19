@@ -125,7 +125,7 @@ const Users = () => {
   const canDelete = currentUserRole === 'SUPER_ADMIN'
 
   return (
-    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
+    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
       <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>

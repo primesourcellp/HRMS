@@ -367,7 +367,7 @@ const Settings = () => {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6">
+    <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
       <div>
         <h2 className="text-2xl md:text-3xl font-bold text-blue-600">Settings</h2>
         <p className="text-sm md:text-base text-gray-600 mt-1 font-medium">Manage your account settings and preferences</p>

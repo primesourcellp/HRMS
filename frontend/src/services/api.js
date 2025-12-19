@@ -609,35 +609,74 @@ const api = {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/performance`)
       if (!response.ok) {
-        console.error('Performance API error:', response.status, response.statusText)
-        return []
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch performance (${response.status})`)
       }
       const data = await response.json()
       return Array.isArray(data) ? data : []
     } catch (error) {
       console.error('Error fetching performance:', error)
-      return []
+      throw error
+    }
+  },
+  getPerformanceById: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/performance/${id}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch performance (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching performance by id:', error)
+      throw error
     }
   },
   getPerformanceByEmployee: async (employeeId) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/performance/employee/${employeeId}`)
       if (!response.ok) {
-        console.error('Employee Performance API error:', response.status, response.statusText)
-        return []
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch employee performance (${response.status})`)
       }
       const data = await response.json()
       return Array.isArray(data) ? data : []
     } catch (error) {
       console.error('Error fetching employee performance:', error)
-      return []
+      throw error
     }
   },
-  createPerformance: (performance) => fetchWithAuth(`${API_BASE_URL}/performance`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(performance)
-  }).then(res => res.json()),
+  getTopPerformers: async (minRating = 4) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/performance/top/${minRating}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch top performers (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching top performers:', error)
+      throw error
+    }
+  },
+  createPerformance: async (performance) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/performance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(performance)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create performance (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating performance:', error)
+      throw error
+    }
+  },
   updatePerformance: async (id, performance) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/performance/${id}`, {
@@ -645,10 +684,14 @@ const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(performance)
       })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to update performance (${response.status})`)
+      }
       return await response.json()
     } catch (error) {
       console.error('Error updating performance:', error)
-      return { success: false, message: error.message }
+      throw error
     }
   },
   deletePerformance: async (id) => {
@@ -656,10 +699,14 @@ const api = {
       const response = await fetchWithAuth(`${API_BASE_URL}/performance/${id}`, {
         method: 'DELETE'
       })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to delete performance (${response.status})`)
+      }
       return await response.json()
     } catch (error) {
       console.error('Error deleting performance:', error)
-      return { success: false, message: error.message }
+      throw error
     }
   },
 
@@ -973,19 +1020,124 @@ const api = {
   }).then(res => res.json()),
 
   // HR Tickets
-  getTickets: () => fetchWithAuth(`${API_BASE_URL}/tickets`).then(res => res.json()),
-  getEmployeeTickets: (employeeId) => fetchWithAuth(`${API_BASE_URL}/tickets/employee/${employeeId}`).then(res => res.json()),
-  getTicketsByStatus: (status) => fetchWithAuth(`${API_BASE_URL}/tickets/status/${status}`).then(res => res.json()),
-  createTicket: (ticket) => fetchWithAuth(`${API_BASE_URL}/tickets`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(ticket)
-  }).then(res => res.json()),
-  updateTicket: (id, ticket) => fetchWithAuth(`${API_BASE_URL}/tickets/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(ticket)
-  }).then(res => res.json()),
+  getTickets: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch tickets (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching tickets:', error)
+      throw error
+    }
+  },
+  getTicketById: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets/${id}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch ticket (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching ticket:', error)
+      throw error
+    }
+  },
+  getEmployeeTickets: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets/employee/${employeeId}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch employee tickets (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching employee tickets:', error)
+      throw error
+    }
+  },
+  getTicketsByStatus: async (status) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets/status/${status}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch tickets (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching tickets by status:', error)
+      throw error
+    }
+  },
+  getAssignedTickets: async (assignedTo) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets/assigned/${assignedTo}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch assigned tickets (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching assigned tickets:', error)
+      throw error
+    }
+  },
+  createTicket: async (ticket) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ticket)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create ticket (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating ticket:', error)
+      throw error
+    }
+  },
+  updateTicket: async (id, ticket) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ticket)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to update ticket (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating ticket:', error)
+      throw error
+    }
+  },
+  deleteTicket: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/tickets/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to delete ticket (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error deleting ticket:', error)
+      throw error
+    }
+  },
 
   // Recruitment
   getJobPostings: () => fetchWithAuth(`${API_BASE_URL}/recruitment/jobs`).then(res => res.json()),

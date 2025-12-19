@@ -67,4 +67,10 @@ public class PerformanceService {
 
         return performanceRepository.save(performance);
     }
+
+    public void deletePerformance(@NonNull Long id) {
+        Performance performance = performanceRepository.findById(java.util.Objects.requireNonNull(id))
+                .orElseThrow(() -> new RuntimeException("Performance not found with id: " + id));
+        performanceRepository.delete(performance);
+    }
 }

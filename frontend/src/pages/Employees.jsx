@@ -842,7 +842,7 @@ alert('Error loading documents: ' + (error.message || 'Unknown error'))
 } 
 if (loading) { 
 return ( 
-<div className="space-y-6 bg-gray-50 min-h-screen p-6"> 
+<div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden"> 
 <div className="bg-white rounded-2xl shadow-lg p-12 text-center"> 
 <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div> 
 <p className="mt-4 text-gray-600">Loading employees...</p> 
@@ -867,9 +867,9 @@ const employeeCounts = getEmployeeCountsByClient();
 const activeClients = Object.keys(employeeCounts).filter(key => key !== 'Total');
 
 return ( 
-<div className="space-y-6 bg-gray-50 min-h-screen p-6"> 
-{/* Header Section */} 
-<div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200"> 
+<div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
+{/* Header Section */}
+<div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
 <div className="flex items-center justify-between"> 
 <div> 
 <h2 className="text-3xl font-bold text-blue-600 mb-2">Employee Management</h2> 

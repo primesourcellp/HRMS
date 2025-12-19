@@ -14,6 +14,7 @@ const Shifts = () => {
   const [editingEmployee, setEditingEmployee] = useState(null)
   const [selectedShift, setSelectedShift] = useState(null)
   const [shiftEmployees, setShiftEmployees] = useState([])
+  const [shiftEmployeeCounts, setShiftEmployeeCounts] = useState({}) // Store employee counts per shift
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'table'
   const [searchTerm, setSearchTerm] = useState('')
@@ -57,6 +58,7 @@ const Shifts = () => {
   useEffect(() => {
     if (isEmployee) {
       loadEmployeeShift()
+      loadAllShiftsForEmployee() // Load all shifts for shift change request dropdown
       loadShiftChangeRequests()
     } else {
       loadData()
@@ -89,6 +91,16 @@ const Shifts = () => {
     }
   }
 
+  const loadAllShiftsForEmployee = async () => {
+    try {
+      const shiftsData = await api.getShifts()
+      setShifts(Array.isArray(shiftsData) ? shiftsData : [])
+    } catch (error) {
+      console.error('Error loading shifts:', error)
+      // Don't set error here, just log it - this is for dropdown only
+    }
+  }
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -97,8 +109,24 @@ const Shifts = () => {
         api.getShifts(),
         api.getEmployees()
       ])
-      setShifts(Array.isArray(shiftsData) ? shiftsData : [])
+      const shiftsArray = Array.isArray(shiftsData) ? shiftsData : []
+      setShifts(shiftsArray)
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
+      
+      // Load employee counts for each shift
+      const counts = {}
+      await Promise.all(
+        shiftsArray.map(async (shift) => {
+          try {
+            const employees = await api.getEmployeesByShift(shift.id)
+            counts[shift.id] = Array.isArray(employees) ? employees.length : 0
+          } catch (error) {
+            console.error(`Error loading employees for shift ${shift.id}:`, error)
+            counts[shift.id] = 0
+          }
+        })
+      )
+      setShiftEmployeeCounts(counts)
     } catch (error) {
       console.error('Error loading data:', error)
       setError('Failed to load shifts. Please try again.')
@@ -287,7 +315,7 @@ const Shifts = () => {
       }
 
       await loadShiftEmployees(selectedShift.id)
-      await loadData() // Reload employees to refresh shift assignments
+      await loadData() // Reload employees to refresh shift assignments and counts
       setShowEditAssignmentModal(false)
       setEditingEmployee(null)
       setEditAssignmentFormData({ startDate: '', endDate: '' })
@@ -314,7 +342,7 @@ const Shifts = () => {
       }
 
       await loadShiftEmployees(selectedShift.id)
-      await loadData() // Reload employees to refresh shift assignments
+      await loadData() // Reload employees to refresh shift assignments and counts
       setSuccessMessage('Employee unassigned successfully!')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
@@ -367,10 +395,13 @@ const Shifts = () => {
   }
 
   const formatTime = (timeString) => {
-    if (!timeString) return ''
+    if (!timeString) return 'N/A'
     // Handle both "HH:mm:ss" and "HH:mm" formats
     const parts = timeString.split(':')
-    return `${parts[0]}:${parts[1]}`
+    if (parts.length >= 2) {
+      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+    }
+    return timeString
   }
 
   const getEmployeeName = (employee) => {
@@ -424,6 +455,7 @@ const Shifts = () => {
 
       await loadShiftChangeRequests()
       await loadEmployeeShift()
+      await loadAllShiftsForEmployee() // Refresh shifts list
       setShowRequestModal(false)
       setRequestFormData({ requestedShiftId: '', reason: '' })
       setSuccessMessage('Shift change request submitted successfully!')
@@ -455,6 +487,11 @@ const Shifts = () => {
 
       await loadShiftChangeRequests()
       await loadData()
+      // If admin is viewing employee view, reload employee shift too
+      if (isEmployee) {
+        await loadEmployeeShift()
+        await loadAllShiftsForEmployee()
+      }
       setShowReviewModal(false)
       setSelectedRequest(null)
       setSuccessMessage('Shift change request approved successfully!')
@@ -579,7 +616,7 @@ const Shifts = () => {
   // Employee View - Show only their assigned shift
   if (isEmployee) {
     return (
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -597,6 +634,80 @@ const Shifts = () => {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
             <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+
+        {/* Shift Change Request Section - Prominent Position */}
+        {!loading && employeeShift && (
+          <div className="bg-white rounded-lg shadow-md p-6 border-2 border-blue-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <ArrowLeftRight className="text-blue-600" size={20} />
+                Shift Change Requests
+              </h3>
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('Button clicked!', { loading, showRequestModal, shiftsLength: shifts.length })
+                  try {
+                    // Ensure shifts are loaded before opening modal
+                    if (shifts.length === 0) {
+                      loadAllShiftsForEmployee().then(() => {
+                        console.log('Shifts loaded, opening modal')
+                        setShowRequestModal(true)
+                      }).catch((error) => {
+                        console.error('Error loading shifts:', error)
+                        setError('Failed to load shifts. Please try again.')
+                        setTimeout(() => setError(null), 5000)
+                      })
+                    } else {
+                      console.log('Opening modal directly')
+                      setShowRequestModal(true)
+                    }
+                  } catch (error) {
+                    console.error('Error in button click:', error)
+                    setError('Failed to open form. Please try again.')
+                    setTimeout(() => setError(null), 5000)
+                  }
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                disabled={loading}
+              >
+                <Send size={16} />
+                Apply Change Shift
+              </button>
+            </div>
+            {shiftChangeRequests.length === 0 ? (
+              <p className="text-gray-500 text-sm">No shift change requests yet</p>
+            ) : (
+              <div className="space-y-3">
+                {shiftChangeRequests.map((request) => (
+                  <div key={request.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-medium">Requested Shift:</span>
+                          <span>{getShiftName(request.requestedShiftId)}</span>
+                          {getRequestStatusBadge(request.status)}
+                        </div>
+                        {request.reason && (
+                          <p className="text-sm text-gray-600 mb-2">Reason: {request.reason}</p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          Requested: {formatRequestDate(request.requestedDate)}
+                          {request.reviewedDate && ` • Reviewed: ${formatRequestDate(request.reviewedDate)}`}
+                        </p>
+                        {request.status === 'REJECTED' && request.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-2">Rejection Reason: {request.rejectionReason}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -631,14 +742,14 @@ const Shifts = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                 <div className="flex items-center gap-2 mb-2">
                   <Timer className="text-blue-600" size={20} />
                   <p className="text-sm font-semibold text-blue-800">Shift Timing</p>
                 </div>
                 <p className="text-2xl font-bold text-gray-800">
-                  {employeeShift.startTime ? employeeShift.startTime.substring(0, 5) : 'N/A'} - {employeeShift.endTime ? employeeShift.endTime.substring(0, 5) : 'N/A'}
+                  {formatTime(employeeShift.startTime)} - {formatTime(employeeShift.endTime)}
                 </p>
               </div>
 
@@ -736,53 +847,6 @@ const Shifts = () => {
           </div>
         )}
 
-        {/* Shift Change Request Section */}
-        {!loading && employeeShift && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <ArrowLeftRight className="text-blue-600" size={20} />
-                Shift Change Requests
-              </h3>
-              <button
-                onClick={() => setShowRequestModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
-              >
-                <Send size={16} />
-                Apply Change Shift
-              </button>
-            </div>
-            {shiftChangeRequests.length === 0 ? (
-              <p className="text-gray-500 text-sm">No shift change requests yet</p>
-            ) : (
-              <div className="space-y-3">
-                {shiftChangeRequests.map((request) => (
-                  <div key={request.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="font-medium">Requested Shift:</span>
-                          <span>{getShiftName(request.requestedShiftId)}</span>
-                          {getRequestStatusBadge(request.status)}
-                        </div>
-                        {request.reason && (
-                          <p className="text-sm text-gray-600 mb-2">Reason: {request.reason}</p>
-                        )}
-                        <p className="text-xs text-gray-500">
-                          Requested: {formatRequestDate(request.requestedDate)}
-                          {request.reviewedDate && ` • Reviewed: ${formatRequestDate(request.reviewedDate)}`}
-                        </p>
-                        {request.status === 'REJECTED' && request.rejectionReason && (
-                          <p className="text-xs text-red-600 mt-2">Rejection Reason: {request.rejectionReason}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* No Shift Assigned */}
         {!loading && !employeeShift && (
@@ -796,13 +860,89 @@ const Shifts = () => {
             </p>
           </div>
         )}
+
+        {/* Request Shift Change Modal */}
+        {showRequestModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" 
+            style={{ zIndex: 9999 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowRequestModal(false)
+                setRequestFormData({ requestedShiftId: '', reason: '' })
+              }
+            }}
+          >
+            <div 
+              className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-bold mb-4">Apply Change Shift</h3>
+              <form onSubmit={handleSubmitShiftChangeRequest} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select New Shift *</label>
+                  <select
+                    value={requestFormData.requestedShiftId}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, requestedShiftId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select a shift</option>
+                    {!employeeShift ? (
+                      <option value="" disabled>Loading your shift information...</option>
+                    ) : shifts.length === 0 ? (
+                      <option value="" disabled>Loading shifts...</option>
+                    ) : shifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).length === 0 ? (
+                      <option value="" disabled>No other active shifts available</option>
+                    ) : (
+                      shifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).map((shift) => (
+                        <option key={shift.id} value={shift.id}>
+                          {shift.name} ({formatTime(shift.startTime)} - {formatTime(shift.endTime)})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reason (Optional)</label>
+                  <textarea
+                    value={requestFormData.reason}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, reason: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={4}
+                    placeholder="Explain why you want to change your shift..."
+                  />
+                </div>
+                <div className="flex gap-3 justify-end pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRequestModal(false)
+                      setRequestFormData({ requestedShiftId: '', reason: '' })
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? 'Submitting...' : 'Submit Request'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
 
   // Admin View - Full shift management
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -1002,7 +1142,10 @@ const Shifts = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-800 text-lg">{shift.name}</h3>
-                      <p className="text-sm text-gray-500">{formatTime(shift.startTime)} - {formatTime(shift.endTime)}</p>
+                      <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                        <Clock size={14} className="text-gray-500" />
+                        {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
+                      </p>
                     </div>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -1023,6 +1166,10 @@ const Shifts = () => {
                       <span className="font-medium">{shift.breakDuration} minutes</span>
                     </div>
                   )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Employees:</span>
+                    <span className="font-medium text-blue-600">{shiftEmployeeCounts[shift.id] || 0} assigned</span>
+                  </div>
                   {shift.description && (
                     <p className="text-sm text-gray-600 line-clamp-2">{shift.description}</p>
                   )}
@@ -1066,6 +1213,7 @@ const Shifts = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Time</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Working Hours</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Break</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Employees</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
                 </tr>
@@ -1073,7 +1221,7 @@ const Shifts = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredShifts.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                       No shifts found
                     </td>
                   </tr>
@@ -1096,6 +1244,12 @@ const Shifts = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{shift.breakDuration || '0'} min</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Users className="text-blue-600" size={16} />
+                          <span className="text-sm font-medium text-blue-600">{shiftEmployeeCounts[shift.id] || 0}</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
@@ -1473,9 +1627,21 @@ const Shifts = () => {
       )}
 
       {/* Request Shift Change Modal */}
-      {showRequestModal && employeeShift && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      {showRequestModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" 
+          style={{ zIndex: 9999 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowRequestModal(false)
+              setRequestFormData({ requestedShiftId: '', reason: '' })
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-xl font-bold mb-4">Apply Change Shift</h3>
             <form onSubmit={handleSubmitShiftChangeRequest} className="space-y-4">
               <div>
@@ -1487,11 +1653,19 @@ const Shifts = () => {
                   required
                 >
                   <option value="">Select a shift</option>
-                  {shifts.filter(shift => shift.active && shift.id !== employeeShift.id).map((shift) => (
-                    <option key={shift.id} value={shift.id}>
-                      {shift.name} ({shift.startTime?.substring(0, 5)} - {shift.endTime?.substring(0, 5)})
-                    </option>
-                  ))}
+                  {!employeeShift ? (
+                    <option value="" disabled>Loading your shift information...</option>
+                  ) : shifts.length === 0 ? (
+                    <option value="" disabled>Loading shifts...</option>
+                  ) : shifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).length === 0 ? (
+                    <option value="" disabled>No other active shifts available</option>
+                  ) : (
+                    shifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).map((shift) => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.name} ({formatTime(shift.startTime)} - {formatTime(shift.endTime)})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <div>
