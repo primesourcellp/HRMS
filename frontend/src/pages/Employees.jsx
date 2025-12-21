@@ -1156,6 +1156,7 @@ type="text"
 value={formData.employeeId} 
 onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })} 
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
+ placeholder="Enter Employee ID "
 required 
 readOnly={editingEmployee ? true : false} // Employee ID read-only when editing 
 /> 
@@ -1166,6 +1167,7 @@ readOnly={editingEmployee ? true : false} // Employee ID read-only when editing
 type="text" 
 value={formData.firstName} 
 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} 
+ placeholder="Enter First Name"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 required 
 /> 
@@ -1176,6 +1178,7 @@ required
 type="text" 
 value={formData.lastName} 
 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} 
+ placeholder="Enter Last Name"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 required 
 /> 
@@ -1187,9 +1190,28 @@ required
 type="email" 
 value={formData.email} 
 onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+placeholder="Enter Email Address"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 required 
 /> 
+</div>
+<div>
+<label className="block text-sm font-semibold text-gray-700 mb-2">
+  {editingEmployee ? 'New Password (leave blank to keep current)' : 'Password *'}
+</label>
+<input 
+  type="password" 
+  value={formData.password || ''}
+  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+  placeholder={editingEmployee ? 'Enter new password (optional)' : 'Enter password'}
+  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  required={!editingEmployee}
+/>
+{editingEmployee && (
+  <p className="mt-1 text-xs text-gray-500">
+    Only enter a new password if you want to change it
+  </p>
+)}
 </div> 
 
 </div> 
@@ -1198,19 +1220,19 @@ required
 <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
 <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Department</label> 
-<select 
-value={formData.department} 
-onChange={(e) => setFormData({ ...formData, department: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-> 
-<option value="">Select</option> 
-<option value="IT">Information Technology</option> 
-<option value="CSE">Computer Science Engineering</option> 
-<option value="ADS">Artificial Intelligence and Data Science</option> 
-</select> 
-</div> 
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2"> Department * </label>
+  <input
+    type="text"
+    value={formData.department}
+    onChange={(e) =>setFormData({ ...formData, department: e.target.value })}
+    placeholder="Enter Department"
+    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    required
+  />
+</div>
+
+
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label> 
 <select 
@@ -1256,21 +1278,18 @@ required
 <option value="Supporter">Supporter</option> 
 </select> 
 </div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label> 
-<select 
-type="text" 
-value={formData.client} 
-onChange={(e) => setFormData({ ...formData, client: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
->
-<option value="">Select</option> 
-<option value="IBM">IBM</option> 
-<option value="KITCO">KITCO</option> 
-<option value="BORDERLESS">BORDERLESS</option> 
-</select>
-</div> 
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
+  <input
+    type="text"
+    value={formData.client}
+    onChange={(e) =>setFormData({ ...formData, client: e.target.value })}
+    placeholder="Enter client name"
+    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    required
+  />
+</div>
+
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Status</label> 
 <select 
@@ -1323,21 +1342,19 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 required 
 /> 
 </div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label> 
-<select 
-type="text" 
-value={formData.location} 
-onChange={(e) => setFormData({ ...formData, location: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
->
-<option value="">Select</option> 
-<option value="Madurai">Madurai</option> 
-<option value="Tenkasi">Tenkasi</option> 
-<option value="Chennai">Chennai</option> 
-</select>
-</div> 
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2"> Location *</label>
+  <input
+    type="text"
+    value={formData.location}
+    onChange={(e) =>
+      setFormData({ ...formData, location: e.target.value })}
+    placeholder="Enter location"
+    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    required
+  />
+</div>
+
 </div> 
 </div> 
 {/* Personal Details */} 
@@ -1359,6 +1376,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 type="text" 
 value={formData.age} 
 onChange={(e) => setFormData({ ...formData, age: e.target.value })} 
+placeholder="Enter Age"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
 /> 
 </div> 
@@ -1401,31 +1419,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 
 </div> 
 </div> 
-{/* Identity Information */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Identity Information</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">PAN</label> 
-<input 
-type="text" 
-value={formData.pan} 
-onChange={(e) => setFormData({ ...formData, pan: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div className="col-span-2"> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Aadhaar</label> 
-<input 
-type="text" 
-value={formData.aadhaar} 
-onChange={(e) => setFormData({ ...formData, aadhaar: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-</div> 
-</div> 
 
 {/* Contact Details */} 
 <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
@@ -1437,6 +1431,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 type="tel" 
 value={formData.workPhoneNumber} 
 onChange={(e) => setFormData({ ...formData, workPhoneNumber: e.target.value })} 
+placeholder="Enter Phone Number"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 /> 
 </div> 
@@ -1446,6 +1441,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 type="tel" 
 value={formData.personalMobileNumber} 
 onChange={(e) => setFormData({ ...formData, personalMobileNumber: e.target.value })} 
+placeholder="Enter Phone Number"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 /> 
 </div> 
@@ -1456,6 +1452,7 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
 type="email" 
 value={formData.personalEmailAddress} 
 onChange={(e) => setFormData({ ...formData, personalEmailAddress: e.target.value })} 
+placeholder="Enter Personal Email Address"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 /> 
 </div> 

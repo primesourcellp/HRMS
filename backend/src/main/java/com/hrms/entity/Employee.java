@@ -51,6 +51,12 @@ public class Employee {
     
     public String getClient() { return client; }
     public void setClient(String client) { this.client = client; }
+    
+    @Column(nullable = false, length = 255)
+    private String password;
+    
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
 
     public LocalDate getDateOfJoining() { return dateOfJoining; }
     public void setDateOfJoining(LocalDate dateOfJoining) { this.dateOfJoining = dateOfJoining; }

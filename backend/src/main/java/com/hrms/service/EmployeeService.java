@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.lang.NonNull;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import com.hrms.entity.Employee;
 import com.hrms.entity.WorkExperience;
@@ -51,8 +52,9 @@ public class EmployeeService {
         }
 
         // Hash password if provided
-       
-        
+        if (employee.getPassword() != null && !employee.getPassword().isEmpty()) {
+            employee.setPassword(passwordEncoder.encode(employee.getPassword()));
+        }
         // Ensure `phone` is populated to avoid DB NOT NULL constraint errors.
         // Prefer explicit `phone`, otherwise fall back to personalMobileNumber or workPhoneNumber.
         if (employee.getPhone() == null || employee.getPhone().trim().isEmpty()) {
@@ -195,7 +197,12 @@ public class EmployeeService {
         if (newData.getAvatar() != null) emp.setAvatar(newData.getAvatar());
         if (newData.getShift() != null) emp.setShift(newData.getShift());
 
-     
+        // Handle password update if provided
+        if (newData.getPassword() != null && !newData.getPassword().isEmpty()) {
+            // Only update password if a new one is provided
+            emp.setPassword(passwordEncoder.encode(newData.getPassword()));
+        }
+
 
         // Update nested collections (work experiences, education details, dependent details)
         if (newData.getWorkExperiences() != null) {
@@ -243,8 +250,9 @@ public class EmployeeService {
     }
 
     // -------------------- LOGIN AUTHENTICATION --------------------
-    public boolean authenticate(String email, String password) {
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    public boolean authenticate(String email, String password) {
         if (email == null || password == null || email.trim().isEmpty() || password.isEmpty()) {
             return false;
         }
@@ -254,7 +262,16 @@ public class EmployeeService {
         if (employee.isPresent() && 
             employee.get().getEmployeeStatus() != null &&
             employee.get().getEmployeeStatus().equalsIgnoreCase("Active")) {
-
+            
+            String storedPassword = employee.get().getPassword();
+            
+            // If no password is set, don't allow login
+            if (storedPassword == null || storedPassword.isEmpty()) {
+                return false;
+            }
+            
+            // Verify the password using BCrypt
+            return passwordEncoder.matches(password, storedPassword);
         }
 
         return false;
