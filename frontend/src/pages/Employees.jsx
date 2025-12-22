@@ -1,8 +1,16 @@
-import { useState, useEffect } from 'react' 
-import { useNavigate } from 'react-router-dom' 
-import { Plus, Search, Edit, Trash2, Mail, Phone, MapPin, Upload, FileText, Download, Eye, User, Shield } from 'lucide-react' 
-import api from '../services/api' 
-const API_BASE_URL = 'http://localhost:8080/api' 
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Plus, Search, Edit, Trash2, Mail, Phone, MapPin, Upload, 
+  FileText, Download, Eye, User, Shield, Filter, ChevronDown, 
+  ChevronRight, ChevronUp, ChevronLeft, MoreVertical, Check, X,
+  Users, Briefcase, Building, Calendar, Tag, UserPlus, FileUp, Frown, Loader2
+} from 'lucide-react';
+import api from '../services/api';
+import styles from './Employees.module.css';
+
+
+const API_BASE_URL = 'http://localhost:8080/api'; 
 const Employees = () => { 
 const navigate = useNavigate() 
 const userType = localStorage.getItem('userType') 
@@ -842,12 +850,12 @@ alert('Error loading documents: ' + (error.message || 'Unknown error'))
 } 
 if (loading) { 
 return ( 
-<div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden"> 
-<div className="bg-white rounded-2xl shadow-lg p-12 text-center"> 
-<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div> 
-<p className="mt-4 text-gray-600">Loading employees...</p> 
-	</div> 
-	</div> 
+<div className={styles.loadingWrap}> 
+  <div className={styles.loadingCard}> 
+    <span className={styles.spinner}></span> 
+    <p className={styles.loadingText}>Loading employees...</p> 
+  </div> 
+</div> 
 ); 
 } 
     
@@ -950,22 +958,22 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 </select>
 </div> 
 </div> 
-{/* Employees Table - Redesigned */} 
-<div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 overflow-hidden"> 
-<div className="overflow-x-auto"> 
-<table className="w-full"> 
-<thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white"> 
-<tr> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">S.No</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Joining Date</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Designation</th>
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Client</th>
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Email</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th> 
-<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Actions</th> 
-</tr> 
-</thead> 
+{/* Employees Table - Modern Design */}
+<div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md">
+  <div className="overflow-x-auto">
+    <table className="w-full">
+      <thead>
+        <tr className="bg-gradient-to-r from-blue-600 to-indigo-700">
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">S.No</th>
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Employee</th>
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Joining Date</th>
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Role</th>
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Client</th>
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Email</th>
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Status</th>
+          <th className="px-6 py-4 text-right text-xs font-semibold text-white/90 uppercase tracking-wider pr-8">Actions</th>
+        </tr>
+      </thead> 
 <tbody className="bg-white divide-y divide-gray-100"> 
 {filteredEmployees.map((employee) => ( 
 <tr key={employee.id} className="hover:bg-gray-50 transition-all duration-200 border-b border-gray-100"> 
@@ -1046,12 +1054,11 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 ))} 
 </tbody> 
 </table> 
-</div> 
+</div>
 {filteredEmployees.length === 0 && ( 
 <div className="text-center py-12"> 
 {error ? ( 
-<div className="bg-red-50 border border-red-
-200 rounded-lg p-4"> 
+<div className="bg-red-50 border border-red-200 rounded-lg p-4"> 
 <p className="text-red-800 font-semibold">{error}</p> 
 <button 
 onClick={loadEmployees} 
