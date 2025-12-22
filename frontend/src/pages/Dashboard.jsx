@@ -330,16 +330,16 @@ const Dashboard = () => {
         .slice(0, 5))
 
   return (
-    <div className="space-y-4 sm:space-y-6 bg-gray-50 p-3 sm:p-4 md:p-6 max-w-full overflow-x-hidden">
+    <div className="space-y-3 sm:space-y-4 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <div key={index} className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-2 border-gray-200 hover:border-blue-300 transform hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="bg-blue-600 p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl shadow-md">
-                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" />
+            <div key={index} className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200 hover:border-blue-300 transform hover:-translate-y-1">
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <div className="bg-blue-600 p-1.5 sm:p-2 md:p-3 rounded-lg sm:rounded-xl shadow-md">
+                  <Icon className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 text-white" />
                 </div>
                 <div className={`flex items-center gap-1 text-xs sm:text-sm font-semibold px-2 sm:px-3 py-1 rounded-full ${
                   stat.trend === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -356,10 +356,10 @@ const Dashboard = () => {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Attendance Chart */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-2 border-gray-200">
-          <h3 className="text-lg sm:text-xl font-bold text-blue-600 mb-3 sm:mb-4">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+          <h3 className="text-lg sm:text-xl font-bold text-blue-600 mb-2 sm:mb-3">
             {isEmployee ? 'My Weekly Attendance' : 'Weekly Attendance'}
           </h3>
           {loadingWeeklyAttendance && !isEmployee ? (
@@ -386,8 +386,8 @@ const Dashboard = () => {
 
         {/* Department Distribution - Only show for admin */}
         {!isEmployee && (
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-4">Department Distribution</h3>
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-3">Department Distribution</h3>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -412,8 +412,8 @@ const Dashboard = () => {
 
         {/* Employee Info Card - Only show for employee */}
         {isEmployee && dashboardStats && (
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-4">My Information</h3>
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-3">My Information</h3>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-600">Department</p>
@@ -422,7 +422,7 @@ const Dashboard = () => {
               {employeeShift && (
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <div className="flex items-center gap-2 mb-2">
-                    <Clock className="text-blue-600" size={20} />
+                    <Clock className="text-blue-600" size={14} />
                     <p className="text-sm font-semibold text-blue-800">My Shift</p>
                   </div>
                   <p className="text-lg font-bold text-gray-800 mb-1">{employeeShift.name}</p>
@@ -443,7 +443,7 @@ const Dashboard = () => {
               {!employeeShift && (
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <div className="flex items-center gap-2">
-                    <Clock className="text-gray-400" size={20} />
+                    <Clock className="text-gray-400" size={14} />
                     <p className="text-sm text-gray-600">No shift assigned</p>
                   </div>
                 </div>
@@ -464,51 +464,51 @@ const Dashboard = () => {
       </div>
 
       {/* Quick Actions - Moved to Bottom */}
-      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200">
-        <h3 className="text-xl font-bold text-blue-600 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+        <h3 className="text-xl font-bold text-blue-600 mb-3">Quick Actions</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {isAdmin ? (
             <>
               <button
                 onClick={() => navigate('/employees')}
-                className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-blue-200 hover:border-blue-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-blue-200 hover:border-blue-400 group"
               >
-                <UserPlus className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+                <UserPlus className="w-5 h-5 text-blue-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Add Employee</span>
               </button>
               <button
                 onClick={() => navigate('/attendance')}
-                className="flex flex-col items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
               >
-                <CheckCircle className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+                <CheckCircle className="w-5 h-5 text-green-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Mark Attendance</span>
               </button>
               <button
                 onClick={() => navigate('/leave')}
-                className="flex flex-col items-center justify-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-yellow-200 hover:border-yellow-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-yellow-200 hover:border-yellow-400 group"
               >
-                <Calendar className="w-8 h-8 text-yellow-600 mb-2 group-hover:scale-110 transition-transform" />
+                <Calendar className="w-5 h-5 text-yellow-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Approve Leaves</span>
               </button>
               <button
                 onClick={() => navigate('/payroll')}
-                className="flex flex-col items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
               >
-                <DollarSign className="w-8 h-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
+                <DollarSign className="w-5 h-5 text-purple-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Process Payroll</span>
               </button>
               <button
                 onClick={() => navigate('/shifts')}
-                className="flex flex-col items-center justify-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-indigo-200 hover:border-indigo-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-indigo-200 hover:border-indigo-400 group"
               >
-                <Clock className="w-8 h-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+                <Clock className="w-5 h-5 text-indigo-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Manage Shifts</span>
               </button>
               <button
                 onClick={() => navigate('/recruitment')}
-                className="flex flex-col items-center justify-center p-4 bg-pink-50 hover:bg-pink-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-pink-200 hover:border-pink-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-pink-50 hover:bg-pink-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-pink-200 hover:border-pink-400 group"
               >
-                <FileText className="w-8 h-8 text-pink-600 mb-2 group-hover:scale-110 transition-transform" />
+                <FileText className="w-5 h-5 text-pink-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Recruitment</span>
               </button>
             </>
@@ -516,44 +516,44 @@ const Dashboard = () => {
             <>
               <button
                 onClick={() => navigate('/attendance')}
-                className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-blue-200 hover:border-blue-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-blue-200 hover:border-blue-400 group"
               >
-                <CheckCircle className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+                <CheckCircle className="w-5 h-5 text-blue-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Check In/Out</span>
               </button>
               <button
                 onClick={() => navigate('/leave')}
-                className="flex flex-col items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
               >
-                <PlusCircle className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+                <PlusCircle className="w-5 h-5 text-green-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Apply Leave</span>
               </button>
               <button
                 onClick={() => navigate('/payroll')}
-                className="flex flex-col items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
               >
-                <DollarSign className="w-8 h-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
+                <DollarSign className="w-5 h-5 text-purple-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">My Payroll</span>
               </button>
               <button
                 onClick={() => navigate('/performance')}
-                className="flex flex-col items-center justify-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-yellow-200 hover:border-yellow-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-yellow-200 hover:border-yellow-400 group"
               >
-                <TrendingUp className="w-8 h-8 text-yellow-600 mb-2 group-hover:scale-110 transition-transform" />
+                <TrendingUp className="w-5 h-5 text-yellow-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">My Performance</span>
               </button>
               <button
                 onClick={() => navigate('/hrtickets')}
-                className="flex flex-col items-center justify-center p-4 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-orange-200 hover:border-orange-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-orange-200 hover:border-orange-400 group"
               >
-                <FileText className="w-8 h-8 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
+                <FileText className="w-5 h-5 text-orange-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">My Tickets</span>
               </button>
               <button
                 onClick={() => navigate('/settings')}
-                className="flex flex-col items-center justify-center p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-200 hover:border-gray-400 group"
+                className="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-200 hover:border-gray-400 group"
               >
-                <Settings className="w-8 h-8 text-gray-600 mb-2 group-hover:scale-110 transition-transform" />
+                <Settings className="w-5 h-5 text-gray-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Settings</span>
               </button>
             </>

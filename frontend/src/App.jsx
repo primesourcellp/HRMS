@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { HRMSProvider } from './context/HRMSContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -15,7 +16,7 @@ import Shifts from './pages/Shifts'
 import HRTickets from './pages/HRTickets'
 import Analytics from './pages/Analytics'
 import InitialRoute from './components/InitialRoute'
-import { isAuthenticated } from './utils/auth'
+import { isAuthenticated, verifyToken } from './utils/auth'
 
 function App() {
   return (
@@ -47,11 +48,50 @@ function App() {
 
 // Protected Route Component
 function ProtectedRoute() {
-  // Check for valid JWT token, not just the flag
-  if (!isAuthenticated()) {
+  const [isVerifying, setIsVerifying] = useState(true)
+  const [isValid, setIsValid] = useState(false)
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      // Quick check first
+      if (!isAuthenticated()) {
+        setIsValid(false)
+        setIsVerifying(false)
+        return
+      }
+
+      // Verify token with backend
+      try {
+        const valid = await verifyToken()
+        setIsValid(valid)
+      } catch (error) {
+        console.error('Auth verification error:', error)
+        setIsValid(false)
+      } finally {
+        setIsVerifying(false)
+      }
+    }
+
+    checkAuth()
+  }, [])
+
+  // Show loading state while verifying
+  if (isVerifying) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <p className="mt-4 text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Redirect to login if not authenticated
+  if (!isValid) {
     return <Navigate to="/login" replace />
   }
-  
+
   return <Layout />
 }
 

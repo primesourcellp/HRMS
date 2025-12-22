@@ -1,19 +1,40 @@
 // Authentication utility functions
+import api from '../services/api'
 
 /**
  * Check if user is authenticated
- * Since tokens are in HttpOnly cookies, we can't check them directly
- * We rely on the isAuthenticated flag and backend validation
- * @returns {boolean} true if user appears to be authenticated
+ * Since tokens are in HttpOnly cookies, we verify with backend
+ * @returns {boolean} true if user appears to be authenticated (synchronous check)
  */
 export const isAuthenticated = () => {
-  // Tokens are in HttpOnly cookies (not accessible to JavaScript)
-  // Check the authentication flag set during login
+  // Quick synchronous check - verify flag exists
+  // For actual validation, use verifyToken() which calls backend
   const authFlag = localStorage.getItem('isAuthenticated')
   return authFlag === 'true'
-  
-  // Note: Actual token validation happens on the backend
-  // If token is invalid/expired, backend will return 401 and user will be redirected
+}
+
+/**
+ * Verify token with backend (async)
+ * This actually validates the token on the server
+ * @returns {Promise<boolean>} true if token is valid
+ */
+export const verifyToken = async () => {
+  try {
+    const result = await api.verifyToken()
+    if (result.authenticated) {
+      // Update localStorage flag to match backend state
+      localStorage.setItem('isAuthenticated', 'true')
+      return true
+    } else {
+      // Token invalid - clear auth data
+      clearAuth()
+      return false
+    }
+  } catch (error) {
+    console.error('Token verification failed:', error)
+    clearAuth()
+    return false
+  }
 }
 
 /**

@@ -126,35 +126,27 @@ const Users = () => {
 
   return (
     <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
-      <div className="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-blue-600">User Management</h2>
-            <p className="text-sm md:text-base text-gray-600 mt-1">Manage system users and administrators</p>
+      {/* Search Bar */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div className="flex gap-4">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Search users by name, email, or role..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
           {canCreateAdmin && (
             <button
               onClick={() => handleOpenModal()}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm md:text-base"
+              className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 transition-colors text-sm md:text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
             >
               <Plus size={20} />
               Add User
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Search users by name, email, or role..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
         </div>
       </div>
 

@@ -340,33 +340,8 @@ const Performance = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 bg-gray-50 p-3 sm:p-4 md:p-6 max-w-full overflow-x-hidden">
-      {/* Header */}
+      {/* Statistics Cards */}
       <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-gray-200">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-600 mb-2 flex items-center gap-2 sm:gap-3">
-              <TrendingUp size={20} className="sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-600" />
-              <span className="break-words">{isEmployee ? 'My Performance' : 'Performance Management'}</span>
-            </h2>
-            <p className="text-sm sm:text-base text-gray-600 font-medium">
-              {isEmployee 
-                ? 'View your performance reviews and ratings' 
-                : 'Manage employee performance reviews and evaluations'}
-            </p>
-          </div>
-          {isAdmin && (
-            <button
-              onClick={() => handleOpenPerformanceModal()}
-              className="bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold text-sm sm:text-base w-full md:w-auto"
-            >
-              <Plus size={18} className="sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Create Review</span>
-              <span className="sm:hidden">Create</span>
-            </button>
-          )}
-        </div>
-
-        {/* Statistics Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
             <div className="text-sm text-blue-600 font-medium">Total Reviews</div>
@@ -393,13 +368,12 @@ const Performance = () => {
         {/* Filters and Search */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               placeholder="Search reviews..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           {isAdmin && (
@@ -440,6 +414,15 @@ const Performance = () => {
               </option>
             ))}
           </select>
+          {isAdmin && (
+            <button
+              onClick={() => handleOpenPerformanceModal()}
+              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+            >
+              <Plus size={18} />
+              Create Review
+            </button>
+          )}
           <div className="flex gap-2">
             <select
               value={sortBy}

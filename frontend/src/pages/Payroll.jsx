@@ -219,29 +219,6 @@ const Payroll = () => {
 
   return (
     <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
-      {/* Header */}
-      <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-blue-600 mb-2">
-              {isEmployee ? 'My Payroll' : 'Payroll Management'}
-            </h2>
-            <p className="text-gray-600 font-medium">
-              {isEmployee ? 'View your payroll history and payslips' : 'Manage employee payrolls and process payments'}
-            </p>
-          </div>
-          {isAdmin && (
-            <button
-              onClick={() => handleOpenPayrollModal()}
-              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-            >
-              <Plus size={20} />
-              Create Payroll
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Filters */}
       {isAdmin && (
         <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
@@ -271,6 +248,17 @@ const Payroll = () => {
                 <option value="REJECTED">Rejected</option>
               </select>
             </div>
+            {isAdmin && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => handleOpenPayrollModal()}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                >
+                  <Plus size={20} />
+                  Create Payroll
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

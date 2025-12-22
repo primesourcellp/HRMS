@@ -203,6 +203,45 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Verify if the current user's token is valid
+     * This endpoint is protected by JwtAuthenticationFilter, so if it returns 200, token is valid
+     * User info is already extracted and set as request attributes by the filter
+     */
+    @GetMapping("/verify")
+    public ResponseEntity<Map<String, Object>> verifyToken(HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // User info is already extracted and set by JwtAuthenticationFilter
+            String email = (String) request.getAttribute("userEmail");
+            String role = (String) request.getAttribute("userRole");
+            Long id = (Long) request.getAttribute("userId");
+            String userType = (String) request.getAttribute("userType");
+            
+            if (email == null || role == null || id == null) {
+                response.put("authenticated", false);
+                response.put("message", "Token validation failed");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+            
+            response.put("authenticated", true);
+            response.put("user", Map.of(
+                "id", id,
+                "email", email,
+                "role", role,
+                "userType", userType != null ? userType : "unknown"
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("authenticated", false);
+            response.put("message", "Token verification failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+    }
+
     @PostMapping("/employee/login")
     public ResponseEntity<Map<String, Object>> employeeLogin(@RequestBody Map<String, String> credentials, HttpServletResponse httpResponse) {
         Map<String, Object> response = new HashMap<>();
