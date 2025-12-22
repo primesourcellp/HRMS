@@ -3,9 +3,9 @@ package com.hrms.filter;
 import java.io.IOException;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.lang.NonNull;
 
 import com.hrms.util.JwtUtil;
 
@@ -28,11 +28,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         // Skip filtering for:
         // 1. OPTIONS requests (CORS preflight) - must be handled by CORS filter first
-        // 2. Public auth endpoints
+        // 2. Public auth endpoints (except /verify which needs token validation)
         // 3. Error pages
-        return "OPTIONS".equalsIgnoreCase(method) || 
-               path.startsWith("/api/auth/") || 
-               path.equals("/error");
+        if ("OPTIONS".equalsIgnoreCase(method) || path.equals("/error")) {
+            return true;
+        }
+        
+        // Exclude public auth endpoints, but protect /verify endpoint
+        if (path.startsWith("/api/auth/")) {
+            // Don't exclude /verify endpoint - it needs token validation (return false = filter it)
+            // Exclude all other /api/auth/ endpoints (return true = don't filter)
+            return !path.equals("/api/auth/verify");
+        }
+        
+        return false;
     }
 
     @Override
@@ -42,7 +51,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         
         // Additional safety check (should not reach here due to shouldNotFilter, but just in case)
-        if (path.startsWith("/api/auth/") || path.equals("/error")) {
+        // Allow /verify endpoint to pass through filter (it's protected)
+        if (path.equals("/error") || (path.startsWith("/api/auth/") && !path.equals("/api/auth/verify"))) {
             filterChain.doFilter(request, response);
             return;
         }

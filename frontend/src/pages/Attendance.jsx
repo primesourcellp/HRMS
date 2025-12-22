@@ -314,14 +314,7 @@ const Attendance = () => {
     <div className="p-3 sm:p-4 md:p-6 bg-gray-50 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="mb-4 md:mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2">
-              <Clock className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-600" />
-              <span className="break-words">Attendance Management</span>
-            </h1>
-            <p className="text-sm sm:text-base text-gray-600 mt-1">Track and manage employee attendance</p>
-          </div>
+        <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-3 sm:gap-4 mb-4">
           {isAdmin && (
             <button
               onClick={handleExportAttendance}
@@ -408,7 +401,6 @@ const Attendance = () => {
         <div className="bg-white rounded-xl shadow-md p-3 sm:p-4 mb-4 md:mb-6">
           <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-center">
             <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-gray-600" />
               <input
                 type="date"
                 value={selectedDate}
@@ -426,18 +418,16 @@ const Attendance = () => {
               <>
                 <div className="flex-1 min-w-[200px]">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
                       type="text"
                       placeholder="Search employees..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Filter className="w-5 h-5 text-gray-600" />
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}

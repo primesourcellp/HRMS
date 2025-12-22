@@ -876,23 +876,6 @@ const activeClients = Object.keys(employeeCounts).filter(key => key !== 'Total')
 
 return ( 
 <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
-{/* Header Section */}
-<div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
-<div className="flex items-center justify-between"> 
-<div> 
-<h2 className="text-3xl font-bold text-blue-600 mb-2">Employee Management</h2> 
-<p className="text-gray-600 font-medium">Manage employee information and documents</p> 
-</div> 
-<button 
-onClick={() => handleOpenModal()} 
-className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold" 
-> 
-<Plus size={20} /> 
-Add Employee 
-</button> 
-</div> 
-</div>
-
 {/* Client Cards Section */}
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
   {/* Total Employees Card */}
@@ -927,16 +910,15 @@ Add Employee
 {/* Search and Filters - Redesigned */} 
 <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200"> 
 <div className="flex gap-4"> 
-<div className="flex-1 relative"> 
-<Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} /> 
-<input 
-type="text" 
-placeholder="Search employees..." 
-value={searchTerm} 
-onChange={(e) => setSearchTerm(e.target.value)} 
-className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors" 
-/> 
-</div> 
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Search employees..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
+            />
+          </div>
 <select 
 value={statusFilter} 
 onChange={(e) => setStatusFilter(e.target.value)} 
@@ -956,6 +938,13 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
   <option value="KITCO">KITCO</option>
   <option value="BORDERLESS">BORDERLESS</option>
 </select>
+<button 
+  onClick={() => handleOpenModal()} 
+  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold" 
+> 
+  <Plus size={20} /> 
+  Add Employee 
+</button> 
 </div> 
 </div> 
 {/* Employees Table - Modern Design */}

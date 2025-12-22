@@ -225,6 +225,22 @@ const api = {
     }
   },
 
+  verifyToken: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify`, {
+        method: 'GET',
+        credentials: 'include' // Include cookies
+      })
+      if (!response.ok) {
+        return { authenticated: false }
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error verifying token:', error)
+      return { authenticated: false }
+    }
+  },
+
   refreshToken: async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
