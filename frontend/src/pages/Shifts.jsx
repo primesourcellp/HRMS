@@ -1028,91 +1028,6 @@ const Shifts = () => {
         </div>
       </div>
 
-      {/* Shift Change Requests Section for Admin */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <ArrowLeftRight className="text-blue-600" size={20} />
-            Shift Change Requests
-          </h3>
-          <select
-            value={requestStatusFilter}
-            onChange={(e) => setRequestStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-        {shiftChangeRequests.filter(req => requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase()).length === 0 ? (
-          <p className="text-gray-500 text-sm">No shift change requests found</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Current Shift</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Requested Shift</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reason</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Requested Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {shiftChangeRequests
-                  .filter(req => requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase())
-                  .map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getEmployeeName(request.employeeId)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {getShiftName(request.currentShiftId)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getShiftName(request.requestedShiftId)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-500 max-w-xs truncate">
-                          {request.reason || 'No reason provided'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getRequestStatusBadge(request.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatRequestDate(request.requestedDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {request.status === 'PENDING' ? (
-                          <button
-                            onClick={() => openReviewModal(request)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            Review
-                          </button>
-                        ) : (
-                          <span className="text-gray-400">Reviewed</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       {/* Loading State */}
       {loading && !shifts.length && (
         <div className="text-center py-8">
@@ -1288,6 +1203,91 @@ const Shifts = () => {
           </div>
         </div>
       )}
+
+      {/* Shift Change Requests Section for Admin */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <ArrowLeftRight className="text-blue-600" size={20} />
+            Shift Change Requests
+          </h3>
+          <select
+            value={requestStatusFilter}
+            onChange={(e) => setRequestStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        {shiftChangeRequests.filter(req => requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase()).length === 0 ? (
+          <p className="text-gray-500 text-sm">No shift change requests found</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Employee</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Current Shift</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Requested Shift</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reason</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Requested Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {shiftChangeRequests
+                  .filter(req => requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase())
+                  .map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {getEmployeeName(request.employeeId)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {getShiftName(request.currentShiftId)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {getShiftName(request.requestedShiftId)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-500 max-w-xs truncate">
+                          {request.reason || 'No reason provided'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getRequestStatusBadge(request.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatRequestDate(request.requestedDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        {request.status === 'PENDING' ? (
+                          <button
+                            onClick={() => openReviewModal(request)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            Review
+                          </button>
+                        ) : (
+                          <span className="text-gray-400">Reviewed</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Add/Edit Shift Modal */}
       {showModal && (

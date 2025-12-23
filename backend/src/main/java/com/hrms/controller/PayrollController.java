@@ -74,6 +74,33 @@ public class PayrollController {
         }
     }
 
+    @PostMapping
+    public ResponseEntity<Map<String, Object>> createPayroll(@RequestBody PayrollDTO payrollDTO) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = new Payroll();
+            payroll.setEmployeeId(payrollDTO.getEmployeeId());
+            payroll.setMonth(payrollDTO.getMonth());
+            payroll.setYear(payrollDTO.getYear());
+            payroll.setBaseSalary(payrollDTO.getBaseSalary() != null ? payrollDTO.getBaseSalary() : 0.0);
+            payroll.setAllowances(payrollDTO.getAllowances() != null ? payrollDTO.getAllowances() : 0.0);
+            payroll.setDeductions(payrollDTO.getDeductions() != null ? payrollDTO.getDeductions() : 0.0);
+            payroll.setBonus(payrollDTO.getBonus() != null ? payrollDTO.getBonus() : 0.0);
+            payroll.setNotes(payrollDTO.getNotes());
+            payroll.setStatus(payrollDTO.getStatus() != null ? payrollDTO.getStatus() : "DRAFT");
+            
+            Payroll createdPayroll = payrollService.createPayroll(payroll);
+            response.put("success", true);
+            response.put("message", "Payroll created successfully");
+            response.put("payroll", DTOMapper.toPayrollDTO(createdPayroll));
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
     @PostMapping("/generate")
     public ResponseEntity<Map<String, Object>> generatePayroll(
             @RequestParam Long employeeId,

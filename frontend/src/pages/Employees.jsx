@@ -964,10 +964,10 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
         </tr>
       </thead> 
 <tbody className="bg-white divide-y divide-gray-100"> 
-{filteredEmployees.map((employee) => ( 
+{filteredEmployees.map((employee, index) => ( 
 <tr key={employee.id} className="hover:bg-gray-50 transition-all duration-200 border-b border-gray-100"> 
 <td className="px-6 py-4 whitespace-nowrap"> 
-	<div className="text-sm font-medium text-gray-900">{employee.employeeId || employee.id}</div> 
+	<div className="text-sm font-medium text-gray-900">{index + 1}</div> 
 </td> 
 <td className="px-6 py-4 whitespace-nowrap"> 
 	<div className="flex items-center"> 

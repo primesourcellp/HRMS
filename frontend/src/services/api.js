@@ -614,11 +614,19 @@ const api = {
 
   // Payrolls
   getPayrolls: () => fetchWithAuth(`${API_BASE_URL}/payrolls`).then(res => res.json()),
-  createPayroll: (payroll) => fetchWithAuth(`${API_BASE_URL}/payrolls`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payroll)
-  }).then(res => res.json()),
+  createPayroll: async (payroll) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payroll)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating payroll:', error)
+      return { success: false, message: error.message }
+    }
+  },
 
   // Performance
   getPerformance: async () => {
