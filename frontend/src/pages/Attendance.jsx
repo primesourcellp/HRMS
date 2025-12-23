@@ -314,18 +314,7 @@ const Attendance = () => {
     <div className="p-3 sm:p-4 md:p-6 bg-gray-50 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="mb-4 md:mb-6">
-        <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-3 sm:gap-4 mb-4">
-          {isAdmin && (
-            <button
-              onClick={handleExportAttendance}
-              className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base w-full sm:w-auto justify-center"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export CSV</span>
-              <span className="sm:hidden">Export</span>
-            </button>
-          )}
-        </div>
+        
 
         {/* Success/Error Messages */}
         {successMessage && (
@@ -398,57 +387,68 @@ const Attendance = () => {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-md p-3 sm:p-4 mb-4 md:mb-6">
-          <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-center">
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <button
-                onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}
-                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-              >
-                Today
-              </button>
-            </div>
-            {isAdmin && (
-              <>
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search employees..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="All">All Status</option>
-                    <option value="Present">Present</option>
-                    <option value="Absent">Absent</option>
-                  </select>
-                </div>
-                <button
-                  onClick={() => setShowMarkModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Mark Attendance
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+<div className="bg-white rounded-xl shadow-md p-3 sm:p-4 mb-4 md:mb-6">
+  <div className="flex flex-wrap items-center gap-3">
+
+    
+    <div className="flex items-center gap-2">
+      <input
+        type="date"
+        value={selectedDate}
+        onChange={(e) => setSelectedDate(e.target.value)}
+        className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      />
+      <button
+        onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}
+        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+      >
+        Today
+      </button>
+    </div>
+
+    {isAdmin && (
+      <>
+       
+        <input
+          type="text"
+          placeholder="Search employees..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="flex-1 min-w-[220px] px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="All">All Status</option>
+          <option value="Present">Present</option>
+          <option value="Absent">Absent</option>
+        </select>
+
+        
+        <button
+          onClick={() => setShowMarkModal(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Mark Attendance
+        </button>
+
+        
+        <button
+          onClick={handleExportAttendance}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <Download className="w-4 h-4" />
+          Export CSV
+        </button>
+      </>
+    )}
+  </div>
+</div>
+
       </div>
 
       {/* Attendance Table */}
