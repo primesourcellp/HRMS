@@ -28,6 +28,7 @@ const [documents, setDocuments] = useState({})
 const [searchTerm, setSearchTerm] = useState('') 
 const [statusFilter, setStatusFilter] = useState('All') 
 const [clientFilter, setClientFilter] = useState('All') 
+const [clients, setClients] = useState([]) 
 const [showModal, setShowModal] = useState(false) 
 const [showDocModal, setShowDocModal] = useState(false) 
 const [showViewModal, setShowViewModal] = useState(false) 
@@ -90,6 +91,18 @@ const [docFile, setDocFile] = useState(null)
 const userRole = localStorage.getItem('userRole') 
 useEffect(() => { 
 loadEmployees() 
+}, []) 
+useEffect(() => { 
+  let isMounted = true 
+  ;(async () => { 
+    try { 
+      const list = await api.getClients() 
+      if (isMounted) setClients(Array.isArray(list) ? list : []) 
+    } catch (e) { 
+      if (isMounted) setClients([]) 
+    } 
+  })() 
+  return () => { isMounted = false } 
 }, []) 
 // Update form data when editingEmployee changes 
 useEffect(() => { 
@@ -253,7 +266,7 @@ const filteredEmployees = (Array.isArray(employees) ? employees : []).filter(emp
     emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
     emp.department?.toLowerCase().includes(searchTerm.toLowerCase());
   const matchesStatus = statusFilter === 'All' || emp.employeeStatus === statusFilter;
-  const matchesClient = clientFilter === 'All' || emp.client === clientFilter;
+  const matchesClient = clientFilter === 'All' || (clientFilter === 'Unassigned' ? !emp.client : emp.client === clientFilter);
   return matchesSearch && matchesStatus && matchesClient;
 })
 // Format date to DD/MM/YYYY
@@ -934,9 +947,10 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
   className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
 > 
   <option value="All">All Clients</option>
-  <option value="IBM">IBM</option>
-  <option value="KITCO">KITCO</option>
-  <option value="BORDERLESS">BORDERLESS</option>
+  
+  {clients.map((c) => (
+    <option key={c} value={c}>{c}</option>
+  ))}
 </select>
 <button 
   onClick={() => handleOpenModal()} 
@@ -1277,6 +1291,7 @@ required
 <div>
   <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
   <input
+    list="client-list"
     type="text"
     value={formData.client}
     onChange={(e) =>setFormData({ ...formData, client: e.target.value })}
@@ -1284,6 +1299,11 @@ required
     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
     required
   />
+  <datalist id="client-list">
+    {clients.map((c) => (
+      <option key={c} value={c} />
+    ))}
+  </datalist>
 </div>
 
 <div> 

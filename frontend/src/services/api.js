@@ -449,6 +449,39 @@ const api = {
     }
   },
 
+  // Clients
+  getClients: async () => {
+    // Try dedicated endpoint, then fallback to deriving from employees
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/clients`)
+      if (response.ok) {
+        const data = await response.json()
+        let list = []
+        if (Array.isArray(data)) {
+          if (data.length === 0) list = []
+          else if (typeof data[0] === 'string') list = data
+          else list = data.map(c => c?.name || c?.client || c?.title || '').filter(Boolean)
+        } else if (data && Array.isArray(data.data)) {
+          list = data.data.map(c => (typeof c === 'string' ? c : (c?.name || c?.client || ''))).filter(Boolean)
+        }
+        list = Array.from(new Set(list.map(v => (typeof v === 'string' ? v.trim() : v)).filter(Boolean))).sort()
+        return list
+      }
+    } catch (err) {
+      // Ignore and use fallback
+      console.warn('getClients: clients endpoint failed or unavailable, falling back to derive from employees', err)
+    }
+    // Fallback: derive from employees
+    try {
+      const employees = await api.getEmployees()
+      const list = Array.from(new Set((Array.isArray(employees) ? employees : []).map(e => e?.client).filter(Boolean))).sort()
+      return list
+    } catch (e) {
+      console.error('getClients fallback failed:', e)
+      return []
+    }
+  },
+
   // ... rest of the file remains unchanged (attendance, leaves, payrolls, docs, etc.)
   // For brevity we keep the rest of the previously working methods but with the
   // same approach (check response.ok, read body for errors and throw where needed).
