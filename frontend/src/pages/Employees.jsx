@@ -872,54 +872,8 @@ return (
 ); 
 } 
     
-// Calculate employee counts by client
-const getEmployeeCountsByClient = () => {
-  const counts = { 'Total': employees.length };
-  
-  employees.forEach(emp => {
-    const client = emp.client || 'Unassigned';
-    counts[client] = (counts[client] || 0) + 1;
-  });
-  
-  return counts;
-};
-
-const employeeCounts = getEmployeeCountsByClient();
-const activeClients = Object.keys(employeeCounts).filter(key => key !== 'Total');
-
 return ( 
 <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
-{/* Client Cards Section */}
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-  {/* Total Employees Card */}
-  <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-gray-500">Total Employees</p>
-        <p className="text-2xl font-bold text-gray-900">{employeeCounts['Total'] || 0}</p>
-      </div>
-      <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-        <User size={24} />
-      </div>
-    </div>
-  </div>
-
-  {/* Client Cards */}
-  {activeClients.map(client => (
-    <div key={client} className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-500">{client}</p>
-          <p className="text-2xl font-bold text-gray-900">{employeeCounts[client] || 0}</p>
-        </div>
-        <div className="p-3 rounded-full bg-green-100 text-green-600">
-          <Shield size={24} />
-        </div>
-      </div>
-    </div>
-  ))}
-</div>
-
 {/* Search and Filters - Redesigned */} 
 <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200"> 
 <div className="flex gap-4"> 
