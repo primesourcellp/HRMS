@@ -2,7 +2,11 @@ package com.hrms.repository;
 
 import com.hrms.entity.ShiftChangeRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -20,5 +24,10 @@ public interface ShiftChangeRequestRepository extends JpaRepository<ShiftChangeR
     
     // Find pending requests for an employee
     List<ShiftChangeRequest> findByEmployeeIdAndStatus(Long employeeId, ShiftChangeRequest.RequestStatus status);
+    
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM ShiftChangeRequest scr WHERE scr.employeeId = :employeeId")
+    void deleteByEmployeeId(@Param("employeeId") Long employeeId);
 }
 

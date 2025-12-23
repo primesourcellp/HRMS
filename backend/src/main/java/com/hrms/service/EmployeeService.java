@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.lang.NonNull;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -12,12 +13,48 @@ import com.hrms.entity.Employee;
 import com.hrms.entity.WorkExperience;
 import com.hrms.entity.EducationDetail;
 import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.AttendanceRepository;
+import com.hrms.repository.PayrollRepository;
+import com.hrms.repository.LeaveRepository;
+import com.hrms.repository.PerformanceRepository;
+import com.hrms.repository.SalaryStructureRepository;
+import com.hrms.repository.LeaveBalanceRepository;
+import com.hrms.repository.ShiftChangeRequestRepository;
+import com.hrms.repository.EmployeeDocumentRepository;
+import com.hrms.repository.HRTicketRepository;
 
 @Service
 public class EmployeeService {
 
     @Autowired
     private EmployeeRepository employeeRepository;
+
+    @Autowired
+    private AttendanceRepository attendanceRepository;
+
+    @Autowired
+    private PayrollRepository payrollRepository;
+
+    @Autowired
+    private LeaveRepository leaveRepository;
+
+    @Autowired
+    private PerformanceRepository performanceRepository;
+
+    @Autowired
+    private SalaryStructureRepository salaryStructureRepository;
+
+    @Autowired
+    private LeaveBalanceRepository leaveBalanceRepository;
+
+    @Autowired
+    private ShiftChangeRequestRepository shiftChangeRequestRepository;
+
+    @Autowired
+    private EmployeeDocumentRepository employeeDocumentRepository;
+
+    @Autowired
+    private HRTicketRepository hrTicketRepository;
 
     // -------------------- GET ALL EMPLOYEES --------------------
     public List<Employee> getAllEmployees() {
@@ -234,8 +271,49 @@ public class EmployeeService {
     }
 
     // -------------------- DELETE EMPLOYEE --------------------
+    @Transactional
     public void deleteEmployee(long id) {
-        employeeRepository.deleteById(java.lang.Long.valueOf(id));
+        Long employeeId = java.lang.Long.valueOf(id);
+        
+        // Check if employee exists
+        if (!employeeRepository.existsById(employeeId)) {
+            throw new RuntimeException("Employee not found with id: " + id);
+        }
+        
+        // Delete all related records first to avoid foreign key constraint violations
+        try {
+            // Delete attendance records
+            attendanceRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete payroll records
+            payrollRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete leave records
+            leaveRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete performance records
+            performanceRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete salary structure records
+            salaryStructureRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete leave balance records
+            leaveBalanceRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete shift change requests
+            shiftChangeRequestRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete employee documents
+            employeeDocumentRepository.deleteByEmployeeId(employeeId);
+            
+            // Delete HR tickets
+            hrTicketRepository.deleteByEmployeeId(employeeId);
+            
+            // Finally, delete the employee
+            employeeRepository.deleteById(employeeId);
+        } catch (Exception e) {
+            throw new RuntimeException("Error deleting employee and related records: " + e.getMessage(), e);
+        }
     }
 
     // -------------------- SEARCH EMPLOYEES --------------------

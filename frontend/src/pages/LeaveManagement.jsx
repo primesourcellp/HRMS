@@ -491,7 +491,7 @@ const LeaveManagement = () => {
   }
 
   const getEmployeeName = (employeeId) => {
-    if (!employeeId && employeeId !== 0) return 'Unknown'
+    if (employeeId === null || employeeId === undefined) return 'Unknown'
     
     // Handle type conversion for comparison
     const empId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId
@@ -505,11 +505,21 @@ const LeaveManagement = () => {
       if (userName) return userName
     }
     
-    // Otherwise, try to find in employees array
+    // Otherwise, try to find in employees array - check both id and employeeId fields
     const employee = employees.find(emp => {
-      if (!emp || !emp.id) return false
-      const empIdNum = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
-      return empIdNum === empId
+      if (!emp) return false
+      // Check id field
+      if (emp.id !== null && emp.id !== undefined) {
+        const empIdNum = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+        if (!isNaN(empIdNum) && empIdNum === empId) return true
+      }
+      // Check employeeId field as fallback
+      if (emp.employeeId !== null && emp.employeeId !== undefined) {
+        const empIdStr = String(emp.employeeId)
+        const empIdNum = parseInt(empIdStr)
+        if (!isNaN(empIdNum) && empIdNum === empId) return true
+      }
+      return false
     })
     
     if (!employee) {
@@ -519,12 +529,7 @@ const LeaveManagement = () => {
       return `Employee #${empId}`
     }
     
-    // Construct name from available fields
-    if (employee.name && employee.name.trim() && employee.name.trim() !== '') {
-      return employee.name.trim()
-    }
-    
-    // Fall back to firstName + lastName
+    // Prioritize firstName + lastName (most reliable)
     const firstName = (employee.firstName || '').trim()
     const lastName = (employee.lastName || '').trim()
     
@@ -534,7 +539,15 @@ const LeaveManagement = () => {
       return firstName
     } else if (lastName) {
       return lastName
-    } else if (employee.email) {
+    }
+    
+    // Fall back to name field if firstName/lastName not available
+    if (employee.name && employee.name.trim() && employee.name.trim() !== '') {
+      return employee.name.trim()
+    }
+    
+    // Additional fallbacks
+    if (employee.email) {
       return employee.email.split('@')[0] // Use email username as fallback
     } else if (employee.employeeId) {
       return `Employee ${employee.employeeId}` // Use employeeId as fallback
@@ -775,9 +788,14 @@ const LeaveManagement = () => {
               className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
             >
               <option value="All">All Employees</option>
-              {employees.map(emp => (
-                <option key={emp.id} value={emp.id.toString()}>{emp.name}</option>
-              ))}
+              {employees.map(emp => {
+                const employeeName = emp.firstName && emp.lastName 
+                  ? `${emp.firstName} ${emp.lastName}`.trim()
+                  : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                return (
+                  <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
+                )
+              })}
             </select>
           )}
           {isAdmin && (
@@ -1325,9 +1343,14 @@ const LeaveManagement = () => {
                       required
                     >
                       <option value="">Select Employee</option>
-                      {employees.map(emp => (
-                        <option key={emp.id} value={emp.id.toString()}>{emp.name}</option>
-                      ))}
+                      {employees.map(emp => {
+                        const employeeName = emp.firstName && emp.lastName 
+                          ? `${emp.firstName} ${emp.lastName}`.trim()
+                          : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                        return (
+                          <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
+                        )
+                      })}
                     </select>
                   </div>
                 )}
@@ -1570,9 +1593,14 @@ const LeaveManagement = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                       required
                     >
-                      {employees.map(emp => (
-                        <option key={emp.id} value={emp.id.toString()}>{emp.name}</option>
-                      ))}
+                      {employees.map(emp => {
+                        const employeeName = emp.firstName && emp.lastName 
+                          ? `${emp.firstName} ${emp.lastName}`.trim()
+                          : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                        return (
+                          <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
+                        )
+                      })}
                     </select>
                   </div>
                 )}
@@ -1816,9 +1844,14 @@ const LeaveManagement = () => {
                     required
                   >
                     <option value="">Select Employee</option>
-                    {employees.map(emp => (
-                      <option key={emp.id} value={emp.id.toString()}>{emp.name} ({emp.department})</option>
-                    ))}
+                    {employees.map(emp => {
+                      const employeeName = emp.firstName && emp.lastName 
+                        ? `${emp.firstName} ${emp.lastName}`.trim()
+                        : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                      return (
+                        <option key={emp.id} value={emp.id.toString()}>{employeeName} {emp.department ? `(${emp.department})` : ''}</option>
+                      )
+                    })}
                   </select>
                 </div>
                 <div>
