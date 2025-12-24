@@ -21,9 +21,15 @@ export const isAuthenticated = () => {
 export const verifyToken = async () => {
   try {
     const result = await api.verifyToken()
-    if (result.authenticated) {
-      // Update localStorage flag to match backend state
+    if (result.authenticated && result.user) {
+      // Update localStorage flag and restore user info from backend
       localStorage.setItem('isAuthenticated', 'true')
+      localStorage.setItem('userEmail', result.user.email || '')
+      localStorage.setItem('userRole', result.user.role || '')
+      localStorage.setItem('userId', result.user.id?.toString() || '')
+      localStorage.setItem('userType', result.user.userType || '')
+      // Note: name, department, and position are not returned by verify endpoint
+      // They will be restored when user navigates to pages that fetch full user info
       return true
     } else {
       // Token invalid - clear auth data

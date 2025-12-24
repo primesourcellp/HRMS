@@ -42,6 +42,7 @@ firstName: '',
 lastName: '',
 client: '', 
 email: '', 
+password: '', 
 role: '', 
 department: '', 
 location: '', 
@@ -90,8 +91,9 @@ description: ''
 const [docFile, setDocFile] = useState(null) 
 const userRole = localStorage.getItem('userRole') 
 useEffect(() => { 
-loadEmployees() 
+  loadEmployees() 
 }, []) 
+
 const loadClients = async () => {
   try {
     const list = await api.getClients()
@@ -110,14 +112,13 @@ useEffect(() => {
 if (showModal && editingEmployee) { 
 const formattedJoinDate = formatDateForInput(editingEmployee.dateOfJoining) 
 const formattedDateOfBirth = formatDateForInput(editingEmployee.dateOfBirth) 
-setFormData(prev => ({ 
-...prev, 
+setFormData({ 
 employeeId: editingEmployee.employeeId || '', 
 firstName: editingEmployee.firstName || '', 
 lastName: editingEmployee.lastName || '',
 client: editingEmployee.client || '', 
-
 email: editingEmployee.email || '', 
+password: '',  // Never show password when editing
 role: editingEmployee.role || '', 
 department: editingEmployee.department || '', 
 location: editingEmployee.location || '', 
@@ -156,19 +157,18 @@ permanentState: editingEmployee.permanentState || '',
 permanentPostalCode: editingEmployee.permanentPostalCode || '', 
 dateOfExit: formatDateForInput(editingEmployee.dateOfExit), 
 salary: editingEmployee.salary || '', 
-})) 
+}) 
 setWorkExperiences(editingEmployee.workExperiences || []) 
 setEducationDetails(editingEmployee.educationDetails || []) 
 } else if (showModal && !editingEmployee) { 
-// Ensure form is empty when adding new employee 
+// Ensure form is completely empty when adding new employee - DO NOT show admin email/password
 setFormData({ 
 employeeId: '', 
 firstName: '', 
 lastName: '',
 client: '', 
- 
-email: '', 
-password: '', 
+email: '',  // MUST be empty - never show admin email
+password: '',  // MUST be empty - never show admin password
 role: '', 
 department: '', 
 location: '', 
@@ -205,7 +205,7 @@ permanentCity: '',
 permanentCountry: '', 
 permanentState: '', 
 permanentPostalCode: '', 
-dateOfExit: '', 
+dateOfExit: '',
 salary: '', 
 
 }) 
@@ -475,16 +475,17 @@ setEducationDetails(employee.educationDetails || [])
 
 } 
 } else { 
-// Adding new employee - ensure all fields are empty 
+// Adding new employee - ensure all fields are empty, especially email and password
+// NEVER populate from localStorage - always start fresh
 setEditingEmployee(null) 
+// Explicitly reset formData to ensure no values persist
 setFormData({ 
 employeeId: '', 
 firstName: '', 
 lastName: '',
 client: '', 
-
-email: '', 
-password: '', 
+email: '',  // MUST be empty - never use admin email from localStorage
+password: '',  // MUST be empty - never use admin password
 role: '', 
 department: '', 
 location: '', 
@@ -535,9 +536,13 @@ const handleViewEmployee = async (employee) => {
 	try {
 		const full = await api.getEmployee(employee.id)
 		setSelectedEmployee(full || employee)
+		// Load documents for the employee
+		await loadDocuments(employee.id)
 	} catch (err) {
 		console.error('Error fetching full employee for view:', err)
 		setSelectedEmployee(employee)
+		// Still try to load documents even if employee fetch fails
+		await loadDocuments(employee.id)
 	} finally {
 		setShowViewModal(true)
 	}
@@ -698,28 +703,90 @@ alert('Error uploading document: ' + error.message)
 setLoading(false) 
 } 
 } 
-const handleDownloadDocument = async (docId, fileName) => { 
+const handleDownloadDocument = async (docId, fileName) => {
 try { 
-console.log('Downloading document:', docId) 
-// Use the API service method for consistency 
-const blob = await api.downloadDocument(docId) 
+console.log('Downloading document:', docId, fileName) 
+const downloadUrl = `${API_BASE_URL}/documents/${docId}/download`
+
+// Use direct fetch with proper error handling
+const response = await fetch(downloadUrl, {
+  method: 'GET',
+  credentials: 'include', // Include cookies for authentication
+  headers: {
+    'Accept': 'application/octet-stream, application/pdf, */*'
+  }
+})
+
+// Handle IDM interception (204 status) or other non-ok responses
+if (response.status === 204 || !response.ok) {
+  if (response.status === 204) {
+    alert('Download was intercepted by IDM (Internet Download Manager).\n\nPlease:\n1. Disable IDM browser integration temporarily\n2. Or add localhost to IDM exclusion list\n3. Or use incognito/private window')
+    return
+  }
+  const errorText = await response.text().catch(() => 'Unknown error')
+  throw new Error(`Failed to download document: ${response.status} ${response.statusText}`)
+}
+
+// Check if response has content
+const contentType = response.headers.get('content-type') || ''
+const contentLength = response.headers.get('content-length')
+
+// Get blob from response
+let blob
+try {
+  blob = await response.blob()
+} catch (blobError) {
+  console.error('Error creating blob:', blobError)
+  throw new Error('Failed to process document data')
+}
+
+if (!blob || blob.size === 0) {
+  alert('Document is empty or could not be downloaded.\n\nIf IDM is installed, it may be intercepting the download.\nTry disabling IDM browser integration.')
+  return
+}
+
+// Ensure filename has proper extension
+let finalFileName = fileName || 'document'
+if (!finalFileName.includes('.')) {
+  // Try to determine extension from content type
+  if (contentType.includes('pdf')) {
+    finalFileName += '.pdf'
+  } else if (contentType.includes('image')) {
+    finalFileName += '.jpg'
+  }
+}
+
+// Create blob URL and trigger download
 const url = window.URL.createObjectURL(blob) 
 const a = document.createElement('a') 
 a.href = url 
-a.download = fileName || 'document' 
+a.download = finalFileName
+a.setAttribute('download', finalFileName)
+a.style.display = 'none'
+a.style.visibility = 'hidden'
 document.body.appendChild(a) 
-a.click() 
-window.URL.revokeObjectURL(url) 
-document.body.removeChild(a) 
+
+// Trigger download with a small delay to ensure element is ready
+setTimeout(() => {
+  a.click()
+  
+  // Cleanup after a delay to ensure Chrome processes the download
+  setTimeout(() => {
+    if (document.body.contains(a)) {
+      document.body.removeChild(a)
+    }
+    window.URL.revokeObjectURL(url)
+  }, 500)
+}, 10)
 } catch (error) { 
 console.error('Download error:', error) 
 if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) { 
-alert('Cannot connect to server. Please ensure:\n1. Backend is running on http://localhost:8080\n2. Check browser console (F12) for CORS errors') 
+alert('Cannot connect to server. Please ensure:\n1. Backend is running on http://localhost:8080\n2. Check browser console (F12) for CORS errors\n3. Try refreshing the page') 
 } else { 
-alert('Error downloading document: ' + (error.message || 'Unknown error')) 
+alert('Error downloading document: ' + (error.message || 'Unknown error') + '\n\nIf IDM is installed, try disabling it temporarily.') 
 } 
 } 
-} 
+}
 const handleViewDocument = async (docId, fileName, event) => { 
 try { 
 console.log('Viewing document:', docId, fileName) 
@@ -730,110 +797,13 @@ button = event.target?.closest('button')
 if (button?.disabled) return 
 if (button) button.disabled = true 
 } 
-// Determine file type from filename 
-const fileExtension = fileName?.split('.').pop()?.toLowerCase() 
-const isPdf = fileExtension === 'pdf' 
-const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension || '') 
-// Use direct backend URL for viewing - simpler and more reliable 
-const viewUrl = `${API_BASE_URL}/documents/${docId}/download` 
-if (isPdf || isImage) { 
-// Open directly from backend URL - browser will handle the content type 
-const newWindow = window.open(viewUrl, '_blank') 
+// Use the view endpoint which returns inline disposition for viewing in browser
+const viewUrl = `${API_BASE_URL}/documents/${docId}/view`
+// Open directly from backend URL - browser will display it inline (PDFs/images will show in browser)
+const newWindow = window.open(viewUrl, '_blank')
 if (!newWindow) { 
-// Popup blocked - fall back to blob approach 
-console.log('Popup blocked, using blob approach') 
-const blob = await api.downloadDocument(docId) 
-let mimeType = 'application/octet-stream' 
-if (isPdf) { 
-mimeType = 'application/pdf' 
-} else if (fileExtension === 'jpg' || fileExtension === 'jpeg') { 
-mimeType = 'image/jpeg' 
-} else if (fileExtension === 'png') { 
-mimeType = 'image/png' 
-} else if (fileExtension === 'gif') { 
-mimeType = 'image/gif' 
-} else if (fileExtension === 'webp') { 
-mimeType = 'image/webp' 
-} 
-const typedBlob = new Blob([blob], { type: mimeType }) 
-const blobUrl = window.URL.createObjectURL(typedBlob) 
-// Create iframe in new window for PDFs 
-if (isPdf) { 
-const fallbackWindow = window.open('', '_blank') 
-if (fallbackWindow) { 
-fallbackWindow.document.write(` 
-<!DOCTYPE html> 
-<html> 
-<head> 
-<title>${fileName}</title> 
-<style> 
-body { margin: 0; padding: 0; overflow: hidden; } 
-iframe { width: 100%; height: 100vh; border: none; } 
-</style> 
-</head> 
-<body> 
-<iframe src="${blobUrl}"></iframe> 
-</body> 
-</html> 
-`) 
-fallbackWindow.document.close() 
-// Clean up when window closes 
-const checkClosed = setInterval(() => { 
-if (fallbackWindow.closed) { 
-window.URL.revokeObjectURL(blobUrl) 
-clearInterval(checkClosed) 
-} 
-}, 1000) 
-setTimeout(() => { 
-window.URL.revokeObjectURL(blobUrl) 
-clearInterval(checkClosed) 
-}, 600000) 
-} else { 
-// Last resort - download 
-const a = document.createElement('a') 
-a.href = blobUrl 
-a.download = fileName || 'document' 
-document.body.appendChild(a) 
-a.click() 
-document.body.removeChild(a) 
-setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000) 
-} 
-} else { 
-// For images, open blob URL 
-const imgWindow = window.open(blobUrl, '_blank') 
-if (imgWindow) { 
-const checkClosed = setInterval(() => { 
-if (imgWindow.closed) { 
-window.URL.revokeObjectURL(blobUrl) 
-clearInterval(checkClosed) 
-} 
-}, 1000) 
-setTimeout(() => { 
-window.URL.revokeObjectURL(blobUrl) 
-clearInterval(checkClosed) 
-}, 600000) 
-} else { 
-const a = document.createElement('a') 
-a.href = blobUrl 
-a.download = fileName || 'document' 
-document.body.appendChild(a) 
-a.click() 
-document.body.removeChild(a) 
-setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000) 
-} 
-} 
-} 
-} else { 
-// For other file types, download 
-const blob = await api.downloadDocument(docId) 
-const blobUrl = window.URL.createObjectURL(blob) 
-const a = document.createElement('a') 
-a.href = blobUrl 
-a.download = fileName || 'document' 
-document.body.appendChild(a) 
-a.click() 
-document.body.removeChild(a) 
-setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000) 
+// Popup blocked - show message
+alert('Please allow popups for this site to view documents, or use the download button instead.')
 } 
 // Re-enable button after a delay 
 if (button) { 
@@ -879,20 +849,20 @@ return (
 <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
 {/* Search and Filters - Redesigned */} 
 <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200"> 
-<div className="flex gap-4"> 
+<div className="flex gap-2"> 
           <div className="flex-1 relative">
             <input
               type="text"
               placeholder="Search employees..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
+              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
             />
           </div>
 <select 
 value={statusFilter} 
 onChange={(e) => setStatusFilter(e.target.value)} 
-className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium" 
+className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium" 
 > 
 <option value="All">All Status</option> 
 <option value="Active">Active</option> 
@@ -901,7 +871,7 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 <select 
   value={clientFilter} 
   onChange={(e) => setClientFilter(e.target.value)} 
-  className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
+  className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
 > 
   <option value="All">All Clients</option>
   
@@ -911,9 +881,9 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 </select>
 <button 
   onClick={() => handleOpenModal()} 
-  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold" 
+  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 font-semibold whitespace-nowrap" 
 > 
-  <Plus size={20} /> 
+  <Plus size={18} /> 
   Add Employee 
 </button> 
 </div> 
@@ -942,11 +912,11 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 </td> 
 <td className="px-6 py-4 whitespace-nowrap"> 
 	<div className="flex items-center"> 
-		<div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold mr-3 shadow-md"> 
+		{/* <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold mr-3 shadow-md"> 
 			{employee.firstName?.charAt(0) || 'E'} 
-		</div> 
+		</div>  */}
 		<div> 
-			<div className="text-sm font-bold text-gray-900">{employee.firstName} {employee.lastName}</div> 
+			<div className="text-sm font-bold text-gray-900 underline  cursor-pointer" 	onClick={() => handleViewEmployee(employee)} >{employee.firstName} {employee.lastName}</div> 
 			<div className="text-xs text-gray-500">ID: {employee.id}</div> 
 		</div> 
 	</div> 
@@ -980,13 +950,13 @@ className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring
 </td> 
 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium"> 
 <div className="flex items-center gap-2"> 
-	<button 
+	{/* <button 
 		onClick={() => handleViewEmployee(employee)} 
 		className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors" 
 		title="View Employee Details" 
 	> 
 		<Eye size={18} /> 
-	</button> 
+	</button>  */}
 	<button 
 		onClick={() => handleOpenModal(employee)} 
 		className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors" 
@@ -1046,7 +1016,7 @@ Add First Employee
 {/* Add/Edit Employee Modal - Redesigned */} 
 {showModal && ( 
 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
-<div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto"> 
+<div className="bg-white rounded-2xl shadow-2xl p-6 w-full border-2 border-gray-200 max-h-[90vh] overflow-y-auto"> 
 <div className="flex items-center justify-between mb-6"> 
 <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3"> 
 <Plus size={24} className="text-blue-600" /> 
@@ -1111,7 +1081,7 @@ className="text-gray-500 hover:text-gray-700"
 <span className="text-2xl">×</span> 
 </button> 
 </div> 
-<form onSubmit={handleSubmit} className="space-y-5"> 
+<form onSubmit={handleSubmit} className="space-y-5" autoComplete="off"> 
 {/* Basic Information */} 
 <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
 <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4> 
@@ -1149,16 +1119,33 @@ onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
 required 
 /> 
-</div> 
+</div>
 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label> 
+{/* Hidden dummy input to prevent browser autofill */}
+{!editingEmployee && (
+  <input
+    type="email"
+    name="fake-email"
+    autoComplete="off"
+    tabIndex={-1}
+    style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+    readOnly
+  />
+)}
 <input 
-type="email" 
-value={formData.email} 
+type="text" 
+name={`employee-email-${editingEmployee ? editingEmployee.id : 'new'}`}
+id={`employee-email-${editingEmployee ? editingEmployee.id : 'new'}`}
+key={`email-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
+value={formData.email || ''} 
 onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
 placeholder="Enter Email Address"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+autoComplete="off"
+data-lpignore="true"
+data-form-type="other"
 required 
 /> 
 </div>
@@ -1166,12 +1153,29 @@ required
 <label className="block text-sm font-semibold text-gray-700 mb-2">
   {editingEmployee ? 'New Password (leave blank to keep current)' : 'Password *'}
 </label>
+{/* Hidden dummy input to prevent browser autofill */}
+{!editingEmployee && (
+  <input
+    type="password"
+    name="fake-password"
+    autoComplete="off"
+    tabIndex={-1}
+    style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+    readOnly
+  />
+)}
 <input 
   type="password" 
+  name={`employee-password-${editingEmployee ? editingEmployee.id : 'new'}`}
+  id={`employee-password-${editingEmployee ? editingEmployee.id : 'new'}`}
+  key={`password-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
   value={formData.password || ''}
   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
   placeholder={editingEmployee ? 'Enter new password (optional)' : 'Enter password'}
   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  autoComplete="new-password"
+  data-lpignore="true"
+  data-form-type="other"
   required={!editingEmployee}
 />
 {editingEmployee && (
@@ -1179,7 +1183,7 @@ required
     Only enter a new password if you want to change it
   </p>
 )}
-</div> 
+</div>
 
 </div> 
 </div> 
@@ -1999,7 +2003,7 @@ title="Delete Document"
 {/* View Employee Details Modal */} 
 {showViewModal && selectedEmployee && ( 
 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
-<div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto"> 
+<div className="bg-white rounded-2xl shadow-2xl p-6 w-full border-2 border-gray-200 max-h-[90vh] overflow-y-auto"> 
 <div className="flex items-center justify-between mb-6"> 
 <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3"> 
 <Eye size={24} className="text-blue-600" /> 
@@ -2183,6 +2187,56 @@ className="text-gray-500 hover:text-gray-700"
 		</div>
 	</div>
 	)}
+	{/* Documents Section */}
+	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+			<FileText size={20} className="text-blue-600" />
+			Documents
+		</h4>
+		{documents[selectedEmployee.id] && documents[selectedEmployee.id].length > 0 ? (
+			<div className="space-y-3">
+				{documents[selectedEmployee.id].map((doc) => (
+					<div key={doc.id} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
+						<div className="flex items-center gap-3 flex-1">
+							<FileText className="text-blue-600" size={20} />
+							<div className="flex-1">
+								<p className="font-medium text-gray-900">{doc.fileName}</p>
+								<div className="flex items-center gap-3 mt-1">
+									<p className="text-sm text-gray-600">{doc.documentType}</p>
+									{doc.description && (
+										<span className="text-sm text-gray-500">• {doc.description}</span>
+									)}
+									<span className={`px-2 py-1 rounded text-xs font-medium ${
+										doc.verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+									}`}>
+										{doc.verified ? 'Verified' : 'Pending'}
+									</span>
+								</div>
+							</div>
+						</div>
+						<div className="flex items-center gap-2">
+							<button
+								onClick={(e) => handleViewDocument(doc.id, doc.fileName, e)}
+								className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+								title="View Document"
+							>
+								<Eye size={18} />
+							</button>
+							<button
+								onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
+								className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+								title="Download Document"
+							>
+								<Download size={18} />
+							</button>
+						</div>
+					</div>
+				))}
+			</div>
+		) : (
+			<p className="text-center text-gray-500 py-4">No documents uploaded</p>
+		)}
+	</div>
 {/* Action Buttons */} 
 <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200"> 
 <button 

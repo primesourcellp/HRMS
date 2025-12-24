@@ -797,13 +797,45 @@ const api = {
   downloadDocument: async (id) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/documents/${id}/download`)
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error')
-        throw new Error(`Failed to download document: ${response.status} ${response.statusText}`)
+      
+      // Check if response is a network error (fake response from fetchWithAuth catch block)
+      if (response.status === 0 || !response.ok) {
+        // Try to get error message
+        let errorMessage = 'Unknown error'
+        try {
+          if (response.text) {
+            const text = await response.text()
+            errorMessage = text || `Failed to download document: ${response.status} ${response.statusText}`
+          } else {
+            errorMessage = `Failed to download document: ${response.status} ${response.statusText}`
+          }
+        } catch (e) {
+          errorMessage = 'Network error: Backend server may not be running or there is a network issue'
+        }
+        throw new Error(errorMessage)
       }
+      
+      // Check if response has blob method
+      if (typeof response.blob !== 'function') {
+        throw new Error('Response does not support blob conversion')
+      }
+      
       return await response.blob()
     } catch (error) {
       console.error('Download document API error:', error)
+      throw error
+    }
+  },
+  viewDocument: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/documents/${id}/view`)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error')
+        throw new Error(`Failed to view document: ${response.status} ${response.statusText}`)
+      }
+      return await response.blob()
+    } catch (error) {
+      console.error('View document API error:', error)
       throw error
     }
   },

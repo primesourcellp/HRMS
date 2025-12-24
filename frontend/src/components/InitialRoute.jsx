@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { isAuthenticated } from '../utils/auth'
+import { verifyToken } from '../utils/auth'
 
 const InitialRoute = () => {
   const navigate = useNavigate()
@@ -9,18 +9,22 @@ const InitialRoute = () => {
 
   useEffect(() => {
     const checkAndRedirect = async () => {
-      // Clear authentication on app start to force login every time
-      // This ensures users must login when starting the app fresh
-      localStorage.removeItem('isAuthenticated')
-      localStorage.removeItem('userEmail')
-      localStorage.removeItem('userName')
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userId')
-      localStorage.removeItem('userType')
-      localStorage.removeItem('employeeDepartment')
-      localStorage.removeItem('employeePosition')
+      // Always try to verify token first (HttpOnly cookies can't be checked from JS)
+      // This handles cases where localStorage is empty but cookies are still valid
+      try {
+        const valid = await verifyToken()
+        if (valid) {
+          // User is authenticated, redirect to dashboard
+          navigate('/dashboard', { replace: true })
+          setChecking(false)
+          return
+        }
+      } catch (err) {
+        console.error('Error verifying token:', err)
+        // Token invalid or network error, continue to check super admin
+      }
 
-      // Check if super admin exists to determine where to redirect
+      // If not authenticated, check if super admin exists to determine where to redirect
       try {
         const response = await api.checkSuperAdminExists()
         if (response.exists) {

@@ -339,95 +339,105 @@ const Performance = () => {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 bg-gray-50 p-3 sm:p-4 md:p-6 max-w-full overflow-x-hidden">
-      {/* Statistics Cards */}
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-gray-200">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
-          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <div className="text-sm text-blue-600 font-medium">Total Reviews</div>
-            <div className="text-2xl font-bold text-blue-800">{stats.total}</div>
-          </div>
-          <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-            <div className="text-sm text-green-600 font-medium">Avg Rating</div>
-            <div className="text-2xl font-bold text-green-800">{stats.averageRating}</div>
-          </div>
-          <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-            <div className="text-sm text-yellow-600 font-medium">Top Performers</div>
-            <div className="text-2xl font-bold text-yellow-800">{stats.topPerformers}</div>
-          </div>
-          <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-            <div className="text-sm text-purple-600 font-medium">Excellent (4.5+)</div>
-            <div className="text-2xl font-bold text-purple-800">{stats.excellent}</div>
-          </div>
-          <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
-            <div className="text-sm text-orange-600 font-medium">Needs Improvement</div>
-            <div className="text-2xl font-bold text-orange-800">{stats.needsImprovement}</div>
-          </div>
+    <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
+          <span className="block sm:inline">{successMessage}</span>
         </div>
+      )}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
 
-        {/* Filters and Search */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search reviews..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          {isAdmin && (
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="text-sm text-gray-600">Total Reviews</div>
+          <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="text-sm text-gray-600">Avg Rating</div>
+          <div className="text-2xl font-bold text-green-600">{stats.averageRating}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="text-sm text-gray-600">Top Performers</div>
+          <div className="text-2xl font-bold text-yellow-600">{stats.topPerformers}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="text-sm text-gray-600">Excellent (4.5+)</div>
+          <div className="text-2xl font-bold text-purple-600">{stats.excellent}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="text-sm text-gray-600">Needs Improvement</div>
+          <div className="text-2xl font-bold text-orange-600">{stats.needsImprovement}</div>
+        </div>
+      </div>
+
+      {/* Filters and Search */}
+      <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex flex-1 items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:flex-initial">
+              <input
+                type="text"
+                placeholder="Search reviews..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg w-full md:w-96 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {isAdmin && (
+              <select
+                value={employeeFilter}
+                onChange={(e) => setEmployeeFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="All">All Employees</option>
+                {employees.map((emp) => {
+                  const employeeName = emp.firstName && emp.lastName 
+                    ? `${emp.firstName} ${emp.lastName}`.trim()
+                    : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                  return (
+                    <option key={emp.id} value={emp.id.toString()}>
+                      {employeeName}
+                    </option>
+                  )
+                })}
+              </select>
+            )}
             <select
-              value={employeeFilter}
-              onChange={(e) => setEmployeeFilter(e.target.value)}
-              className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              value={ratingFilter}
+              onChange={(e) => setRatingFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="All">All Employees</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id.toString()}>
-                  {emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim()}
+              <option value="All">All Ratings</option>
+              <option value="5">5 Stars</option>
+              <option value="4">4 Stars</option>
+              <option value="3">3 Stars</option>
+              <option value="2">2 Stars</option>
+              <option value="1">1 Star</option>
+            </select>
+            <select
+              value={periodFilter}
+              onChange={(e) => setPeriodFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="All">All Periods</option>
+              {uniquePeriods.map((period) => (
+                <option key={period} value={period}>
+                  {period}
                 </option>
               ))}
             </select>
-          )}
-          <select
-            value={ratingFilter}
-            onChange={(e) => setRatingFilter(e.target.value)}
-            className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-          >
-            <option value="All">All Ratings</option>
-            <option value="5">5 Stars</option>
-            <option value="4">4 Stars</option>
-            <option value="3">3 Stars</option>
-            <option value="2">2 Stars</option>
-            <option value="1">1 Star</option>
-          </select>
-          <select
-            value={periodFilter}
-            onChange={(e) => setPeriodFilter(e.target.value)}
-            className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-          >
-            <option value="All">All Periods</option>
-            {uniquePeriods.map((period) => (
-              <option key={period} value={period}>
-                {period}
-              </option>
-            ))}
-          </select>
-          {isAdmin && (
-            <button
-              onClick={() => handleOpenPerformanceModal()}
-              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-            >
-              <Plus size={18} />
-              Create Review
-            </button>
-          )}
+          </div>
           <div className="flex gap-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="reviewDate">Sort by Date</option>
               <option value="rating">Sort by Rating</option>
@@ -436,7 +446,7 @@ const Performance = () => {
             </select>
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 flex items-center gap-2"
               title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
             >
               <ArrowUpDown size={18} />
@@ -444,18 +454,6 @@ const Performance = () => {
           </div>
         </div>
       </div>
-
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative">
-          <span className="block sm:inline">{successMessage}</span>
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
 
       {/* Charts Row */}
       {allPerformances.length > 0 && (
@@ -524,10 +522,21 @@ const Performance = () => {
       {/* Performance Reviews Table */}
       <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden">
         <div className="p-6 border-b-2 border-gray-200 bg-gray-50">
-          <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
-            <Target size={24} className="text-blue-600" />
-            Performance Reviews ({performances.length})
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
+              <Target size={24} className="text-blue-600" />
+              Performance Reviews ({performances.length})
+            </h3>
+            {isAdmin && (
+              <button
+                onClick={() => handleOpenPerformanceModal()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              >
+                <Plus size={20} />
+                Create Review
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

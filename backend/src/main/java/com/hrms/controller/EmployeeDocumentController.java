@@ -3,12 +3,14 @@ package com.hrms.controller;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,8 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.lang.NonNull;
-import java.util.Objects;
 
 import com.hrms.entity.EmployeeDocument;
 import com.hrms.service.EmployeeDocumentService;
@@ -101,16 +101,8 @@ public class EmployeeDocumentController {
             String encodedFileName = java.net.URLEncoder.encode(fileName, java.nio.charset.StandardCharsets.UTF_8)
                     .replace("+", "%20");
             
-            // For PDFs and images, use inline to view in browser; for others, use attachment to download
-            String fileNameExtension = fileName.toLowerCase();
-            boolean isViewable = fileNameExtension.endsWith(".pdf") || 
-                                fileNameExtension.endsWith(".jpg") || 
-                                fileNameExtension.endsWith(".jpeg") || 
-                                fileNameExtension.endsWith(".png") || 
-                                fileNameExtension.endsWith(".gif") || 
-                                fileNameExtension.endsWith(".webp");
-            
-            String disposition = isViewable ? "inline" : "attachment";
+            // Always use attachment for download endpoint to force download instead of inline display
+            String disposition = "attachment";
             // Set Content-Disposition header only once with proper encoding
             // Escape quotes in filename
             String safeFileName = fileName.replace("\"", "\\\"")
@@ -119,6 +111,17 @@ public class EmployeeDocumentController {
             String contentDisposition = disposition + "; filename=\"" + safeFileName + "\"; filename*=UTF-8''" + encodedFileName;
             headers.set("Content-Disposition", contentDisposition);
             
+            // Set Content-Length header for proper download handling
+            headers.setContentLength(fileContent.length);
+            
+            // Add cache control headers to prevent caching issues
+            headers.setCacheControl("no-cache, no-store, must-revalidate");
+            headers.setPragma("no-cache");
+            headers.setExpires(0);
+            
+            // Add additional headers to help with download
+            headers.set("X-Content-Type-Options", "nosniff");
+            
             System.out.println("Successfully prepared document for download: " + fileName + " (" + fileContent.length + " bytes)");
             return ResponseEntity.ok().headers(headers).body(fileContent);
         } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
@@ -126,6 +129,61 @@ public class EmployeeDocumentController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         } catch (Exception e) {
             System.err.println("Error downloading document ID: " + id + " - " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/{id}/view")
+    public ResponseEntity<byte[]> viewDocument(@PathVariable long id) {
+        try {
+            EmployeeDocument document = documentService.getDocumentById(Objects.requireNonNull(id));
+            if (document == null) {
+                System.err.println("Document not found for ID: " + id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
+            
+            System.out.println("Viewing document ID: " + id + ", File path: " + document.getFilePath());
+            byte[] fileContent = documentService.downloadDocument(Objects.requireNonNull(id));
+            if (fileContent == null || fileContent.length == 0) {
+                System.err.println("File content is empty for document ID: " + id + ", File path: " + document.getFilePath());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
+            
+            HttpHeaders headers = new HttpHeaders();
+            
+            // Set proper content type based on file mime type
+            String mimeType = document.getMimeType();
+            if (mimeType != null && !mimeType.isEmpty()) {
+                try {
+                    headers.setContentType(MediaType.parseMediaType(mimeType));
+                } catch (Exception e) {
+                    // Fallback to application/octet-stream if mime type is invalid
+                    headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+                }
+            } else {
+                headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            }
+            
+            // Use inline disposition for viewing in browser
+            String disposition = "inline";
+            String fileName = document.getFileName();
+            String safeFileName = fileName.replace("\"", "\\\"")
+                                         .replace("\n", "")
+                                         .replace("\r", "");
+            String contentDisposition = disposition + "; filename=\"" + safeFileName + "\"";
+            headers.set("Content-Disposition", contentDisposition);
+            
+            // Set Content-Length header
+            headers.setContentLength(fileContent.length);
+            
+            System.out.println("Successfully prepared document for viewing: " + fileName + " (" + fileContent.length + " bytes)");
+            return ResponseEntity.ok().headers(headers).body(fileContent);
+        } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
+            System.err.println("File not found for document ID: " + id + " - " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (Exception e) {
+            System.err.println("Error viewing document ID: " + id + " - " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }

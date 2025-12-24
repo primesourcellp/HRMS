@@ -751,30 +751,30 @@ const LeaveManagement = () => {
     <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
       {/* Header Section */}
       {/* Search and Filters - Redesigned */}
-      <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+      <div className="bg-white rounded-xl shadow-md p-2 border border-gray-200">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex-1 relative min-w-[200px]">
             <input
               type="text"
               placeholder="Search by employee, leave type, reason, date, status, or days..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
+              className="w-full px-3 pr-10 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors text-sm"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 title="Clear search"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             )}
           </div>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black font-medium"
+            className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black font-medium text-sm"
           >
             <option value="All">All Leaves</option>
             <option value="PENDING">Pending</option>
@@ -785,7 +785,7 @@ const LeaveManagement = () => {
             <select
               value={employeeFilter}
               onChange={(e) => setEmployeeFilter(e.target.value)}
-              className="px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
+              className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium text-sm"
             >
               <option value="All">All Employees</option>
               {employees.map(emp => {
@@ -801,7 +801,7 @@ const LeaveManagement = () => {
           {isAdmin && (
             <button
               onClick={() => handleOpenLeaveTypeModal()}
-              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 font-semibold text-sm whitespace-nowrap"
             >
               <Plus size={18} />
               Add Leave Type
@@ -831,9 +831,9 @@ const LeaveManagement = () => {
                 }
                 setShowModal(true)
               }}
-              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 font-semibold text-sm whitespace-nowrap"
             >
-              <Calendar size={20} />
+              <Calendar size={18} />
               Apply Leave
             </button>
           )}
