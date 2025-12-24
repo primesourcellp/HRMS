@@ -92,18 +92,19 @@ const userRole = localStorage.getItem('userRole')
 useEffect(() => { 
 loadEmployees() 
 }, []) 
-useEffect(() => { 
-  let isMounted = true 
-  ;(async () => { 
-    try { 
-      const list = await api.getClients() 
-      if (isMounted) setClients(Array.isArray(list) ? list : []) 
-    } catch (e) { 
-      if (isMounted) setClients([]) 
-    } 
-  })() 
-  return () => { isMounted = false } 
-}, []) 
+const loadClients = async () => {
+  try {
+    const list = await api.getClients()
+    setClients(Array.isArray(list) ? list : [])
+  } catch (e) {
+    console.error('Error loading clients:', e)
+    setClients([])
+  }
+}
+
+useEffect(() => {
+  loadClients()
+}, [])
 // Update form data when editingEmployee changes 
 useEffect(() => { 
 if (showModal && editingEmployee) { 
@@ -600,9 +601,11 @@ if (!employeeData.status || employeeData.status.trim() === '') {
 
 try { 
 if (editingEmployee) { 
-await api.updateEmployee(editingEmployee.id, employeeData, userRole) 
+  await api.updateEmployee(editingEmployee.id, employeeData, userRole) 
 } else { 
-await api.createEmployee(employeeData, userRole) 
+  await api.createEmployee(employeeData, userRole) 
+  // Refresh client list after adding new employee
+  await loadClients()
 } 
 await loadEmployees() 
 setShowModal(false) 
@@ -1114,13 +1117,13 @@ className="text-gray-500 hover:text-gray-700"
 <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
 <div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Employee ID *</label> 
+<label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label> 
 <input 
 type="text" 
 value={formData.employeeId} 
 onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })} 
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
- placeholder="Enter Employee ID "
+ 
 required 
 readOnly={editingEmployee ? true : false} // Employee ID read-only when editing 
 /> 
@@ -2022,7 +2025,7 @@ className="text-gray-500 hover:text-gray-700"
 		<div className="grid grid-cols-2 gap-4"> 
 			<div> 
 				<p className="text-sm text-gray-600 mb-1">Employee ID</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.employeeId || selectedEmployee.id}</p> 
+				<p className="text-base font-semibold text-gray-900">{selectedEmployee.id || selectedEmployee.employeeId || 'N/A'}</p> 
 			</div> 
 			<div> 
 				<p className="text-sm text-gray-600 mb-1">Name</p> 
