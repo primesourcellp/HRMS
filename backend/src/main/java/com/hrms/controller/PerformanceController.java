@@ -1,6 +1,7 @@
 package com.hrms.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -86,6 +87,19 @@ public class PerformanceController {
             errorResponse.put("error", "Failed to delete performance review");
             errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
+    }
+
+    @GetMapping("/goal-progress/{employeeId}")
+    public ResponseEntity<Map<String, Object>> getGoalProgressAnalytics(@PathVariable Long employeeId) {
+        try {
+            Map<String, Object> analytics = performanceService.getGoalProgressAnalytics(employeeId);
+            return ResponseEntity.ok(analytics);
+        } catch (Exception e) {
+            java.util.Map<String, Object> errorResponse = new java.util.HashMap<>();
+            errorResponse.put("error", "Failed to fetch goal progress analytics");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 }

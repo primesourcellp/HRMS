@@ -12,6 +12,8 @@ public class PerformanceDTO {
     private String achievements;
     private String feedback;
     private String areasForImprovement;
+    private String goalProgress;
+    private Integer overallProgress;
 
     // Constructors
     public PerformanceDTO() {
@@ -19,7 +21,7 @@ public class PerformanceDTO {
 
     public PerformanceDTO(Long id, Long employeeId, LocalDate reviewDate, String period,
                          Integer rating, String goals, String achievements, String feedback,
-                         String areasForImprovement) {
+                         String areasForImprovement, String goalProgress, Integer overallProgress) {
         this.id = id;
         this.employeeId = employeeId;
         this.reviewDate = reviewDate;
@@ -29,6 +31,8 @@ public class PerformanceDTO {
         this.achievements = achievements;
         this.feedback = feedback;
         this.areasForImprovement = areasForImprovement;
+        this.goalProgress = goalProgress;
+        this.overallProgress = overallProgress;
     }
 
     // Getters and Setters
@@ -102,6 +106,22 @@ public class PerformanceDTO {
 
     public void setAreasForImprovement(String areasForImprovement) {
         this.areasForImprovement = areasForImprovement;
+    }
+
+    public String getGoalProgress() {
+        return goalProgress;
+    }
+
+    public void setGoalProgress(String goalProgress) {
+        this.goalProgress = goalProgress;
+    }
+
+    public Integer getOverallProgress() {
+        return overallProgress;
+    }
+
+    public void setOverallProgress(Integer overallProgress) {
+        this.overallProgress = overallProgress;
     }
 }
 

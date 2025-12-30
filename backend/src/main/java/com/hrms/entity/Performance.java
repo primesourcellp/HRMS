@@ -45,6 +45,12 @@ public class Performance {
     @Column(name = "areas_for_improvement", columnDefinition = "TEXT")
     private String areasForImprovement;
 
+    @Column(name = "goal_progress", columnDefinition = "TEXT")
+    private String goalProgress;
+
+    @Column(name = "overall_progress", nullable = false)
+    private Integer overallProgress;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
     @JsonIgnore
@@ -140,6 +146,22 @@ public class Performance {
 
     public void setAreasForImprovement(String areasForImprovement) {
         this.areasForImprovement = areasForImprovement;
+    }
+
+    public String getGoalProgress() {
+        return goalProgress;
+    }
+
+    public void setGoalProgress(String goalProgress) {
+        this.goalProgress = goalProgress;
+    }
+
+    public Integer getOverallProgress() {
+        return overallProgress;
+    }
+
+    public void setOverallProgress(Integer overallProgress) {
+        this.overallProgress = overallProgress;
     }
 
     public Employee getEmployee() {
