@@ -68,6 +68,28 @@ public class LeaveTypeController {
         }
     }
 
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<Map<String, Object>> updateLeaveTypeActive(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            if (!payload.containsKey("active")) {
+                response.put("success", false);
+                response.put("message", "Missing 'active' field in request body");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            Boolean active = Boolean.valueOf(String.valueOf(payload.get("active")));
+            LeaveType updated = leaveTypeService.updateActiveStatus(id, active);
+            response.put("success", true);
+            response.put("message", "Leave type status updated successfully");
+            response.put("leaveType", updated);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteLeaveType(@PathVariable Long id) {
         Map<String, Object> response = new HashMap<>();

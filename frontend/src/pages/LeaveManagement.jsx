@@ -39,6 +39,8 @@ const LeaveManagement = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [calculatedDays, setCalculatedDays] = useState(0)
+  // When true, the Leave Types table is visible; turn OFF to hide the table
+  const [showLeaveTypes, setShowLeaveTypes] = useState(true)
   const [formData, setFormData] = useState({
     employeeId: '',
     leaveTypeId: '',
@@ -58,7 +60,7 @@ const LeaveManagement = () => {
 
   useEffect(() => {
     loadData()
-  }, [filter])
+  }, [filter, showLeaveTypes])
 
   useEffect(() => {
     // Auto-set employeeId for employees
@@ -95,6 +97,7 @@ const LeaveManagement = () => {
 
       const [typesData, allTypesData, employeesData, usersData] = await Promise.all([
         api.getActiveLeaveTypes(),
+        // Always fetch all leave types for admins (we control visibility via the switch)
         isAdmin ? api.getLeaveTypes() : Promise.resolve([]),
         // Load employees for admins, or load current employee's data for employees
         isAdmin ? api.getEmployees() : (isEmployee && currentUserId ? 
@@ -111,8 +114,7 @@ const LeaveManagement = () => {
       ])
       
       setLeaves(Array.isArray(leavesData) ? leavesData : [])
-      // For admin, load all leave types (including inactive) for management
-      // For employees, load only active leave types
+      // For admin, show all types (management view). For employees, show only active leave types.
       if (isAdmin) {
         setLeaveTypes(Array.isArray(allTypesData) ? allTypesData : [])
       } else {
@@ -710,6 +712,26 @@ const LeaveManagement = () => {
     }
   }
 
+  const handleToggleLeaveTypeActive = async (type) => {
+    const newActive = !type.active
+    setLoading(true)
+    try {
+      const res = await api.toggleLeaveTypeActive(type.id, newActive)
+      if (res && res.success) {
+        // Update the local row to reflect new active state
+        setLeaveTypes(prev => prev.map(t => (t.id === type.id ? (res.leaveType || { ...t, active: newActive }) : t)))
+        // Ensure server state is reflected
+        await loadData()
+      } else {
+        throw new Error(res?.message || 'Failed to update status')
+      }
+    } catch (error) {
+      alert('Error toggling leave type status: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const filteredLeaves = leaves.filter(leave => {
     // Search functionality
     const searchLower = searchTerm.toLowerCase().trim()
@@ -799,13 +821,28 @@ const LeaveManagement = () => {
             </select>
           )}
           {isAdmin && (
-            <button
-              onClick={() => handleOpenLeaveTypeModal()}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 font-semibold text-sm whitespace-nowrap"
-            >
-              <Plus size={18} />
-              Add Leave Type
-            </button>
+            <>
+              {/* Swipe-style ON/OFF toggle to control table visibility */}
+              <div className="flex items-center gap-3 mr-3">
+                <span className="text-sm text-gray-700">Leave Types</span>
+                <button
+                  onClick={() => setShowLeaveTypes(prev => !prev)}
+                  className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none ${showLeaveTypes ? 'bg-blue-600' : 'bg-gray-300'}`}
+                  aria-pressed={showLeaveTypes}
+                  title={showLeaveTypes ? 'Hide Leave Types' : 'Show Leave Types'}
+                >
+                  <span className={`transform transition-transform duration-200 h-5 w-5 bg-white rounded-full shadow ${showLeaveTypes ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <button
+                onClick={() => handleOpenLeaveTypeModal()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 font-semibold text-sm whitespace-nowrap"
+              >
+                <Plus size={18} />
+                Add Leave Type
+              </button>
+            </>
           )}
           {isEmployee && (
             <button
@@ -863,7 +900,7 @@ const LeaveManagement = () => {
       )}
 
       {/* Leave Types Table (Admin Only) */}
-      {isAdmin && leaveTypes.length > 0 && (
+      {isAdmin && showLeaveTypes && leaveTypes.length > 0 && (
         <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 overflow-hidden">
           <div className="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200">
             <h3 className="text-lg md:text-xl font-bold text-gray-800">Leave Types</h3>
@@ -926,6 +963,17 @@ const LeaveManagement = () => {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
+                        {/* Toggle active/inactive */}
+                        <label className="flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={!!type.active}
+                            onChange={() => handleToggleLeaveTypeActive(type)}
+                            className="form-checkbox h-4 w-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
+                            title={type.active ? 'Turn off' : 'Turn on'}
+                          />
+                          <span className="text-xs text-gray-600">{type.active ? 'On' : 'Off'}</span>
+                        </label>
                         <button
                           onClick={() => handleOpenLeaveTypeModal(type)}
                           className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"

@@ -1013,6 +1013,12 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(leaveType)
   }).then(res => res.json()),
+  // Toggle active/inactive for a leave type
+  toggleLeaveTypeActive: (id, active) => fetchWithAuth(`${API_BASE_URL}/leave-types/${id}/active`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active })
+  }).then(res => res.json()),
   deleteLeaveType: (id) => fetchWithAuth(`${API_BASE_URL}/leave-types/${id}`, { method: 'DELETE' }).then(res => res.json()),
 
   // Holidays

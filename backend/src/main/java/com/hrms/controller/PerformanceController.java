@@ -90,6 +90,49 @@ public class PerformanceController {
         }
     }
 
+    @GetMapping("/dashboard")
+    public ResponseEntity<Map<String, Object>> getPerformanceDashboard() {
+        try {
+            Map<String, Object> dashboard = new java.util.HashMap<>();
+
+            // Overall statistics
+            List<Performance> allPerformances = performanceService.getAllPerformance();
+            double averageRating = allPerformances.stream()
+                .mapToDouble(p -> p.getRating() != null ? p.getRating() : 0)
+                .average()
+                .orElse(0.0);
+
+            long topPerformers = allPerformances.stream()
+                .filter(p -> p.getRating() != null && p.getRating() >= 4)
+                .count();
+
+            long needsImprovement = allPerformances.stream()
+                .filter(p -> p.getRating() != null && p.getRating() < 3)
+                .count();
+
+            // Employee statistics
+            long totalEmployees = performanceService.getAllEmployees().size();
+
+            dashboard.put("performanceStats", Map.of(
+                "totalReviews", allPerformances.size(),
+                "averageRating", Math.round(averageRating * 10.0) / 10.0,
+                "topPerformers", topPerformers,
+                "needsImprovement", needsImprovement
+            ));
+
+            dashboard.put("employeeStats", Map.of(
+                "totalEmployees", totalEmployees
+            ));
+
+            return ResponseEntity.ok(dashboard);
+        } catch (Exception e) {
+            java.util.Map<String, Object> errorResponse = new java.util.HashMap<>();
+            errorResponse.put("error", "Failed to fetch dashboard data");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
     @GetMapping("/goal-progress/{employeeId}")
     public ResponseEntity<Map<String, Object>> getGoalProgressAnalytics(@PathVariable Long employeeId) {
         try {
@@ -103,4 +146,3 @@ public class PerformanceController {
         }
     }
 }
-

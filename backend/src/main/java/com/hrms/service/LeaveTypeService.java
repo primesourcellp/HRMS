@@ -31,15 +31,24 @@ public class LeaveTypeService {
         LeaveType leaveType = leaveTypeRepository.findById(java.util.Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("Leave type not found"));
 
-        leaveType.setName(leaveTypeDetails.getName());
-        leaveType.setCode(leaveTypeDetails.getCode());
-        leaveType.setDescription(leaveTypeDetails.getDescription());
-        leaveType.setMaxDays(leaveTypeDetails.getMaxDays());
-        leaveType.setCarryForward(leaveTypeDetails.getCarryForward());
-        leaveType.setMaxCarryForward(leaveTypeDetails.getMaxCarryForward());
-        leaveType.setActive(leaveTypeDetails.getActive());
+        // Update fields only if they are provided (to avoid overwriting with nulls for partial updates)
+        if (leaveTypeDetails.getName() != null) leaveType.setName(leaveTypeDetails.getName());
+        if (leaveTypeDetails.getCode() != null) leaveType.setCode(leaveTypeDetails.getCode());
+        if (leaveTypeDetails.getDescription() != null) leaveType.setDescription(leaveTypeDetails.getDescription());
+        if (leaveTypeDetails.getMaxDays() != null) leaveType.setMaxDays(leaveTypeDetails.getMaxDays());
+        if (leaveTypeDetails.getCarryForward() != null) leaveType.setCarryForward(leaveTypeDetails.getCarryForward());
+        if (leaveTypeDetails.getMaxCarryForward() != null) leaveType.setMaxCarryForward(leaveTypeDetails.getMaxCarryForward());
+        if (leaveTypeDetails.getActive() != null) leaveType.setActive(leaveTypeDetails.getActive());
 
         return leaveTypeRepository.save(java.util.Objects.requireNonNull(leaveType));
+    }
+
+    // Convenience method to update active status only
+    public LeaveType updateActiveStatus(@NonNull Long id, @NonNull Boolean active) {
+        LeaveType leaveType = leaveTypeRepository.findById(java.util.Objects.requireNonNull(id))
+                .orElseThrow(() -> new RuntimeException("Leave type not found"));
+        leaveType.setActive(active);
+        return leaveTypeRepository.save(leaveType);
     }
 
     public void deleteLeaveType(@NonNull Long id) {
