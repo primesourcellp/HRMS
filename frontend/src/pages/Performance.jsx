@@ -553,117 +553,6 @@ const Performance = () => {
                   </ResponsiveContainer>
                 </div>
                 
-                {/* Goal Progress Pie Chart */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
-                  <h4 className="text-lg font-semibold text-blue-700 mb-3">📊 Goal Progress Distribution</h4>
-                  <div className="flex items-center justify-between">
-                    <div className="w-48 h-48">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={(() => {
-                              // Calculate goal progress from all performances
-                              const allGoals = allPerformances.flatMap(p => 
-                                p.goals ? p.goals.split('\n').filter(g => g.trim()) : []
-                              )
-                              
-                              const completed = allGoals.filter(g => {
-                                const match = g.match(/(\d+)%|completed\s+(\d+)%/i)
-                                const percentage = match ? parseInt(match[1] || match[2]) : 0
-                                return percentage === 100
-                              }).length
-                              const inProgress = allGoals.filter(g => {
-                                const match = g.match(/(\d+)%|completed\s+(\d+)%/i)
-                                const percentage = match ? parseInt(match[1] || match[2]) : 0
-                                return percentage < 100
-                              }).length
-                              
-                              return [
-                                { name: 'Completed', value: completed, color: '#10b981' },
-                                { name: 'In Progress', value: inProgress, color: '#f59e0b' }
-                              ]
-                            })()}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={25}
-                            outerRadius={50}
-                            paddingAngle={2}
-                            dataKey="value"
-                          >
-                            {(() => {
-                              const data = (() => {
-                                const allGoals = allPerformances.flatMap(p => 
-                                  p.goals ? p.goals.split('\n').filter(g => g.trim()) : []
-                                )
-                                  
-                                const completed = allGoals.filter(g => {
-                                  const match = g.match(/(\d+)%|completed\s+(\d+)%/i)
-                                  const percentage = match ? parseInt(match[1] || match[2]) : 0
-                                  return percentage === 100
-                                }).length
-                                const inProgress = allGoals.filter(g => {
-                                  const match = g.match(/(\d+)%|completed\s+(\d+)%/i)
-                                  const percentage = match ? parseInt(match[1] || match[2]) : 0
-                                  return percentage < 100
-                                }).length
-                                  
-                                return [
-                                  { name: 'Completed', value: completed, color: '#10b981' },
-                                  { name: 'In Progress', value: inProgress, color: '#f59e0b' }
-                                ]
-                              })()
-                              
-                              return data.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))
-                            })()}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex-1 ml-4">
-                      <div className="space-y-2">
-                        {(() => {
-                          const data = (() => {
-                            const allGoals = allPerformances.flatMap(p => 
-                              p.goals ? p.goals.split('\n').filter(g => g.trim()) : []
-                            )
-                              
-                            const completed = allGoals.filter(g => {
-                              const match = g.match(/(\d+)%|completed\s+(\d+)%/i)
-                              const percentage = match ? parseInt(match[1] || match[2]) : 0
-                              return percentage === 100
-                            }).length
-                            const inProgress = allGoals.filter(g => {
-                              const match = g.match(/(\d+)%|completed\s+(\d+)%/i)
-                              const percentage = match ? parseInt(match[1] || match[2]) : 0
-                              return percentage < 100
-                            }).length
-                              
-                            return [
-                              { name: 'Completed', value: completed, color: '#10b981' },
-                              { name: 'In Progress', value: inProgress, color: '#f59e0b' }
-                            ]
-                          })()
-                           
-                          return data.map((item, index) => (
-                            <div key={index} className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <div 
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: item.color }}
-                                ></div>
-                                <span className="text-sm text-gray-600">{item.name}</span>
-                              </div>
-                              <span className="text-sm font-semibold text-gray-800">{item.value}</span>
-                            </div>
-                          ))
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -1107,23 +996,17 @@ const Performance = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Goals & Progress Tracking</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Goal Tracking</label>
                 <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs text-blue-700 font-medium mb-1">📊 Format for Progress Tracking:</p>
-                  <p className="text-xs text-blue-600">Add percentage to track progress visually:</p>
-                  <div className="mt-1 space-y-1 text-xs text-blue-600">
-                    <div>• Improve efficiency → 75% completed</div>
-                    <div>• Complete certification → 100%</div>
-                    <div>• Reduce response time → 45%</div>
-                    <div>• Learn new technology → 0%</div>
-                  </div>
+                  <p className="text-xs text-blue-700 font-medium mb-1">📌 Format:</p>
+                  <p className="text-xs text-blue-600">List goals, one per line. You may optionally include progress as a percentage.</p>
                 </div>
                 <textarea
                   value={performanceFormData.goals}
                   onChange={(e) => setPerformanceFormData({ ...performanceFormData, goals: e.target.value })}
                   className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows="4"
-                  placeholder="Enter goals with progress percentages:&#10;Improve client satisfaction → 85%&#10;Complete project management course → 60%&#10;Reduce bug resolution time → 90%&#10;Implement new testing framework → 30%"
+                  placeholder="Enter goals, one per line:&#10;Improve client satisfaction&#10;Complete project management course&#10;Reduce bug resolution time"
                 />
               </div>
               <div>
