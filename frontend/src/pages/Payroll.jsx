@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle } from 'lucide-react'
+import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye } from 'lucide-react'
 import api from '../services/api'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -12,6 +12,8 @@ const Payroll = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [showPayrollModal, setShowPayrollModal] = useState(false)
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [viewingPayroll, setViewingPayroll] = useState(null)
   const [editingPayroll, setEditingPayroll] = useState(null)
   const [processingBulk, setProcessingBulk] = useState(false)
   const [bulkProcessData, setBulkProcessData] = useState({
@@ -143,6 +145,19 @@ const Payroll = () => {
       setEditingPayroll(null)
     } catch (error) {
       alert('Error saving payroll: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleViewPayroll = async (payrollId) => {
+    try {
+      setLoading(true)
+      const payroll = await api.getPayrollById(payrollId)
+      setViewingPayroll(payroll)
+      setShowViewModal(true)
+    } catch (error) {
+      alert('Error loading payroll details: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -603,7 +618,14 @@ const Payroll = () => {
                           </button>
                           {isAdmin && (
                             <>
-                              {payroll.status === 'DRAFT' && (
+                              <button
+                                onClick={() => handleViewPayroll(payroll.id)}
+                                className="text-indigo-600 hover:text-indigo-800 p-1 sm:p-2 rounded-lg hover:bg-indigo-50 transition-colors"
+                                title="View Details"
+                              >
+                                <Eye size={16} />
+                              </button>
+                              {(payroll.status === 'DRAFT' || payroll.status === 'PENDING_APPROVAL') && (
                                 <>
                                   <button
                                     onClick={() => handleOpenPayrollModal(payroll)}
@@ -612,12 +634,21 @@ const Payroll = () => {
                                   >
                                     <Edit size={16} />
                                   </button>
+                                  {payroll.status === 'DRAFT' && (
+                                    <button
+                                      onClick={() => handleSubmitForApproval(payroll.id)}
+                                      className="text-yellow-600 hover:text-yellow-800 p-1 sm:p-2 rounded-lg hover:bg-yellow-50 transition-colors"
+                                      title="Submit for Approval"
+                                    >
+                                      <Send size={16} />
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => handleSubmitForApproval(payroll.id)}
-                                    className="text-yellow-600 hover:text-yellow-800 p-1 sm:p-2 rounded-lg hover:bg-yellow-50 transition-colors"
-                                    title="Submit for Approval"
+                                    onClick={() => handleDeletePayroll(payroll.id)}
+                                    className="text-red-600 hover:text-red-800 p-1 sm:p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                    title="Delete"
                                   >
-                                    <Send size={16} />
+                                    <Trash2 size={16} />
                                   </button>
                                 </>
                               )}
@@ -646,15 +677,6 @@ const Payroll = () => {
                                   title="Mark as Paid"
                                 >
                                   <CheckCircle size={16} />
-                                </button>
-                              )}
-                              {(payroll.status === 'DRAFT' || payroll.status === 'PENDING_APPROVAL') && (
-                                <button
-                                  onClick={() => handleDeletePayroll(payroll.id)}
-                                  className="text-red-600 hover:text-red-800 p-1 sm:p-2 rounded-lg hover:bg-red-50 transition-colors"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={16} />
                                 </button>
                               )}
                             </>
@@ -908,6 +930,136 @@ const Payroll = () => {
                   {processingBulk ? 'Processing...' : 'Process Payroll'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Payroll Modal */}
+      {showViewModal && viewingPayroll && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <DollarSign size={28} className="text-blue-600" />
+                Payroll Details
+              </h3>
+              <button
+                onClick={() => {
+                  setShowViewModal(false)
+                  setViewingPayroll(null)
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Employee Information */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Employee Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Employee</label>
+                    <p className="text-base text-gray-900">
+                      {employees.find(e => e.id === viewingPayroll.employeeId)?.name || 
+                       employees.find(e => e.id === viewingPayroll.employeeId)?.firstName + ' ' + 
+                       employees.find(e => e.id === viewingPayroll.employeeId)?.lastName || 
+                       `Employee ID: ${viewingPayroll.employeeId}`}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Month</label>
+                    <p className="text-base text-gray-900">{viewingPayroll.month || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Year</label>
+                    <p className="text-base text-gray-900">{viewingPayroll.year || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Salary Details */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Salary Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Base Salary</label>
+                    <p className="text-lg font-bold text-gray-900">₹{viewingPayroll.baseSalary?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Allowances</label>
+                    <p className="text-lg font-bold text-green-600">+₹{viewingPayroll.allowances?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Bonus</label>
+                    <p className="text-lg font-bold text-green-600">+₹{viewingPayroll.bonus?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Deductions</label>
+                    <p className="text-lg font-bold text-red-600">-₹{viewingPayroll.deductions?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Net Salary</label>
+                    <p className="text-2xl font-bold text-blue-600">
+                      ₹{viewingPayroll.netSalary?.toFixed(2) || viewingPayroll.amount?.toFixed(2) || '0.00'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Information */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Additional Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Status</label>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                      viewingPayroll.status === 'DRAFT' ? 'bg-gray-100 text-gray-800' :
+                      viewingPayroll.status === 'PENDING_APPROVAL' ? 'bg-yellow-100 text-yellow-800' :
+                      viewingPayroll.status === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
+                      viewingPayroll.status === 'FINALIZED' ? 'bg-green-100 text-green-800' :
+                      viewingPayroll.status === 'PAID' ? 'bg-purple-100 text-purple-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {viewingPayroll.status || 'DRAFT'}
+                    </span>
+                  </div>
+                  {viewingPayroll.notes && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-600 mb-1">Notes</label>
+                      <p className="text-base text-gray-900 bg-gray-50 p-3 rounded-lg">{viewingPayroll.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              {isAdmin && (viewingPayroll.status === 'DRAFT' || viewingPayroll.status === 'PENDING_APPROVAL') && (
+                <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false)
+                      handleOpenPayrollModal(viewingPayroll)
+                    }}
+                    className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all font-semibold"
+                  >
+                    <Edit size={20} />
+                    Edit Payroll
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false)
+                      handleDeletePayroll(viewingPayroll.id)
+                    }}
+                    className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all font-semibold"
+                  >
+                    <Trash2 size={20} />
+                    Delete Payroll
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

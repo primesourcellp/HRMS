@@ -39,7 +39,7 @@ const LeaveManagement = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [calculatedDays, setCalculatedDays] = useState(0)
-  // View toggle: 'applications' or 'types'
+  // View toggle: 'applications' or 'types' (only for admin)
   const [activeView, setActiveView] = useState('applications')
   const [formData, setFormData] = useState({
     employeeId: '',
@@ -808,21 +808,21 @@ const LeaveManagement = () => {
         </div>
       </div>
 
-      {/* Toggle Buttons for Leave Applications and Leave Types */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setActiveView('applications')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
-              activeView === 'applications'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Calendar size={20} />
-            Leave Applications
-          </button>
-          {isAdmin && (
+      {/* Toggle Buttons for Leave Applications and Leave Types - Admin Only */}
+      {isAdmin && (
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setActiveView('applications')}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+                activeView === 'applications'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Calendar size={20} />
+              Leave Applications
+            </button>
             <button
               onClick={() => setActiveView('types')}
               className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
@@ -834,9 +834,9 @@ const LeaveManagement = () => {
               <SettingsIcon size={20} />
               Leave Types
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Filters and Actions - Only show for Leave Applications view */}
       {activeView === 'applications' && (
@@ -844,92 +844,92 @@ const LeaveManagement = () => {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
             <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder="Search by employee, leave type, reason, date, status, or days..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+            <input
+              type="text"
+              placeholder="Search by employee, leave type, reason, date, status, or days..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  title="Clear search"
-                >
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Clear search"
+              >
                   <X size={18} />
-                </button>
-              )}
-            </div>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="All">All Leaves</option>
-              <option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
-            {isAdmin && (
-              <select
-                value={employeeFilter}
-                onChange={(e) => setEmployeeFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="All">All Employees</option>
-                {employees.map(emp => {
-                  const employeeName = emp.firstName && emp.lastName 
-                    ? `${emp.firstName} ${emp.lastName}`.trim()
-                    : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
-                  return (
-                    <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
-                  )
-                })}
-              </select>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => handleOpenLeaveTypeModal()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-              >
-                <Plus size={20} />
-                Add Leave Type
-              </button>
-            )}
-            {isEmployee && (
-              <button
-                onClick={async () => {
-                  resetForm()
-                  // Refresh balances before opening modal to ensure they're up to date
-                  if (currentUserId) {
-                    try {
-                      const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                      setLeaveBalances(Array.isArray(balances) ? balances : [])
-                      // If balances are empty or all 0, try to initialize
-                      const balancesArray = Array.isArray(balances) ? balances : []
-                      if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
-                        if (leaveTypes.length > 0) {
-                          await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                          const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                          setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
-                        }
-                      }
-                    } catch (error) {
-                      console.error('Error refreshing balances:', error)
-                    }
-                  }
-                  setShowModal(true)
-                }}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-              >
-                <Calendar size={20} />
-                Apply Leave
               </button>
             )}
           </div>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="All">All Leaves</option>
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+          {isAdmin && (
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="All">All Employees</option>
+              {employees.map(emp => {
+                const employeeName = emp.firstName && emp.lastName 
+                  ? `${emp.firstName} ${emp.lastName}`.trim()
+                  : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                return (
+                  <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
+                )
+              })}
+            </select>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => handleOpenLeaveTypeModal()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+            >
+                <Plus size={20} />
+              Add Leave Type
+            </button>
+          )}
+          {isEmployee && (
+            <button
+              onClick={async () => {
+                resetForm()
+                // Refresh balances before opening modal to ensure they're up to date
+                if (currentUserId) {
+                  try {
+                    const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                    setLeaveBalances(Array.isArray(balances) ? balances : [])
+                    // If balances are empty or all 0, try to initialize
+                    const balancesArray = Array.isArray(balances) ? balances : []
+                    if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
+                      if (leaveTypes.length > 0) {
+                        await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                        const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                        setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error refreshing balances:', error)
+                  }
+                }
+                setShowModal(true)
+              }}
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+            >
+                <Calendar size={20} />
+              Apply Leave
+            </button>
+          )}
         </div>
       </div>
+        </div>
       )}
 
       {/* Loading State - Only for Applications view */}
