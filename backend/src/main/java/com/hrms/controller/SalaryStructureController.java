@@ -19,6 +19,22 @@ public class SalaryStructureController {
     @Autowired
     private SalaryStructureService salaryStructureService;
 
+    @GetMapping
+    public ResponseEntity<List<SalaryStructure>> getAllSalaryStructures() {
+        try {
+            return ResponseEntity.ok(salaryStructureService.getAllSalaryStructures());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<SalaryStructure> getSalaryStructureById(@PathVariable Long id) {
+        return salaryStructureService.getSalaryStructureById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<SalaryStructure> getCurrentSalaryStructure(@PathVariable Long employeeId) {
         return salaryStructureService.getCurrentSalaryStructure(employeeId)

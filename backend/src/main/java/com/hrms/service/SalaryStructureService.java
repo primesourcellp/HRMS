@@ -84,6 +84,14 @@ public class SalaryStructureService {
         return salaryStructureRepository.findByEmployeeIdAndActiveTrue(java.util.Objects.requireNonNull(employeeId));
     }
 
+    public List<SalaryStructure> getAllSalaryStructures() {
+        return salaryStructureRepository.findAll();
+    }
+
+    public Optional<SalaryStructure> getSalaryStructureById(@NonNull Long id) {
+        return salaryStructureRepository.findById(java.util.Objects.requireNonNull(id));
+    }
+
     public List<SalaryStructure> getEmployeeSalaryHistory(@NonNull Long employeeId) {
         return salaryStructureRepository.findByEmployeeId(java.util.Objects.requireNonNull(employeeId));
     }

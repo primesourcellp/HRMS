@@ -1108,11 +1108,69 @@ const api = {
       return null
     }
   },
-  createSalaryStructure: (salaryStructure) => fetchWithAuth(`${API_BASE_URL}/salary-structures`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(salaryStructure)
-  }).then(res => res.json()),
+  getSalaryStructures: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/salary-structures`)
+      if (!response.ok) {
+        console.error('Salary Structure API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching salary structures:', error)
+      return []
+    }
+  },
+  getSalaryStructureById: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/salary-structures/${id}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch salary structure: ${response.status}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching salary structure by ID:', error)
+      throw error
+    }
+  },
+  createSalaryStructure: async (salaryStructure) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/salary-structures`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(salaryStructure)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating salary structure:', error)
+      return { success: false, message: error.message }
+    }
+  },
+  updateSalaryStructure: async (id, salaryStructure) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/salary-structures/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(salaryStructure)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating salary structure:', error)
+      return { success: false, message: error.message }
+    }
+  },
+  deleteSalaryStructure: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/salary-structures/${id}`, {
+        method: 'DELETE'
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error deleting salary structure:', error)
+      return { success: false, message: error.message }
+    }
+  },
 
   // HR Tickets
   getTickets: async () => {

@@ -5,16 +5,20 @@ import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 
 const Payroll = () => {
   const [payrolls, setPayrolls] = useState([])
+  const [salaryStructures, setSalaryStructures] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeView, setActiveView] = useState('salaryDetails') // 'salaryDetails' or 'processedPayrolls'
   const [showPayrollModal, setShowPayrollModal] = useState(false)
+  const [showSalaryModal, setShowSalaryModal] = useState(false)
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [viewingPayroll, setViewingPayroll] = useState(null)
   const [editingPayroll, setEditingPayroll] = useState(null)
+  const [editingSalary, setEditingSalary] = useState(null)
   const [processingBulk, setProcessingBulk] = useState(false)
   const [bulkProcessData, setBulkProcessData] = useState({
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -31,6 +35,21 @@ const Payroll = () => {
     notes: '',
     status: 'DRAFT'
   })
+  const [salaryFormData, setSalaryFormData] = useState({
+    employeeId: '',
+    basicSalary: 0,
+    hra: 0,
+    transportAllowance: 0,
+    medicalAllowance: 0,
+    specialAllowance: 0,
+    otherAllowances: 0,
+    pf: 0,
+    esi: 0,
+    tds: 0,
+    professionalTax: 0,
+    otherDeductions: 0,
+    effectiveFrom: format(new Date(), 'yyyy-MM-dd')
+  })
 
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
@@ -40,7 +59,7 @@ const Payroll = () => {
 
   useEffect(() => {
     loadData()
-  }, [selectedMonth, statusFilter])
+  }, [selectedMonth, statusFilter, activeView])
 
   const loadData = async () => {
     try {
@@ -53,12 +72,14 @@ const Payroll = () => {
         setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
       } else if (isAdmin) {
-        const [payrollsData, employeesData] = await Promise.all([
+        const [payrollsData, employeesData, salaryStructuresData] = await Promise.all([
           api.getPayrolls(),
-          api.getEmployees()
+          api.getEmployees(),
+          api.getSalaryStructures()
         ])
         setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
+        setSalaryStructures(Array.isArray(salaryStructuresData) ? salaryStructuresData : [])
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -305,6 +326,111 @@ const Payroll = () => {
     }
   }
 
+  // Salary Structure Handlers
+  const handleOpenSalaryModal = (salary = null) => {
+    if (salary) {
+      setEditingSalary(salary)
+      setSalaryFormData({
+        employeeId: salary.employeeId?.toString() || '',
+        basicSalary: salary.basicSalary || 0,
+        hra: salary.hra || 0,
+        transportAllowance: salary.transportAllowance || 0,
+        medicalAllowance: salary.medicalAllowance || 0,
+        specialAllowance: salary.specialAllowance || 0,
+        otherAllowances: salary.otherAllowances || 0,
+        pf: salary.pf || 0,
+        esi: salary.esi || 0,
+        tds: salary.tds || 0,
+        professionalTax: salary.professionalTax || 0,
+        otherDeductions: salary.otherDeductions || 0,
+        effectiveFrom: salary.effectiveFrom ? format(parseISO(salary.effectiveFrom), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+      })
+    } else {
+      setEditingSalary(null)
+      setSalaryFormData({
+        employeeId: '',
+        basicSalary: 0,
+        hra: 0,
+        transportAllowance: 0,
+        medicalAllowance: 0,
+        specialAllowance: 0,
+        otherAllowances: 0,
+        pf: 0,
+        esi: 0,
+        tds: 0,
+        professionalTax: 0,
+        otherDeductions: 0,
+        effectiveFrom: format(new Date(), 'yyyy-MM-dd')
+      })
+    }
+    setShowSalaryModal(true)
+  }
+
+  const handleSalarySubmit = async (e) => {
+    e.preventDefault()
+    try {
+      setLoading(true)
+      const salaryData = {
+        ...salaryFormData,
+        employeeId: parseInt(salaryFormData.employeeId),
+        basicSalary: parseFloat(salaryFormData.basicSalary) || 0,
+        hra: parseFloat(salaryFormData.hra) || 0,
+        transportAllowance: parseFloat(salaryFormData.transportAllowance) || 0,
+        medicalAllowance: parseFloat(salaryFormData.medicalAllowance) || 0,
+        specialAllowance: parseFloat(salaryFormData.specialAllowance) || 0,
+        otherAllowances: parseFloat(salaryFormData.otherAllowances) || 0,
+        pf: parseFloat(salaryFormData.pf) || 0,
+        esi: parseFloat(salaryFormData.esi) || 0,
+        tds: parseFloat(salaryFormData.tds) || 0,
+        professionalTax: parseFloat(salaryFormData.professionalTax) || 0,
+        otherDeductions: parseFloat(salaryFormData.otherDeductions) || 0,
+        effectiveFrom: salaryFormData.effectiveFrom
+      }
+
+      if (editingSalary) {
+        const result = await api.updateSalaryStructure(editingSalary.id, salaryData)
+        if (result.success) {
+          alert('Salary structure updated successfully')
+        } else {
+          alert('Error updating salary structure: ' + (result.message || 'Failed to update'))
+        }
+      } else {
+        const result = await api.createSalaryStructure(salaryData)
+        if (result.success) {
+          alert('Salary structure created successfully')
+        } else {
+          alert('Error creating salary structure: ' + (result.message || 'Failed to create'))
+        }
+      }
+      await loadData()
+      setShowSalaryModal(false)
+      setEditingSalary(null)
+    } catch (error) {
+      alert('Error saving salary structure: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteSalary = async (salaryId) => {
+    if (!window.confirm('Are you sure you want to delete this salary structure?')) return
+    
+    try {
+      setLoading(true)
+      const result = await api.deleteSalaryStructure(salaryId)
+      if (result.success) {
+        alert('Salary structure deleted successfully')
+        await loadData()
+      } else {
+        alert('Error deleting salary structure: ' + (result.message || 'Failed to delete'))
+      }
+    } catch (error) {
+      alert('Error deleting salary structure: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleExportCSV = () => {
     const csvData = filteredPayrolls.map(p => {
       const employee = employees.find(emp => emp.id === p.employeeId || emp.id === parseInt(p.employeeId))
@@ -382,8 +508,38 @@ const Payroll = () => {
 
   return (
     <div className="space-y-4 sm:space-y-5 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
-      {/* Statistics Cards */}
+      {/* Toggle Buttons for Salary Details and Processed Payrolls - Admin Only */}
       {isAdmin && (
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setActiveView('salaryDetails')}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+                activeView === 'salaryDetails'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <DollarSign size={20} />
+              Salary Details
+            </button>
+            <button
+              onClick={() => setActiveView('processedPayrolls')}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+                activeView === 'processedPayrolls'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <FileText size={20} />
+              Processed Payrolls
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Statistics Cards - Only for Processed Payrolls view */}
+      {isAdmin && activeView === 'processedPayrolls' && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 md:gap-4">
           <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
             <div className="flex items-center justify-between">
@@ -451,6 +607,143 @@ const Payroll = () => {
         </div>
       )}
 
+      {/* Salary Details View */}
+      {isAdmin && activeView === 'salaryDetails' && (
+        <>
+          {/* Filters and Actions for Salary Details */}
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by employee name or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Clear search"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleOpenSalaryModal()}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+                >
+                  <Plus size={20} />
+                  Add Salary Details
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Salary Details Table */}
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
+            <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gray-50">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
+                <DollarSign size={24} className="text-blue-600" />
+                Salary Details ({salaryStructures.filter(s => {
+                  if (!searchTerm) return true
+                  const emp = employees.find(e => e.id === s.employeeId)
+                  if (!emp) return false
+                  const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase()
+                  return fullName.includes(searchTerm.toLowerCase()) || 
+                         emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase())
+                }).length})
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">S.No</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Employee</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Basic Salary</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">HRA</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Allowances</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Deductions</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Gross Salary</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Net Salary</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Effective From</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider pr-8">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {salaryStructures.filter(s => {
+                    if (!searchTerm) return true
+                    const emp = employees.find(e => e.id === s.employeeId)
+                    if (!emp) return false
+                    const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase()
+                    return fullName.includes(searchTerm.toLowerCase()) || 
+                           emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase())
+                  }).map((salary, index) => {
+                    const employee = employees.find(emp => emp.id === salary.employeeId)
+                    const employeeName = employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : `Employee ${salary.employeeId}`
+                    const totalAllowances = (salary.transportAllowance || 0) + (salary.medicalAllowance || 0) + (salary.specialAllowance || 0) + (salary.otherAllowances || 0)
+                    const totalDeductions = (salary.pf || 0) + (salary.esi || 0) + (salary.tds || 0) + (salary.professionalTax || 0) + (salary.otherDeductions || 0)
+                    return (
+                      <tr key={salary.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{index + 1}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-semibold text-gray-900">{employeeName}</div>
+                          {employee?.employeeId && (
+                            <div className="text-xs text-gray-500">ID: {employee.employeeId}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{salary.basicSalary?.toFixed(2) || '0.00'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{salary.hra?.toFixed(2) || '0.00'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">₹{totalAllowances.toFixed(2)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold">₹{totalDeductions.toFixed(2)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-600">₹{salary.grossSalary?.toFixed(2) || '0.00'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₹{salary.netSalary?.toFixed(2) || '0.00'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {salary.effectiveFrom ? format(parseISO(salary.effectiveFrom), 'dd MMM yyyy') : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            salary.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {salary.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenSalaryModal(salary)}
+                              className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                              title="Edit"
+                            >
+                              <Edit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSalary(salary.id)}
+                              className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Processed Payrolls View - For both Admin and Employees */}
+      {(activeView === 'processedPayrolls' || isEmployee) && (
+        <>
       {/* Filters and Actions */}
       <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
         <div className="flex flex-col md:flex-row gap-4">
@@ -496,13 +789,6 @@ const Payroll = () => {
                   <option value="REJECTED">Rejected</option>
                 </select>
               </div>
-              <button
-                onClick={() => handleOpenPayrollModal()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-              >
-                <Plus size={20} />
-                Create Payroll
-              </button>
               <button
                 onClick={() => setShowBulkProcessModal(true)}
                 className="bg-green-600 text-white px-6 py-2 rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
@@ -691,6 +977,215 @@ const Payroll = () => {
           </table>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Create/Edit Salary Structure Modal */}
+      {showSalaryModal && isAdmin && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <DollarSign size={28} className="text-blue-600" />
+                {editingSalary ? 'Edit Salary Details' : 'Add Salary Details'}
+              </h3>
+              <button
+                onClick={() => setShowSalaryModal(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleSalarySubmit} className="space-y-5">
+              {/* Employee Information */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Employee Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
+                    <select
+                      value={salaryFormData.employeeId}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, employeeId: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      required
+                    >
+                      <option value="">Select Employee</option>
+                      {employees.map(emp => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.firstName} {emp.lastName} {emp.employeeId ? `(${emp.employeeId})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Effective From *</label>
+                    <input
+                      type="date"
+                      value={salaryFormData.effectiveFrom}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, effectiveFrom: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Salary Components */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Salary Components</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Basic Salary *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.basicSalary}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, basicSalary: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">HRA (House Rent Allowance)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.hra}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, hra: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Transport Allowance</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.transportAllowance}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, transportAllowance: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Allowance</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.medicalAllowance}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, medicalAllowance: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Special Allowance</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.specialAllowance}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, specialAllowance: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Other Allowances</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.otherAllowances}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, otherAllowances: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Deductions */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Deductions</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">PF (Provident Fund)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.pf}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, pf: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">ESI (Employee State Insurance)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.esi}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, esi: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">TDS (Tax Deducted at Source)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.tds}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, tds: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Professional Tax</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.professionalTax}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, professionalTax: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Other Deductions</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={salaryFormData.otherDeductions}
+                      onChange={(e) => setSalaryFormData({ ...salaryFormData, otherDeductions: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowSalaryModal(false)}
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                >
+                  {loading ? 'Saving...' : editingSalary ? 'Update Salary Details' : 'Create Salary Details'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Payroll Modal - Redesigned */}
       {showPayrollModal && isAdmin && (
