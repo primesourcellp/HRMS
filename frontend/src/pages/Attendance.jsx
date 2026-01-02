@@ -185,8 +185,14 @@ const Attendance = () => {
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault()
+    if (!selectedEmployee || !selectedEmployee.id) {
+      setError('Please select an employee')
+      setTimeout(() => setError(null), 5000)
+      return
+    }
     if (!markFormData.status) {
-      alert('Please select a status')
+      setError('Please select a status')
+      setTimeout(() => setError(null), 5000)
       return
     }
     
@@ -429,7 +435,21 @@ const Attendance = () => {
 
         
         <button
-          onClick={() => setShowMarkModal(true)}
+          onClick={async () => {
+            // Ensure employees are loaded before opening modal
+            if (employees.length === 0) {
+              try {
+                const empData = await api.getEmployees()
+                setEmployees(Array.isArray(empData) ? empData : [])
+              } catch (error) {
+                console.error('Error loading employees:', error)
+                setError('Failed to load employees')
+              }
+            }
+            setSelectedEmployee(null)
+            setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+            setShowMarkModal(true)
+          }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 whitespace-nowrap"
         >
           <CheckCircle className="w-4 h-4" />
@@ -588,23 +608,54 @@ const Attendance = () => {
             <form onSubmit={handleMarkAttendance}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
                   <select
-                    value={selectedEmployee?.id || ''}
+                    value={selectedEmployee?.id || selectedEmployee?.employeeId || ''}
                     onChange={(e) => {
-                      const emp = employees.find(e => e.id === parseInt(e.target.value))
-                      setSelectedEmployee(emp)
+                      const selectedId = e.target.value ? parseInt(e.target.value) : null
+                      if (!selectedId) {
+                        setSelectedEmployee(null)
+                        return
+                      }
+                      const emp = employees.find(emp => {
+                        const empId = emp.id || emp.employeeId
+                        return empId === selectedId || empId === selectedId.toString() || parseInt(empId) === selectedId
+                      })
+                      if (emp) {
+                        setSelectedEmployee(emp)
+                        setError(null) // Clear any previous errors
+                      } else {
+                        setSelectedEmployee(null)
+                        setError('Employee not found')
+                      }
                     }}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   >
                     <option value="">Select Employee</option>
-                    {employees.map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unknown'}
-                      </option>
-                    ))}
+                    {employees.length === 0 ? (
+                      <option value="" disabled>Loading employees...</option>
+                    ) : (
+                      employees
+                        .filter(emp => emp && (emp.id || emp.employeeId)) // Filter out invalid employees
+                        .map(emp => {
+                          const empId = emp.id || emp.employeeId
+                          const empName = emp.name || 
+                                         (emp.firstName && emp.lastName ? `${emp.firstName} ${emp.lastName}`.trim() : '') ||
+                                         emp.firstName || 
+                                         emp.lastName || 
+                                         `Employee ${empId}`
+                          return (
+                            <option key={empId} value={empId}>
+                              {empName} {emp.employeeId ? `(${emp.employeeId})` : ''}
+                            </option>
+                          )
+                        })
+                    )}
                   </select>
+                  {employees.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">No employees found. Please ensure employees are added to the system.</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>

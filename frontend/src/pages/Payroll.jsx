@@ -17,6 +17,8 @@ const Payroll = () => {
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [viewingPayroll, setViewingPayroll] = useState(null)
+  const [showViewSalaryModal, setShowViewSalaryModal] = useState(false)
+  const [viewingSalary, setViewingSalary] = useState(null)
   const [editingPayroll, setEditingPayroll] = useState(null)
   const [editingSalary, setEditingSalary] = useState(null)
   const [processingBulk, setProcessingBulk] = useState(false)
@@ -327,6 +329,11 @@ const Payroll = () => {
   }
 
   // Salary Structure Handlers
+  const handleViewSalary = (salary) => {
+    setViewingSalary(salary)
+    setShowViewSalaryModal(true)
+  }
+
   const handleOpenSalaryModal = (salary = null) => {
     if (salary) {
       setEditingSalary(salary)
@@ -716,6 +723,13 @@ const Payroll = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
                           <div className="flex items-center justify-end gap-2">
                             <button
+                              onClick={() => handleViewSalary(salary)}
+                              className="text-indigo-600 hover:text-indigo-800 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
+                              title="View Details"
+                            >
+                              <Eye size={18} />
+                            </button>
+                            <button
                               onClick={() => handleOpenSalaryModal(salary)}
                               className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
                               title="Edit"
@@ -820,10 +834,17 @@ const Payroll = () => {
       {/* Payroll Table */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200">
         <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gray-50">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
-            <DollarSign size={24} className="text-blue-600" />
-            Payroll Records ({filteredPayrolls.length})
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
+              <DollarSign size={24} className="text-blue-600" />
+              Payroll Records ({filteredPayrolls.length})
+            </h3>
+            {isAdmin && filteredPayrolls.length > 0 && (
+              <p className="text-xs text-gray-500">
+                Note: If values look incorrect, delete and use "Bulk Process" to recalculate from salary details
+              </p>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -1038,7 +1059,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Basic Salary *</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.basicSalary}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, basicSalary: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1050,7 +1071,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">HRA (House Rent Allowance)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.hra}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, hra: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1061,7 +1082,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Transport Allowance</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.transportAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, transportAllowance: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1072,7 +1093,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Allowance</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.medicalAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, medicalAllowance: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1083,7 +1104,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Special Allowance</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.specialAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, specialAllowance: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1094,7 +1115,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Other Allowances</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.otherAllowances}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, otherAllowances: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1112,7 +1133,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">PF (Provident Fund)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.pf}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, pf: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1123,7 +1144,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">ESI (Employee State Insurance)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.esi}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, esi: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1134,7 +1155,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">TDS (Tax Deducted at Source)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.tds}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, tds: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1145,7 +1166,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Professional Tax</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.professionalTax}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, professionalTax: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1156,7 +1177,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Other Deductions</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={salaryFormData.otherDeductions}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, otherDeductions: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1552,6 +1573,220 @@ const Payroll = () => {
                   >
                     <Trash2 size={20} />
                     Delete Payroll
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Salary Details Modal */}
+      {showViewSalaryModal && viewingSalary && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <DollarSign size={28} className="text-blue-600" />
+                Salary Details
+              </h3>
+              <button
+                onClick={() => {
+                  setShowViewSalaryModal(false)
+                  setViewingSalary(null)
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Employee Information */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Employee Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Employee</label>
+                    <p className="text-base text-gray-900">
+                      {employees.find(e => e.id === viewingSalary.employeeId)?.name || 
+                       (employees.find(e => e.id === viewingSalary.employeeId)?.firstName + ' ' + 
+                        employees.find(e => e.id === viewingSalary.employeeId)?.lastName) || 
+                       `Employee ID: ${viewingSalary.employeeId}`}
+                    </p>
+                    {employees.find(e => e.id === viewingSalary.employeeId)?.employeeId && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        ID: {employees.find(e => e.id === viewingSalary.employeeId)?.employeeId}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Effective From</label>
+                    <p className="text-base text-gray-900">
+                      {viewingSalary.effectiveFrom ? format(parseISO(viewingSalary.effectiveFrom), 'dd MMM yyyy') : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Status</label>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                      viewingSalary.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {viewingSalary.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Basic Salary */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Salary</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Basic Salary</label>
+                    <p className="text-2xl font-bold text-gray-900">₹{viewingSalary.basicSalary?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">HRA</label>
+                    <p className="text-lg font-semibold text-gray-900">₹{viewingSalary.hra?.toFixed(2) || '0.00'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Allowances */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-green-600 mb-4">Allowances</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Transport Allowance</label>
+                    <p className="text-lg font-semibold text-green-600">₹{viewingSalary.transportAllowance?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Medical Allowance</label>
+                    <p className="text-lg font-semibold text-green-600">₹{viewingSalary.medicalAllowance?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Special Allowance</label>
+                    <p className="text-lg font-semibold text-green-600">₹{viewingSalary.specialAllowance?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Other Allowances</label>
+                    <p className="text-lg font-semibold text-green-600">₹{viewingSalary.otherAllowances?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div className="md:col-span-2 border-t-2 border-gray-200 pt-4">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Total Allowances</label>
+                    <p className="text-2xl font-bold text-green-600">
+                      ₹{((viewingSalary.transportAllowance || 0) + 
+                          (viewingSalary.medicalAllowance || 0) + 
+                          (viewingSalary.specialAllowance || 0) + 
+                          (viewingSalary.otherAllowances || 0)).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deductions */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-red-600 mb-4">Deductions</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">PF</label>
+                    <p className="text-lg font-semibold text-red-600">₹{viewingSalary.pf?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">ESI</label>
+                    <p className="text-lg font-semibold text-red-600">₹{viewingSalary.esi?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">TDS</label>
+                    <p className="text-lg font-semibold text-red-600">₹{viewingSalary.tds?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Professional Tax</label>
+                    <p className="text-lg font-semibold text-red-600">₹{viewingSalary.professionalTax?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Other Deductions</label>
+                    <p className="text-lg font-semibold text-red-600">₹{viewingSalary.otherDeductions?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div className="md:col-span-2 border-t-2 border-gray-200 pt-4">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Total Deductions</label>
+                    <p className="text-2xl font-bold text-red-600">
+                      ₹{((viewingSalary.pf || 0) + 
+                          (viewingSalary.esi || 0) + 
+                          (viewingSalary.tds || 0) + 
+                          (viewingSalary.professionalTax || 0) + 
+                          (viewingSalary.otherDeductions || 0)).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm p-5 border-2 border-blue-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Salary Summary</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Gross Salary</label>
+                    <p className="text-2xl font-bold text-blue-600">
+                      ₹{viewingSalary.grossSalary?.toFixed(2) || 
+                        ((viewingSalary.basicSalary || 0) + 
+                         (viewingSalary.transportAllowance || 0) + 
+                         (viewingSalary.medicalAllowance || 0) + 
+                         (viewingSalary.specialAllowance || 0) + 
+                         (viewingSalary.otherAllowances || 0)).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Total Deductions</label>
+                    <p className="text-xl font-bold text-red-600">
+                      ₹{((viewingSalary.pf || 0) + 
+                          (viewingSalary.esi || 0) + 
+                          (viewingSalary.tds || 0) + 
+                          (viewingSalary.professionalTax || 0) + 
+                          (viewingSalary.otherDeductions || 0)).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Net Salary</label>
+                    <p className="text-3xl font-bold text-green-600">
+                      ₹{viewingSalary.netSalary?.toFixed(2) || 
+                        (((viewingSalary.basicSalary || 0) + 
+                          (viewingSalary.transportAllowance || 0) + 
+                          (viewingSalary.medicalAllowance || 0) + 
+                          (viewingSalary.specialAllowance || 0) + 
+                          (viewingSalary.otherAllowances || 0)) - 
+                         ((viewingSalary.pf || 0) + 
+                          (viewingSalary.esi || 0) + 
+                          (viewingSalary.tds || 0) + 
+                          (viewingSalary.professionalTax || 0) + 
+                          (viewingSalary.otherDeductions || 0))).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              {isAdmin && (
+                <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowViewSalaryModal(false)
+                      handleOpenSalaryModal(viewingSalary)
+                    }}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all font-semibold"
+                  >
+                    <Edit size={20} />
+                    Edit Salary Details
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewSalaryModal(false)
+                      handleDeleteSalary(viewingSalary.id)
+                    }}
+                    className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all font-semibold"
+                  >
+                    <Trash2 size={20} />
+                    Delete Salary Details
                   </button>
                 </div>
               )}

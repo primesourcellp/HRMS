@@ -8,9 +8,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.lang.NonNull;
 
 import com.hrms.dto.PayrollDTO;
 import com.hrms.entity.Attendance;
@@ -117,8 +117,9 @@ public class PayrollService {
                         && p.getYear().equals(year))
                 .findFirst();
 
-        if (existing.isPresent() && !"DRAFT".equals(existing.get().getStatus())) {
-            throw new RuntimeException("Payroll already processed for this period");
+        // Allow reprocessing if status is DRAFT or PENDING_APPROVAL (to fix incorrect values)
+        if (existing.isPresent() && !"DRAFT".equals(existing.get().getStatus()) && !"PENDING_APPROVAL".equals(existing.get().getStatus())) {
+            throw new RuntimeException("Payroll already processed for this period. Only DRAFT or PENDING_APPROVAL payrolls can be reprocessed.");
         }
 
         // Get employee and salary structure
@@ -184,10 +185,10 @@ public class PayrollService {
         double payableDays = presentDays + leaveDays;
         if (payableDays > totalDays) payableDays = totalDays;
 
-        // Calculate proration factor
+        // Calculate proration factor based on attendance and leaves
         double prorationFactor = totalDays > 0 ? payableDays / totalDays : 0.0;
 
-        // Calculate earnings (prorated)
+        // Get full salary structure values (not prorated)
         double basicSalary = salaryStructure.getBasicSalary() != null ? salaryStructure.getBasicSalary() : 0.0;
         double hra = salaryStructure.getHra() != null ? salaryStructure.getHra() : 0.0;
         double transportAllowance = salaryStructure.getTransportAllowance() != null ? salaryStructure.getTransportAllowance() : 0.0;
@@ -195,22 +196,27 @@ public class PayrollService {
         double specialAllowance = salaryStructure.getSpecialAllowance() != null ? salaryStructure.getSpecialAllowance() : 0.0;
         double otherAllowances = salaryStructure.getOtherAllowances() != null ? salaryStructure.getOtherAllowances() : 0.0;
 
-        double baseSalaryEarned = basicSalary * prorationFactor;
-        double hraEarned = hra * prorationFactor;
-        double allowancesEarned = (transportAllowance + medicalAllowance + specialAllowance + otherAllowances) * prorationFactor;
-        double grossSalaryEarned = baseSalaryEarned + hraEarned + allowancesEarned;
+        // Calculate full allowances (HRA + transport + medical + special + other)
+        double totalAllowances = hra + transportAllowance + medicalAllowance + specialAllowance + otherAllowances;
+        
+        // Calculate full gross salary
+        double grossSalary = basicSalary + totalAllowances;
 
-        // Calculate deductions (prorated)
-        double pfDeduction = (salaryStructure.getPf() != null ? salaryStructure.getPf() : 0.0) * prorationFactor;
-        double esiDeduction = (salaryStructure.getEsi() != null ? salaryStructure.getEsi() : 0.0) * prorationFactor;
-        double tdsDeduction = (salaryStructure.getTds() != null ? salaryStructure.getTds() : 0.0) * prorationFactor;
-        double professionalTaxDeduction = (salaryStructure.getProfessionalTax() != null ? salaryStructure.getProfessionalTax() : 0.0) * prorationFactor;
-        double otherDeductionsAmount = (salaryStructure.getOtherDeductions() != null ? salaryStructure.getOtherDeductions() : 0.0) * prorationFactor;
+        // Get full deduction values (not prorated)
+        double pfDeduction = salaryStructure.getPf() != null ? salaryStructure.getPf() : 0.0;
+        double esiDeduction = salaryStructure.getEsi() != null ? salaryStructure.getEsi() : 0.0;
+        double tdsDeduction = salaryStructure.getTds() != null ? salaryStructure.getTds() : 0.0;
+        double professionalTaxDeduction = salaryStructure.getProfessionalTax() != null ? salaryStructure.getProfessionalTax() : 0.0;
+        double otherDeductionsAmount = salaryStructure.getOtherDeductions() != null ? salaryStructure.getOtherDeductions() : 0.0;
 
+        // Calculate total deductions (full amount)
         double totalDeductions = pfDeduction + esiDeduction + tdsDeduction + professionalTaxDeduction + otherDeductionsAmount;
 
-        // Calculate net salary
-        double netSalary = grossSalaryEarned - totalDeductions;
+        // Calculate full net salary before proration
+        double fullNetSalary = grossSalary - totalDeductions;
+        
+        // Apply proration only to the net salary (based on attendance/leaves)
+        double netSalary = fullNetSalary * prorationFactor;
 
         // Create or update payroll
         Payroll payroll = existing.orElse(new Payroll());
@@ -219,11 +225,13 @@ public class PayrollService {
         payroll.setYear(year);
         payroll.setStartDate(startDate);
         payroll.setEndDate(endDate);
-        payroll.setBaseSalary(baseSalaryEarned);
-        payroll.setAllowances(allowancesEarned);
+        // Store full salary structure values (not prorated)
+        payroll.setBaseSalary(basicSalary);
+        payroll.setAllowances(totalAllowances);
         payroll.setBonus(0.0);
         payroll.setDeductions(totalDeductions);
-        payroll.setAmount(grossSalaryEarned);
+        payroll.setAmount(grossSalary);
+        // Net salary is prorated based on attendance/leaves
         payroll.setNetSalary(netSalary);
         payroll.setStatus("PENDING_APPROVAL");
 
