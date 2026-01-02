@@ -48,6 +48,7 @@ const Shifts = () => {
   const [requestStatusFilter, setRequestStatusFilter] = useState('all')
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  const [activeView, setActiveView] = useState('shifts') // 'shifts' or 'requests'
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
@@ -975,69 +976,99 @@ const Shifts = () => {
         </div>
       </div>
 
-      {/* Filters and View Toggle */}
+      {/* Toggle Buttons for Shifts and Requests */}
       <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
-            <div className="relative flex-1 md:flex-initial">
-              <input
-                type="text"
-                placeholder="Search shifts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <button
-              onClick={() => openModal()}
-              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-            >
-              <Plus size={20} />
-              Add Shift
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              title="Grid View"
-            >
-              <Grid size={20} />
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              title="Table View"
-            >
-              <List size={20} />
-            </button>
-          </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setActiveView('shifts')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+              activeView === 'shifts'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Clock size={20} />
+            All Shifts
+          </button>
+          <button
+            onClick={() => setActiveView('requests')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+              activeView === 'requests'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <ArrowLeftRight size={20} />
+            Shift Change Requests
+          </button>
         </div>
       </div>
 
-      {/* Loading State */}
-      {loading && !shifts.length && (
+      {/* Filters and View Toggle - Only show for Shifts view */}
+      {activeView === 'shifts' && (
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
+              <div className="relative flex-1 md:flex-initial">
+                <input
+                  type="text"
+                  placeholder="Search shifts..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <button
+                onClick={() => openModal()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              >
+                <Plus size={20} />
+                Add Shift
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="Grid View"
+              >
+                <Grid size={20} />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="Table View"
+              >
+                <List size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading State - Only for Shifts view */}
+      {activeView === 'shifts' && loading && !shifts.length && (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-2 text-gray-600">Loading shifts...</p>
         </div>
       )}
 
-      {/* Grid View */}
-      {viewMode === 'grid' && !loading && (
+      {/* Grid View - Only show when activeView is 'shifts' */}
+      {activeView === 'shifts' && viewMode === 'grid' && !loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredShifts.length === 0 ? (
             <div className="col-span-full text-center py-8">
@@ -1114,8 +1145,8 @@ const Shifts = () => {
         </div>
       )}
 
-      {/* Table View */}
-      {viewMode === 'table' && !loading && (
+      {/* Table View - Only show when activeView is 'shifts' */}
+      {activeView === 'shifts' && viewMode === 'table' && !loading && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -1204,24 +1235,25 @@ const Shifts = () => {
         </div>
       )}
 
-      {/* Shift Change Requests Section for Admin */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <ArrowLeftRight className="text-blue-600" size={20} />
-            Shift Change Requests
-          </h3>
-          <select
-            value={requestStatusFilter}
-            onChange={(e) => setRequestStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
+      {/* Shift Change Requests Section - Only show when activeView is 'requests' */}
+      {activeView === 'requests' && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <ArrowLeftRight className="text-blue-600" size={20} />
+              Shift Change Requests
+            </h3>
+            <select
+              value={requestStatusFilter}
+              onChange={(e) => setRequestStatusFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
         {shiftChangeRequests.filter(req => requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase()).length === 0 ? (
           <p className="text-gray-500 text-sm">No shift change requests found</p>
         ) : (
@@ -1287,7 +1319,8 @@ const Shifts = () => {
             </table>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Add/Edit Shift Modal */}
       {showModal && (
