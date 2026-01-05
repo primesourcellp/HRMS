@@ -11,7 +11,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
   const navigate = useNavigate()
-
+ 
   useEffect(() => {
     // Check if a Super Admin exists; if not, redirect to register (run once on mount)
     const checkSuperAdmin = async () => {
