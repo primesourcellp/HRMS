@@ -280,6 +280,64 @@ const api = {
     }
   },
 
+  // Forgot Password
+  forgotPassword: async (email) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `HTTP error! status: ${response.status}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error sending forgot password request:', error)
+      throw error
+    }
+  },
+
+  verifyOtp: async (email, otp) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `HTTP error! status: ${response.status}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error verifying OTP:', error)
+      throw error
+    }
+  },
+
+  resetPassword: async (email, otp, newPassword) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword }),
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `HTTP error! status: ${response.status}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error resetting password:', error)
+      throw error
+    }
+  },
+
   // Users
   getUsers: async (role) => {
     try {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Calendar, Edit, Trash2, X } from 'lucide-react'
+import { User, Bell } from 'lucide-react'
 import api from '../services/api'
 
 const Settings = () => {
@@ -22,19 +22,6 @@ const Settings = () => {
     performanceReviews: true
   })
 
-  const [security, setSecurity] = useState({
-    twoFactorAuth: false,
-    sessionTimeout: '30',
-    passwordExpiry: '90'
-  })
-
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  })
-  const [passwordError, setPasswordError] = useState('')
 
   const [appearance, setAppearance] = useState({
     theme: localStorage.getItem('hrms_theme') || 'light',
@@ -48,9 +35,7 @@ const Settings = () => {
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'data', label: 'Data Management', icon: Database }
+    { id: 'notifications', label: 'Notifications', icon: Bell }
   ]
 
   useEffect(() => {
@@ -271,100 +256,6 @@ const Settings = () => {
     setNotifications({ ...notifications, [key]: !notifications[key] })
   }
 
-  const handleSecurityChange = (key, value) => {
-    setSecurity({ ...security, [key]: value })
-  }
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault()
-    setPasswordError('')
-    
-    // Validation
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
-      setPasswordError('All fields are required')
-      return
-    }
-    
-    if (passwordData.newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters long')
-      return
-    }
-    
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('New password and confirm password do not match')
-      return
-    }
-    
-    if (passwordData.currentPassword === passwordData.newPassword) {
-      setPasswordError('New password must be different from current password')
-      return
-    }
-
-    setLoading(true)
-    try {
-      // Verify current password first by attempting login
-      const email = profileData.email
-      let loginResponse
-      
-      if (isEmployee) {
-        loginResponse = await api.employeeLogin(email, passwordData.currentPassword)
-      } else {
-        loginResponse = await api.login(email, passwordData.currentPassword)
-      }
-      
-      if (!loginResponse.success) {
-        setPasswordError('Current password is incorrect')
-        setLoading(false)
-        return
-      }
-      
-      // Update password
-      if (isEmployee) {
-        // Use dedicated change password endpoint for employees
-        const response = await api.changeEmployeePassword(
-          parseInt(userId),
-          passwordData.currentPassword,
-          passwordData.newPassword
-        )
-        if (response.error) {
-          throw new Error(response.error)
-        }
-      } else {
-        // Update admin user password
-        const response = await api.updateUser(parseInt(userId), {
-          password: passwordData.newPassword
-        }, userRole)
-        if (response.error) {
-          throw new Error(response.error)
-        }
-      }
-      
-      alert('Password changed successfully!')
-      setShowPasswordModal(false)
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-      setPasswordError('')
-    } catch (error) {
-      setPasswordError(error.message || 'Error changing password. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleExportData = () => {
-    alert('Data export functionality would be implemented here')
-  }
-
-  const handleClearCache = () => {
-    if (window.confirm('Are you sure you want to clear all cached data?')) {
-      localStorage.removeItem('hrms_employees')
-      localStorage.removeItem('hrms_attendance')
-      localStorage.removeItem('hrms_leaves')
-      localStorage.removeItem('hrms_payrolls')
-      localStorage.removeItem('hrms_performance')
-      alert('Cache cleared successfully!')
-      window.location.reload()
-    }
-  }
 
   return (
     <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
@@ -583,215 +474,8 @@ const Settings = () => {
             </div>
           )}
 
-          {/* Security Tab */}
-          {activeTab === 'security' && (
-            <div className="space-y-4 md:space-y-6">
-              <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">Security Settings</h3>
-              
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 md:p-4 bg-gray-50 rounded-lg">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-800 text-sm md:text-base">Two-Factor Authentication</p>
-                  <p className="text-xs md:text-sm text-gray-600 mt-1">Add an extra layer of security to your account</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 touch-manipulation">
-                  <input
-                    type="checkbox"
-                    checked={security.twoFactorAuth}
-                    onChange={(e) => handleSecurityChange('twoFactorAuth', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
-                <select
-                  value={security.sessionTimeout}
-                  onChange={(e) => handleSecurityChange('sessionTimeout', e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base touch-manipulation"
-                >
-                  <option value="15">15 minutes</option>
-                  <option value="30">30 minutes</option>
-                  <option value="60">60 minutes</option>
-                  <option value="120">120 minutes</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password Expiry (days)</label>
-                <select
-                  value={security.passwordExpiry}
-                  onChange={(e) => handleSecurityChange('passwordExpiry', e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base touch-manipulation"
-                >
-                  <option value="30">30 days</option>
-                  <option value="60">60 days</option>
-                  <option value="90">90 days</option>
-                  <option value="180">180 days</option>
-                </select>
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <button 
-                  onClick={() => {
-                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-                    setPasswordError('')
-                    setShowPasswordModal(true)
-                  }}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium touch-manipulation"
-                >
-                  Change Password
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Data Management Tab */}
-          {activeTab === 'data' && (
-            <div className="space-y-4 md:space-y-6">
-              <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">Data Management</h3>
-              
-              <div className="p-3 md:p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-xs md:text-sm text-blue-800">
-                  <strong>Note:</strong> All data is stored locally in your browser. Export your data regularly to prevent data loss.
-                </p>
-              </div>
-
-              <div className="space-y-3 md:space-y-4">
-                <button
-                  onClick={handleExportData}
-                  className="w-full flex items-center justify-between p-3 md:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
-                >
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-gray-800 text-sm md:text-base">Export Data</p>
-                    <p className="text-xs md:text-sm text-gray-600 mt-1">Download all HRMS data as JSON</p>
-                  </div>
-                  <Database className="w-5 h-5 text-gray-600 flex-shrink-0 ml-3" />
-                </button>
-
-                <button
-                  onClick={handleClearCache}
-                  className="w-full flex items-center justify-between p-3 md:p-4 bg-red-50 rounded-lg hover:bg-red-100 active:bg-red-200 transition-colors touch-manipulation"
-                >
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-red-800 text-sm md:text-base">Clear All Data</p>
-                    <p className="text-xs md:text-sm text-red-600 mt-1">Permanently delete all stored data</p>
-                  </div>
-                  <Database className="w-5 h-5 text-red-600 flex-shrink-0 ml-3" />
-                </button>
-              </div>
-            </div>
-          )}
-
         </div>
       </div>
-
-      {/* Change Password Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-6 w-full max-w-md border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg md:text-xl font-bold text-blue-600">Change Password</h3>
-              <button
-                onClick={() => {
-                  setShowPasswordModal(false)
-                  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-                  setPasswordError('')
-                }}
-                className="text-gray-500 hover:text-gray-700 touch-manipulation"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <form onSubmit={handlePasswordChange} className="space-y-4">
-              {passwordError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-red-800 text-sm">{passwordError}</p>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Current Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.currentPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your current password"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  New Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.newPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter new password (min 6 characters)"
-                  required
-                  minLength={6}
-                />
-                <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm New Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Confirm new password"
-                  required
-                  minLength={6}
-                />
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-xs text-blue-800">
-                  <strong>Security Tips:</strong>
-                </p>
-                <ul className="text-xs text-blue-700 mt-1 list-disc list-inside space-y-1">
-                  <li>Use a strong password with at least 6 characters</li>
-                  <li>Include a mix of letters, numbers, and special characters</li>
-                  <li>Don't reuse passwords from other accounts</li>
-                </ul>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordModal(false)
-                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-                    setPasswordError('')
-                  }}
-                  className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors text-gray-700 font-medium touch-manipulation"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-                >
-                  {loading ? 'Changing...' : 'Change Password'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

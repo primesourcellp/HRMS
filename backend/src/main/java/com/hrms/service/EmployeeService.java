@@ -354,4 +354,12 @@ public class EmployeeService {
 
         return false;
     }
+
+    @Transactional
+    public void resetPassword(Long id, String newPassword) {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
+        employee.setPassword(passwordEncoder.encode(newPassword));
+        employeeRepository.save(employee);
+    }
 }

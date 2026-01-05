@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hrms.entity.Employee;
 import com.hrms.entity.User;
 import com.hrms.repository.UserRepository;
+import com.hrms.service.EmailService;
 import com.hrms.service.EmployeeService;
+import com.hrms.service.OtpService;
 import com.hrms.service.UserService;
 import com.hrms.util.JwtUtil;
 
@@ -41,6 +43,12 @@ public class AuthController {
     
     @Autowired
     private JwtUtil jwtUtil;
+    
+    @Autowired
+    private EmailService emailService;
+    
+    @Autowired
+    private OtpService otpService;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, String> registrationData) {
@@ -452,6 +460,172 @@ public class AuthController {
         response.put("success", true);
         response.put("message", "Logged out successfully");
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, Object>> forgotPassword(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String email = request.get("email");
+            
+            if (email == null || email.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Email is required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            email = email.trim().toLowerCase();
+            
+            // Check if user exists (either User or Employee)
+            Optional<User> user = userService.findByEmail(email);
+            Optional<Employee> employee = employeeService.findByEmail(email);
+            
+            if (!user.isPresent() && !employee.isPresent()) {
+                // Don't reveal if email exists or not (security best practice)
+                response.put("success", true);
+                response.put("message", "If the email exists, an OTP has been sent");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Determine user type
+            String userType = user.isPresent() ? "user" : "employee";
+            
+            // Generate and send OTP
+            String otp = otpService.generateOtp(email, userType);
+            emailService.sendOtpEmail(email, otp);
+            
+            response.put("success", true);
+            response.put("message", "OTP has been sent to your email");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to send OTP: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<Map<String, Object>> verifyOtp(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String email = request.get("email");
+            String otp = request.get("otp");
+            
+            if (email == null || email.trim().isEmpty() || otp == null || otp.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Email and OTP are required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            email = email.trim().toLowerCase();
+            otp = otp.trim();
+            
+            // Verify OTP
+            boolean isValid = otpService.verifyOtp(email, otp);
+            
+            if (!isValid) {
+                response.put("success", false);
+                response.put("message", "Invalid or expired OTP");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            response.put("success", true);
+            response.put("message", "OTP verified successfully");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to verify OTP: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, Object>> resetPassword(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String email = request.get("email");
+            String otp = request.get("otp");
+            String newPassword = request.get("newPassword");
+            
+            if (email == null || email.trim().isEmpty() || 
+                otp == null || otp.trim().isEmpty() || 
+                newPassword == null || newPassword.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Email, OTP, and new password are required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            email = email.trim().toLowerCase();
+            otp = otp.trim();
+            newPassword = newPassword.trim();
+            
+            // Validate password length
+            if (newPassword.length() < 6) {
+                response.put("success", false);
+                response.put("message", "Password must be at least 6 characters long");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            // Verify OTP again
+            boolean isValid = otpService.verifyOtp(email, otp);
+            if (!isValid) {
+                response.put("success", false);
+                response.put("message", "Invalid or expired OTP");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            // Get user type
+            String userType = otpService.getUserType(email);
+            if (userType == null) {
+                response.put("success", false);
+                response.put("message", "OTP session expired. Please request a new OTP");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            // Reset password based on user type
+            if ("user".equals(userType)) {
+                Optional<User> user = userService.findByEmail(email);
+                if (user.isPresent()) {
+                    userService.resetPassword(user.get().getId(), newPassword);
+                    emailService.sendPasswordResetSuccessEmail(email, user.get().getName());
+                } else {
+                    response.put("success", false);
+                    response.put("message", "User not found");
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+                }
+            } else if ("employee".equals(userType)) {
+                Optional<Employee> employee = employeeService.findByEmail(email);
+                if (employee.isPresent()) {
+                    employeeService.resetPassword(employee.get().getId(), newPassword);
+                    emailService.sendPasswordResetSuccessEmail(email, employee.get().getName());
+                } else {
+                    response.put("success", false);
+                    response.put("message", "Employee not found");
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+                }
+            } else {
+                response.put("success", false);
+                response.put("message", "Invalid user type");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            // Remove OTP after successful password reset
+            otpService.removeOtp(email);
+            
+            response.put("success", true);
+            response.put("message", "Password reset successfully");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to reset password: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
     }
 }
 
