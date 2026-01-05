@@ -28,6 +28,7 @@ const Layout = () => {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
+  const [logoError, setLogoError] = useState(false)
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -149,7 +150,20 @@ const Layout = () => {
         `}
       >
         <div className="p-4 flex items-center justify-between border-b border-gray-200">
-          {sidebarOpen && <h1 className="text-lg font-bold text-primary-600">HRMS</h1>}
+          {sidebarOpen && (
+            <>
+              {!logoError ? (
+                <img 
+                  src="/logo.png" 
+                  alt="Advances Solutions Logo" 
+                  className="h-11 object-contain"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <h1 className="text-lg font-bold text-primary-600">HRMS</h1>
+              )}
+            </>
+          )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors md:block"
