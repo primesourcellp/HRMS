@@ -1,5 +1,5 @@
 import { useHRMS } from '../context/HRMSContext'
-import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings } from 'lucide-react'
+import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
 import { format } from 'date-fns'
 import { useState, useEffect } from 'react'
@@ -14,6 +14,10 @@ const Dashboard = () => {
   const [employeeShift, setEmployeeShift] = useState(null)
   const [weeklyAttendanceData, setWeeklyAttendanceData] = useState([])
   const [loadingWeeklyAttendance, setLoadingWeeklyAttendance] = useState(false)
+  const [todayAttendance, setTodayAttendance] = useState(null)
+  const [checkInLoading, setCheckInLoading] = useState(false)
+  const [checkInMessage, setCheckInMessage] = useState(null)
+  const [checkInError, setCheckInError] = useState(null)
   const navigate = useNavigate()
   const userRole = localStorage.getItem('userRole')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
@@ -30,6 +34,7 @@ const Dashboard = () => {
     // Load employee shift if user is an employee
     if (empId && userType === 'employee') {
       loadEmployeeShift(empId)
+      loadTodayAttendance(empId)
     }
 
     // Load weekly attendance data for admin
@@ -79,6 +84,57 @@ const Dashboard = () => {
       setDashboardStats(stats)
     } catch (error) {
       console.error('Error loading dashboard stats:', error)
+    }
+  }
+
+  const loadTodayAttendance = async (empId) => {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const attendanceRecords = await api.getAttendanceByDate(today)
+      const todayRecord = Array.isArray(attendanceRecords) 
+        ? attendanceRecords.find(a => a.employeeId === empId)
+        : null
+      setTodayAttendance(todayRecord || null)
+    } catch (error) {
+      console.error('Error loading today attendance:', error)
+      setTodayAttendance(null)
+    }
+  }
+
+  const handleCheckIn = async () => {
+    if (!employeeId) return
+    
+    setCheckInLoading(true)
+    setCheckInError(null)
+    setCheckInMessage(null)
+    
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5)
+      
+      const checkInData = {
+        employeeId,
+        date: today,
+        checkInTime: currentTime,
+        method: 'WEB'
+      }
+      
+      const response = await api.checkIn(checkInData)
+      if (response.success === false) {
+        throw new Error(response.message || 'Check-in failed')
+      }
+      
+      setCheckInMessage('Check-in successful!')
+      setTimeout(() => setCheckInMessage(null), 3000)
+      
+      // Reload dashboard stats and today's attendance
+      await loadDashboardStats(employeeId)
+      await loadTodayAttendance(employeeId)
+    } catch (error) {
+      setCheckInError(error.message || 'Error checking in')
+      setTimeout(() => setCheckInError(null), 5000)
+    } finally {
+      setCheckInLoading(false)
     }
   }
 
@@ -329,8 +385,25 @@ const Dashboard = () => {
         .sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate))
         .slice(0, 5))
 
+  // Check if employee can check in
+  const canCheckIn = isEmployee && employeeId && (!todayAttendance || !todayAttendance.checkIn)
+
   return (
     <div className="space-y-3 sm:space-y-4 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
+      {/* Success/Error Messages */}
+      {checkInMessage && (
+        <div className="p-3 sm:p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          {checkInMessage}
+        </div>
+      )}
+      {checkInError && (
+        <div className="p-3 sm:p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-2">
+          <X className="w-5 h-5" />
+          {checkInError}
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
         {stats.map((stat, index) => {
@@ -354,6 +427,20 @@ const Dashboard = () => {
           )
         })}
       </div>
+
+      {/* Check In Button - Only for employees who can check in */}
+      {canCheckIn && (
+        <div className="flex justify-start">
+          <button
+            onClick={handleCheckIn}
+            disabled={checkInLoading}
+            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl hover:bg-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-green-500 hover:border-green-600"
+          >
+            <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
+            {checkInLoading ? 'Checking In...' : 'Check In'}
+          </button>
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
