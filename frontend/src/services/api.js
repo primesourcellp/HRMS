@@ -1305,6 +1305,11 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(applicant)
   }).then(res => res.json()),
+  updateApplicantStatus: (id, status, feedback) => fetchWithAuth(`${API_BASE_URL}/recruitment/applicants/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, feedback })
+  }).then(res => res.json()),
 
   // Payroll
   getPayrolls: async () => {

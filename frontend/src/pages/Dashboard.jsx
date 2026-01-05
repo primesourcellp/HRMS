@@ -5,11 +5,11 @@ import { format } from 'date-fns'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import { useRolePermissions } from '../hooks/useRolePermissions'
 
 const Dashboard = () => {
   const { employees, attendance, leaves, payrolls } = useHRMS()
   const [dashboardStats, setDashboardStats] = useState(null)
-  const [isEmployee, setIsEmployee] = useState(false)
   const [employeeId, setEmployeeId] = useState(null)
   const [employeeShift, setEmployeeShift] = useState(null)
   const [weeklyAttendanceData, setWeeklyAttendanceData] = useState([])
@@ -19,29 +19,35 @@ const Dashboard = () => {
   const [checkInMessage, setCheckInMessage] = useState(null)
   const [checkInError, setCheckInError] = useState(null)
   const navigate = useNavigate()
-  const userRole = localStorage.getItem('userRole')
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+  const permissions = useRolePermissions()
+  const { 
+    isAdmin = false, 
+    isHRAdmin = false, 
+    isManager = false, 
+    isEmployee = false, 
+    isFinance = false, 
+    canManageEmployees = false 
+  } = permissions || {}
 
   useEffect(() => {
     // Check if user is an employee
     const userType = localStorage.getItem('userType')
     const userId = localStorage.getItem('userId')
-    setIsEmployee(userType === 'employee')
     const empId = userId ? parseInt(userId) : null
     setEmployeeId(empId)
-    loadDashboardStats(empId && userType === 'employee' ? empId : null)
+    loadDashboardStats(empId && (isEmployee || userType === 'employee') ? empId : null)
     
-    // Load employee shift if user is an employee
-    if (empId && userType === 'employee') {
+    // Load employee shift and today's attendance if user is an employee
+    if (empId && (isEmployee || userType === 'employee')) {
       loadEmployeeShift(empId)
       loadTodayAttendance(empId)
     }
 
-    // Load weekly attendance data for admin
-    if (userType !== 'employee') {
+    // Load weekly attendance data for admin/manager/finance
+    if (!isEmployee && userType !== 'employee') {
       loadWeeklyAttendanceData()
     }
-  }, [employees]) // Re-run when employees data is loaded
+  }, [employees, isEmployee]) // Re-run when employees data is loaded
 
   const loadEmployeeShift = async (empId) => {
     try {

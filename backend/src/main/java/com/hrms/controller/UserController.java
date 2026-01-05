@@ -54,22 +54,24 @@ public class UserController {
             String currentUserRole = (String) request.get("currentUserRole");
             String requestedRole = (String) request.get("role");
             
-            // Authorization check
-            if ("ADMIN".equals(currentUserRole) && "SUPER_ADMIN".equals(requestedRole)) {
+            // Authorization check - Only SUPER_ADMIN can create other users
+            if (!"SUPER_ADMIN".equals(currentUserRole)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "ADMIN cannot create SUPER_ADMIN"));
+                        .body(Map.of("error", "Only SUPER_ADMIN can create users"));
             }
             
-            if ("ADMIN".equals(currentUserRole) && "ADMIN".equals(requestedRole)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "ADMIN cannot create another ADMIN"));
+            // Validate role
+            String[] validRoles = {"SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE", "FINANCE"};
+            if (requestedRole != null && !java.util.Arrays.asList(validRoles).contains(requestedRole)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Invalid role specified"));
             }
             
             User user = new User();
             user.setEmail((String) request.get("email"));
             user.setPassword((String) request.get("password"));
             user.setName((String) request.get("name"));
-            user.setRole(requestedRole != null ? requestedRole : "ADMIN");
+            user.setRole(requestedRole != null ? requestedRole : "HR_ADMIN");
             user.setActive(true);
             
             User createdUser = userService.createUser(user);
@@ -86,10 +88,17 @@ public class UserController {
             String currentUserRole = (String) request.get("currentUserRole");
             String requestedRole = (String) request.get("role");
             
-            // Authorization check
-            if ("ADMIN".equals(currentUserRole) && "SUPER_ADMIN".equals(requestedRole)) {
+            // Authorization check - Only SUPER_ADMIN can update users
+            if (!"SUPER_ADMIN".equals(currentUserRole)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "ADMIN cannot update user to SUPER_ADMIN"));
+                        .body(Map.of("error", "Only SUPER_ADMIN can update users"));
+            }
+            
+            // Validate role
+            String[] validRoles = {"SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE", "FINANCE"};
+            if (requestedRole != null && !java.util.Arrays.asList(validRoles).contains(requestedRole)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Invalid role specified"));
             }
             
             User userDetails = new User();

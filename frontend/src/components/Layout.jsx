@@ -15,9 +15,13 @@ import {
   Briefcase,
   Ticket,
   FileText,
-  BarChart3
+  BarChart3,
+  UserCog,
+  Building2,
+  Receipt
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { getUserRole, hasPermission, ROLES } from '../utils/roles'
 
 const Layout = () => {
   const navigate = useNavigate()
@@ -45,39 +49,63 @@ const Layout = () => {
       setSidebarOpen(false)
     }
   }, [location.pathname, isMobile])
-  const userRole = localStorage.getItem('userRole')
-  const userType = localStorage.getItem('userType') // 'admin' or 'employee'
-  const isSuperAdmin = userRole === 'SUPER_ADMIN'
-  const isEmployee = userType === 'employee'
+  
+  // Safely get user role with error handling
+  const getUserRoleSafely = () => {
+    try {
+      return getUserRole()
+    } catch (error) {
+      console.error('Error getting user role:', error)
+      return ROLES.EMPLOYEE
+    }
+  }
 
-  // Admin menu items (Super Admin and Admin)
-  const adminMenuItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/employees', icon: Users, label: 'Employees' },
-    { path: '/attendance', icon: Clock, label: 'Attendance' },
-    { path: '/leave', icon: Calendar, label: 'Leave Management' },
-    { path: '/payroll', icon: DollarSign, label: 'Payroll' },
-    { path: '/performance', icon: TrendingUp, label: 'Performance' },
-    { path: '/shifts', icon: Clock, label: 'Shifts' },
-    { path: '/tickets', icon: Ticket, label: 'HR Tickets' },
-    { path: '/analytics', icon: BarChart3, label: 'Analytics' },
-    ...(isSuperAdmin ? [{ path: '/users', icon: Shield, label: 'User Management' }] : []),
-    { path: '/settings', icon: Settings, label: 'Settings' },
-  ]
+  const userRole = getUserRoleSafely()
+  const userType = localStorage.getItem('userType') || 'employee' // 'admin' or 'employee'
+  const isSuperAdmin = userRole === ROLES.SUPER_ADMIN
+  const isHRAdmin = userRole === ROLES.HR_ADMIN
+  const isManager = userRole === ROLES.MANAGER
+  const isEmployee = userRole === ROLES.EMPLOYEE
+  const isFinance = userRole === ROLES.FINANCE
 
-  // Employee menu items (limited access)
-  const employeeMenuItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/attendance', icon: Clock, label: 'My Attendance' },
-    { path: '/leave', icon: Calendar, label: 'My Leaves' },
-    { path: '/shifts', icon: Clock, label: 'My Shift' },
-    { path: '/payroll', icon: DollarSign, label: 'My Payroll' },
-    { path: '/performance', icon: TrendingUp, label: 'My Performance' },
-    { path: '/tickets', icon: Ticket, label: 'My Tickets' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
-  ]
+  // Build menu items based on role permissions
+  const getMenuItems = () => {
+    try {
+      const allMenuItems = [
+        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
+        { path: '/employees', icon: Users, label: 'Employees', permission: 'employees' },
+        { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'Team Attendance' : 'Attendance', permission: 'attendance' },
+        { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : 'Leave Management', permission: 'leave' },
+        { path: '/payroll', icon: DollarSign, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll' },
+        { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
+        { path: '/shifts', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Shift' : 'Shifts', permission: 'shifts' },
+        { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
+        { path: '/recruitment', icon: Briefcase, label: 'Recruitment', permission: 'recruitment' },
+        { path: '/analytics', icon: BarChart3, label: userRole === ROLES.FINANCE ? 'Cost Analytics' : 'Analytics', permission: 'analytics' },
+        { path: '/users', icon: Shield, label: 'User Management', permission: 'users' },
+        { path: '/settings', icon: Settings, label: 'Settings', permission: 'settings' },
+      ]
 
-  const menuItems = isEmployee ? employeeMenuItems : adminMenuItems
+      // Filter menu items based on permissions
+      return allMenuItems.filter(item => {
+        try {
+          return hasPermission(userRole, item.permission)
+        } catch (error) {
+          console.error('Error checking permission:', error)
+          return false
+        }
+      })
+    } catch (error) {
+      console.error('Error building menu items:', error)
+      // Return at least dashboard and settings as fallback
+      return [
+        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
+        { path: '/settings', icon: Settings, label: 'Settings', permission: 'settings' },
+      ]
+    }
+  }
+
+  const menuItems = getMenuItems()
 
   const handleLogout = async () => {
     try {
@@ -196,7 +224,11 @@ const Layout = () => {
                   <p className="text-xs text-gray-500 group-hover:text-gray-600 transition-colors hidden md:block">
                     {isEmployee 
                       ? `${localStorage.getItem('employeePosition') || 'Employee'} - ${localStorage.getItem('employeeDepartment') || ''}`
-                      : userRole === 'SUPER_ADMIN' ? 'Super Administrator' : 'Administrator'}
+                      : isSuperAdmin ? 'Super Administrator'
+                      : isHRAdmin ? 'HR Administrator'
+                      : isManager ? 'Manager'
+                      : isFinance ? 'Finance'
+                      : 'User'}
                   </p>
                 </div>
               </button>

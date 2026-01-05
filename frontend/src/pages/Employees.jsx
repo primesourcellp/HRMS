@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Plus, Search, Edit, Trash2, Mail, Phone, MapPin, Upload, 
   FileText, Download, Eye, User, Shield, Filter, ChevronDown, 
@@ -11,16 +11,48 @@ import styles from './Employees.module.css';
 
 
 const API_BASE_URL = 'http://localhost:8080/api'; 
+import { useRolePermissions } from '../hooks/useRolePermissions'
+
 const Employees = () => { 
-const navigate = useNavigate() 
-const userType = localStorage.getItem('userType') 
-// Redirect employees - they shouldn't access employee management 
+const navigate = useNavigate()
+const location = useLocation()
+const { canManageEmployees, isEmployee } = useRolePermissions()
+const isNewEmployeePage = location.pathname === '/employees/new'
+// Redirect if user doesn't have permission
 useEffect(() => { 
-if (userType === 'employee') { 
+if (!canManageEmployees || isEmployee) { 
 navigate('/dashboard') 
 } 
-}, [userType, navigate]) 
-if (userType === 'employee') { 
+}, [canManageEmployees, isEmployee, navigate]) 
+
+// Open form when on /employees/new route
+useEffect(() => {
+  if (isNewEmployeePage && !showModal && !editingEmployee) {
+    // Check if there's pending user data from User Management page
+    const pendingUserData = sessionStorage.getItem('pendingUserData')
+    if (pendingUserData) {
+      try {
+        const userData = JSON.parse(pendingUserData)
+        // Pre-fill form with user data
+        setFormData(prev => ({
+          ...prev,
+          firstName: userData.name?.split(' ')[0] || '',
+          lastName: userData.name?.split(' ').slice(1).join(' ') || '',
+          email: userData.email || '',
+          password: userData.password || '',
+          role: 'EMPLOYEE'
+        }))
+        // Clear the session storage
+        sessionStorage.removeItem('pendingUserData')
+      } catch (error) {
+        console.error('Error parsing pending user data:', error)
+      }
+    }
+    handleOpenModal()
+  }
+}, [isNewEmployeePage])
+
+if (!canManageEmployees || isEmployee) { 
 return null // Will redirect via useEffect 
 } 
 const [employees, setEmployees] = useState([]) 
@@ -614,6 +646,10 @@ if (editingEmployee) {
 } 
 await loadEmployees() 
 setShowModal(false) 
+// Navigate back to employees list if on new page
+if (isNewEmployeePage) {
+  navigate('/employees')
+}
 // Reset form after successful save 
 setEditingEmployee(null) 
 setFormData({ 
@@ -845,6 +881,83 @@ return (
 ); 
 } 
     
+// If on new employee page, show only the form (full page)
+if (isNewEmployeePage && showModal) {
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 border-2 border-gray-200">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
+              <Plus size={28} className="text-blue-600" />
+              Add Employee
+            </h3>
+            <button
+              onClick={() => {
+                setShowModal(false)
+                navigate('/employees')
+                setEditingEmployee(null)
+                setFormData({
+                  employeeId: '',
+                  firstName: '',
+                  lastName: '',
+                  client: '',
+                  email: '',
+                  password: '',
+                  role: '',
+                  department: '',
+                  location: '',
+                  designation: '',
+                  employmentType: '',
+                  employeeStatus: 'Active',
+                  sourceOfHire: '',
+                  dateOfJoining: '',
+                  dateOfBirth: '',
+                  age: '',
+                  gender: '',
+                  maritalStatus: '',
+                  aboutMe: '',
+                  expertise: '',
+                  pan: '',
+                  aadhaar: '',
+                  workPhoneNumber: '',
+                  personalMobileNumber: '',
+                  extension: '',
+                  personalEmailAddress: '',
+                  seatingLocation: '',
+                  tags: '',
+                  presentAddressLine1: '',
+                  presentAddressLine2: '',
+                  presentCity: '',
+                  presentCountry: '',
+                  presentState: '',
+                  presentPostalCode: '',
+                  sameAsPresentAddress: false,
+                  permanentAddressLine1: '',
+                  permanentAddressLine2: '',
+                  permanentCity: '',
+                  permanentCountry: '',
+                  permanentState: '',
+                  permanentPostalCode: '',
+                  dateOfExit: '',
+                  salary: '',
+                })
+                setWorkExperiences([])
+                setEducationDetails([])
+              }}
+              className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+            >
+              ×
+            </button>
+          </div>
+          {/* The form will be rendered below in the modal section, but we need to show it here too */}
+          {/* We'll conditionally render the form content here when isNewEmployeePage is true */}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 return ( 
 <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
 {/* Search and Filters - Redesigned */} 
@@ -878,14 +991,7 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
   {clients.map((c) => (
     <option key={c} value={c}>{c}</option>
   ))}
-</select>
-<button 
-  onClick={() => handleOpenModal()} 
-  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 font-semibold whitespace-nowrap" 
-> 
-  <Plus size={18} /> 
-  Add Employee 
-</button> 
+</select> 
 </div> 
 </div> 
 {/* Employees Table - Modern Design */}
@@ -1014,17 +1120,20 @@ Add First Employee
 )} 
 </div> 
 {/* Add/Edit Employee Modal - Redesigned */} 
-{showModal && ( 
-<div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
-<div className="bg-white rounded-2xl shadow-2xl p-6 w-full border-2 border-gray-200 max-h-[90vh] overflow-y-auto"> 
-<div className="flex items-center justify-between mb-6"> 
-<h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3"> 
-<Plus size={24} className="text-blue-600" /> 
+{showModal && !isNewEmployeePage && (
+  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
+    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-7xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+      <div className="flex items-center justify-between mb-6"> 
+<h3 className={`${isNewEmployeePage ? 'text-2xl md:text-3xl' : 'text-2xl'} font-bold text-blue-600 flex items-center gap-3`}> 
+<Plus size={isNewEmployeePage ? 28 : 24} className="text-blue-600" />
 {editingEmployee ? 'Edit' : 'Add'} Employee 
 </h3> 
 <button 
 onClick={() => { 
 setShowModal(false) 
+if (isNewEmployeePage) {
+  navigate('/employees')
+}
 // Reset form when closing 
 setEditingEmployee(null) 
 setFormData({ 
@@ -1798,6 +1907,9 @@ disabled={formData.sameAsPresentAddress}
 type="button" 
 onClick={() => { 
 setShowModal(false) 
+if (isNewEmployeePage) {
+  navigate('/employees')
+}
 // Reset form when canceling 
 setEditingEmployee(null) 
 setFormData({ 
@@ -1863,9 +1975,11 @@ className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disable
 </button> 
 </div> 
 </form> 
-</div> 
-</div> 
-)} 
+    </div> 
+  </div>
+)}
+
+
 {/* Document Modal - Redesigned */} 
 {showDocModal && selectedEmployee && ( 
 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 

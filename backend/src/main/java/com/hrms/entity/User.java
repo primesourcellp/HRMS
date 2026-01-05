@@ -16,7 +16,7 @@ public class User {
     private String password; // BCrypt hash (60 characters)
 
     @Column(nullable = false)
-    private String role; // SUPER_ADMIN, ADMIN
+    private String role; // SUPER_ADMIN, HR_ADMIN, MANAGER, EMPLOYEE, FINANCE
 
     @Column(nullable = false)
     private String name;

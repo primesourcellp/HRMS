@@ -15,8 +15,10 @@ import Users from './pages/Users'
 import Shifts from './pages/Shifts'
 import HRTickets from './pages/HRTickets'
 import Analytics from './pages/Analytics'
+import Recruitment from './pages/Recruitment'
 import InitialRoute from './components/InitialRoute'
 import { isAuthenticated, verifyToken } from './utils/auth'
+import { hasPermission, getUserRole } from './utils/roles'
 
 function App() {
   return (
@@ -28,17 +30,19 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="employees" element={<Employees />} />
-            <Route path="attendance" element={<Attendance />} />
-            <Route path="leave" element={<LeaveManagement />} />
-            <Route path="payroll" element={<Payroll />} />
-            <Route path="performance" element={<Performance />} />
-            <Route path="shifts" element={<Shifts />} />
-            <Route path="tickets" element={<HRTickets />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="users" element={<Users />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="dashboard" element={<RoleProtectedRoute permission="dashboard"><Dashboard /></RoleProtectedRoute>} />
+            <Route path="employees" element={<RoleProtectedRoute permission="employees"><Employees /></RoleProtectedRoute>} />
+            <Route path="employees/new" element={<RoleProtectedRoute permission="employees"><Employees /></RoleProtectedRoute>} />
+            <Route path="attendance" element={<RoleProtectedRoute permission="attendance"><Attendance /></RoleProtectedRoute>} />
+            <Route path="leave" element={<RoleProtectedRoute permission="leave"><LeaveManagement /></RoleProtectedRoute>} />
+            <Route path="payroll" element={<RoleProtectedRoute permission="payroll"><Payroll /></RoleProtectedRoute>} />
+            <Route path="performance" element={<RoleProtectedRoute permission="performance"><Performance /></RoleProtectedRoute>} />
+            <Route path="shifts" element={<RoleProtectedRoute permission="shifts"><Shifts /></RoleProtectedRoute>} />
+            <Route path="tickets" element={<RoleProtectedRoute permission="tickets"><HRTickets /></RoleProtectedRoute>} />
+            <Route path="recruitment" element={<RoleProtectedRoute permission="recruitment"><Recruitment /></RoleProtectedRoute>} />
+            <Route path="analytics" element={<RoleProtectedRoute permission="analytics"><Analytics /></RoleProtectedRoute>} />
+            <Route path="users" element={<RoleProtectedRoute permission="users"><Users /></RoleProtectedRoute>} />
+            <Route path="settings" element={<RoleProtectedRoute permission="settings"><Settings /></RoleProtectedRoute>} />
           </Route>
         </Routes>
       </Router>
@@ -50,22 +54,24 @@ function App() {
 function ProtectedRoute() {
   const [isVerifying, setIsVerifying] = useState(true)
   const [isValid, setIsValid] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const checkAuth = async () => {
-      // Quick check first
-      if (!isAuthenticated()) {
-        setIsValid(false)
-        setIsVerifying(false)
-        return
-      }
-
-      // Verify token with backend
       try {
+        // Quick check first
+        if (!isAuthenticated()) {
+          setIsValid(false)
+          setIsVerifying(false)
+          return
+        }
+
+        // Verify token with backend
         const valid = await verifyToken()
         setIsValid(valid)
       } catch (error) {
         console.error('Auth verification error:', error)
+        setError(error.message || 'Authentication verification failed')
         setIsValid(false)
       } finally {
         setIsVerifying(false)
@@ -80,8 +86,27 @@ function ProtectedRoute() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-4 text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md p-6">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Authentication Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.href = '/login'}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Go to Login
+          </button>
         </div>
       </div>
     )
@@ -92,7 +117,70 @@ function ProtectedRoute() {
     return <Navigate to="/login" replace />
   }
 
-  return <Layout />
+  try {
+    return <Layout />
+  } catch (error) {
+    console.error('Layout rendering error:', error)
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md p-6">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Rendering Error</h2>
+          <p className="text-gray-600 mb-4">An error occurred while loading the page. Please try refreshing.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    )
+  }
+}
+
+// Role-Based Route Protection Component
+function RoleProtectedRoute({ children, permission }) {
+  try {
+    const userRole = getUserRole()
+    
+    if (!hasPermission(userRole, permission)) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-6xl mb-4">🔒</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+            <p className="text-gray-600">You don't have permission to access this page.</p>
+            <button
+              onClick={() => window.history.back()}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      )
+    }
+    
+    return children
+  } catch (error) {
+    console.error('RoleProtectedRoute error:', error)
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
+          <p className="text-gray-600">An error occurred while checking permissions.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    )
+  }
 }
 
 export default App

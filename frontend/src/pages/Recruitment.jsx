@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Briefcase, Plus, Users, FileText, Calendar, CheckCircle, XCircle } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
+import { useRolePermissions } from '../hooks/useRolePermissions'
 
 const Recruitment = () => {
   const [jobPostings, setJobPostings] = useState([])
@@ -31,28 +32,45 @@ const Recruitment = () => {
     coverLetter: ''
   })
   const [resumeFile, setResumeFile] = useState(null)
+  const [error, setError] = useState(null)
+  const permissions = useRolePermissions()
+  const { canManageRecruitment, canManageEmployees } = permissions || {}
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (canManageRecruitment) {
+      loadData()
+    }
+  }, [canManageRecruitment])
 
   const loadData = async () => {
+    setLoading(true)
+    setError(null)
     try {
       const [jobsData] = await Promise.all([
         api.getJobPostings()
       ])
-      setJobPostings(jobsData)
+      setJobPostings(Array.isArray(jobsData) ? jobsData : [])
     } catch (error) {
       console.error('Error loading data:', error)
+      setError('Failed to load job postings. Please try again.')
+      setJobPostings([])
+    } finally {
+      setLoading(false)
     }
   }
 
   const loadApplicants = async (jobId) => {
+    setLoading(true)
+    setError(null)
     try {
       const data = await api.getApplicants(jobId)
-      setApplicants(data)
+      setApplicants(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error loading applicants:', error)
+      setError('Failed to load applicants. Please try again.')
+      setApplicants([])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -137,8 +155,43 @@ const Recruitment = () => {
     setResumeFile(null)
   }
 
+  // Show loading state while permissions are being determined
+  if (permissions === undefined || canManageRecruitment === undefined) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!canManageRecruitment) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🔒</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You don't have permission to access the Recruitment page.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{error}</span>
+          <button
+            className="absolute top-0 bottom-0 right-0 px-4 py-3"
+            onClick={() => setError(null)}
+          >
+            <XCircle size={20} className="text-red-700" />
+          </button>
+        </div>
+      )}
       {/* Tabs */}
       <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
         <div className="flex items-center justify-between">
@@ -160,20 +213,35 @@ const Recruitment = () => {
               Applicants
             </button>
           </div>
-          <button
-            onClick={() => setShowJobModal(true)}
-            className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-          >
-            <Plus size={20} />
-            Post Job
-          </button>
+          {canManageRecruitment && (
+            <button
+              onClick={() => setShowJobModal(true)}
+              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+            >
+              <Plus size={20} />
+              Post Job
+            </button>
+          )}
         </div>
       </div>
 
       {/* Job Postings */}
       {activeTab === 'jobs' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {jobPostings.map((job) => (
+        <>
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+          {!loading && jobPostings.length === 0 && (
+            <div className="text-center py-12">
+              <Briefcase size={48} className="mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600">No job postings found.</p>
+            </div>
+          )}
+          {!loading && jobPostings.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {jobPostings.map((job) => (
             <div key={job.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
@@ -227,7 +295,9 @@ const Recruitment = () => {
               </div>
             </div>
           ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Applicants */}
@@ -238,20 +308,38 @@ const Recruitment = () => {
               <h3 className="font-semibold">Applicants for: {selectedJob.title}</h3>
             </div>
           )}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applied</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {applicants.map((applicant) => (
+          {!selectedJob && (
+            <div className="p-8 text-center">
+              <Users size={48} className="mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600">Please select a job posting to view applicants.</p>
+            </div>
+          )}
+          {selectedJob && loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+          {selectedJob && !loading && applicants.length === 0 && (
+            <div className="p-8 text-center">
+              <Users size={48} className="mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600">No applicants found for this job posting.</p>
+            </div>
+          )}
+          {selectedJob && !loading && applicants.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applied</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {applicants.map((applicant) => (
                   <tr key={applicant.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900">{applicant.name}</span>
@@ -278,32 +366,35 @@ const Recruitment = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleUpdateApplicantStatus(applicant.id, 'SHORTLISTED')}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Shortlist
-                        </button>
-                        <button
-                          onClick={() => handleUpdateApplicantStatus(applicant.id, 'SELECTED')}
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          Select
-                        </button>
-                        <button
-                          onClick={() => handleUpdateApplicantStatus(applicant.id, 'REJECTED')}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Reject
-                        </button>
-                      </div>
+                      {canManageRecruitment && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleUpdateApplicantStatus(applicant.id, 'SHORTLISTED')}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Shortlist
+                          </button>
+                          <button
+                            onClick={() => handleUpdateApplicantStatus(applicant.id, 'SELECTED')}
+                            className="text-green-600 hover:text-green-900"
+                          >
+                            Select
+                          </button>
+                          <button
+                            onClick={() => handleUpdateApplicantStatus(applicant.id, 'REJECTED')}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

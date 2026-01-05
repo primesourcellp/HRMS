@@ -58,7 +58,13 @@ const Login = () => {
           localStorage.setItem('userName', response.user.name)
           localStorage.setItem('userRole', response.user.role)
           localStorage.setItem('userId', response.user.id.toString())
-          localStorage.setItem('userType', 'admin')
+          // Set userType based on role
+          const role = response.user.role
+          if (role === 'SUPER_ADMIN' || role === 'HR_ADMIN' || role === 'MANAGER' || role === 'FINANCE') {
+            localStorage.setItem('userType', 'admin')
+          } else {
+            localStorage.setItem('userType', 'employee')
+          }
           navigate('/dashboard')
         } else {
           setError(response?.message || 'Invalid email or password')
