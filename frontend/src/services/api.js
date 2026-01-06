@@ -827,6 +827,138 @@ const api = {
       throw error
     }
   },
+
+  // KPI configuration endpoints
+  getKpis: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/kpis`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch KPIs (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching KPIs:', error)
+      throw error
+    }
+  },
+
+  // Review cycle endpoints
+  getReviewCycles: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/review-cycles`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch review cycles (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching review cycles:', error)
+      throw error
+    }
+  },
+  createReviewCycle: async (cycle) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/review-cycles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cycle)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create review cycle (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating review cycle:', error)
+      throw error
+    }
+  },
+  updateReviewCycle: async (id, cycle) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/review-cycles/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cycle)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to update review cycle (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating review cycle:', error)
+      throw error
+    }
+  },
+  deleteReviewCycle: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/review-cycles/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to delete review cycle (${response.status})`)
+      }
+      return true
+    } catch (error) {
+      console.error('Error deleting review cycle:', error)
+      throw error
+    }
+  },
+
+  createKpi: async (kpi) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/kpis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(kpi)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create KPI (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating KPI:', error)
+      throw error
+    }
+  },
+  updateKpi: async (id, kpi) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/kpis/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(kpi)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to update KPI (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating KPI:', error)
+      throw error
+    }
+  },
+  deleteKpi: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/kpis/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to delete KPI (${response.status})`)
+      }
+      return true
+    } catch (error) {
+      console.error('Error deleting KPI:', error)
+      throw error
+    }
+  },
+
   deletePerformance: async (id) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/performance/${id}`, {

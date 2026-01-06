@@ -21,6 +21,14 @@ const Performance = () => {
   const [sortOrder, setSortOrder] = useState('desc')
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  const [kpis, setKpis] = useState([])
+  const [reviewCycles, setReviewCycles] = useState([])
+  const [showKpiModal, setShowKpiModal] = useState(false)
+  const [editingKpi, setEditingKpi] = useState(null)
+  const [kpiFormData, setKpiFormData] = useState({ name: '', description: '', target: '', weight: 0, active: true })
+  const [showCycleModal, setShowCycleModal] = useState(false)
+  const [editingCycle, setEditingCycle] = useState(null)
+  const [cycleFormData, setCycleFormData] = useState({ name: '', startDate: '', endDate: '', active: true })
   const [performanceFormData, setPerformanceFormData] = useState({
     employeeId: '',
     reviewDate: format(new Date(), 'yyyy-MM-dd'),
@@ -29,7 +37,10 @@ const Performance = () => {
     goals: '',
     achievements: '',
     feedback: '',
-    areasForImprovement: ''
+    areasForImprovement: '',
+    // KPI fields
+    kpiConfigId: '',
+    kpiResults: '' // free text or JSON-like entries
   })
 
   const userRole = localStorage.getItem('userRole')
@@ -66,6 +77,23 @@ const Performance = () => {
       } else {
         const employeesData = await api.getEmployees()
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
+      }
+
+      // Load KPI configurations (useful for admins and for showing KPI info in reviews)
+      try {
+        const kpiData = await api.getKpis()
+        setKpis(Array.isArray(kpiData) ? kpiData : [])
+      } catch (err) {
+        // Non-fatal: if KPI endpoint is not available yet, we just keep an empty list
+        console.warn('Could not load KPIs:', err)
+      }
+
+      // Load review cycles
+      try {
+        const cycleData = await api.getReviewCycles()
+        setReviewCycles(Array.isArray(cycleData) ? cycleData : [])
+      } catch (err) {
+        console.warn('Could not load review cycles:', err)
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -154,7 +182,9 @@ const Performance = () => {
         goals: performance.goals || '',
         achievements: performance.achievements || '',
         feedback: performance.feedback || '',
-        areasForImprovement: performance.areasForImprovement || ''
+        areasForImprovement: performance.areasForImprovement || '',
+        kpiConfigId: performance.kpiConfigId ? performance.kpiConfigId.toString() : '',
+        kpiResults: performance.kpiResults || ''
       })
     } else {
       setEditingPerformance(null)
@@ -166,7 +196,9 @@ const Performance = () => {
         goals: '',
         achievements: '',
         feedback: '',
-        areasForImprovement: ''
+        areasForImprovement: '',
+        kpiConfigId: '',
+        kpiResults: ''
       })
     }
     setShowPerformanceModal(true)
@@ -182,7 +214,9 @@ const Performance = () => {
       const performanceData = {
         ...performanceFormData,
         employeeId: parseInt(performanceFormData.employeeId),
-        rating: parseInt(performanceFormData.rating)
+        rating: parseInt(performanceFormData.rating),
+        kpiConfigId: performanceFormData.kpiConfigId ? parseInt(performanceFormData.kpiConfigId) : null,
+        reviewCycleId: performanceFormData.reviewCycleId ? parseInt(performanceFormData.reviewCycleId) : null
       }
 
       if (editingPerformance) {
@@ -231,6 +265,122 @@ const Performance = () => {
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
       setError(error.message || 'Error deleting performance review')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // KPI management helpers
+  const openKpiModal = (kpi = null) => {
+    if (kpi) {
+      setEditingKpi(kpi)
+      setKpiFormData({
+        name: kpi.name || '',
+        description: kpi.description || '',
+        target: kpi.target || '',
+        weight: kpi.weight || 0,
+        active: kpi.active === undefined ? true : kpi.active
+      })
+    } else {
+      setEditingKpi(null)
+      setKpiFormData({ name: '', description: '', target: '', weight: 0, active: true })
+    }
+    setShowKpiModal(true)
+  }
+
+  const openCycleModal = (cycle = null) => {
+    if (cycle) {
+      setEditingCycle(cycle)
+      setCycleFormData({
+        name: cycle.name || '',
+        startDate: cycle.startDate || '',
+        endDate: cycle.endDate || '',
+        active: cycle.active === undefined ? true : cycle.active
+      })
+    } else {
+      setEditingCycle(null)
+      setCycleFormData({ name: '', startDate: '', endDate: '', active: true })
+    }
+    setShowCycleModal(true)
+  }
+
+  const handleKpiSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      if (editingKpi) {
+        await api.updateKpi(editingKpi.id, kpiFormData)
+        setSuccessMessage('KPI updated!')
+      } else {
+        await api.createKpi(kpiFormData)
+        setSuccessMessage('KPI created!')
+      }
+      await loadData()
+      setShowKpiModal(false)
+      setEditingKpi(null)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error saving KPI')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCycleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      if (editingCycle) {
+        await api.updateReviewCycle(editingCycle.id, cycleFormData)
+        setSuccessMessage('Review cycle updated!')
+      } else {
+        await api.createReviewCycle(cycleFormData)
+        setSuccessMessage('Review cycle created!')
+      }
+      await loadData()
+      setShowCycleModal(false)
+      setEditingCycle(null)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error saving review cycle')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteKpi = async (id) => {
+    if (!window.confirm('Delete this KPI configuration?')) return
+    setLoading(true)
+    try {
+      await api.deleteKpi(id)
+      await loadData()
+      setSuccessMessage('KPI deleted')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error deleting KPI')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteCycle = async (id) => {
+    if (!window.confirm('Delete this review cycle?')) return
+    setLoading(true)
+    try {
+      await api.deleteReviewCycle(id)
+      await loadData()
+      setSuccessMessage('Review cycle deleted')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error deleting review cycle')
       setTimeout(() => setError(null), 5000)
     } finally {
       setLoading(false)
@@ -352,6 +502,29 @@ const Performance = () => {
         color: getProgressColor(percentage)
       }
     })
+  }
+
+  // KPI parsing helpers
+  const parseKpis = (kpiText) => {
+    if (!kpiText || typeof kpiText !== 'string') return []
+    const lines = kpiText.split('\n').filter(l => l.trim())
+    return lines.map(line => {
+      // expected format: "KPI Name: value (optional %%)"
+      const [namePart, rest] = line.split(':').map(s => s && s.trim())
+      const name = namePart || line
+      let value = rest || ''
+      // try to extract percentage in parentheses
+      const percentMatch = value.match(/(\d+)%/)
+      const percentage = percentMatch ? parseInt(percentMatch[1]) : null
+      return { name, value: value.trim(), percentage }
+    })
+  }
+
+  const getKpiBadgeColor = (percentage) => {
+    if (percentage === null) return 'text-gray-700 bg-gray-100 border-gray-200'
+    if (percentage >= 90) return 'text-green-700 bg-green-100 border-green-200'
+    if (percentage >= 70) return 'text-yellow-700 bg-yellow-100 border-yellow-200'
+    return 'text-red-700 bg-red-100 border-red-200'
   }
 
   const getProgressColor = (percentage) => {
@@ -590,13 +763,33 @@ const Performance = () => {
               Performance Reviews ({performances.length})
             </h3>
             {isAdmin && (
-              <button
-                onClick={() => handleOpenPerformanceModal()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-              >
-                <Plus size={20} />
-                Create Review
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleOpenPerformanceModal()}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                >
+                  <Plus size={20} />
+                  Create Review
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowKpiModal(true)}
+                    className="bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-xl hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all duration-200 font-medium"
+                    title="KPI Configuration"
+                  >
+                    <BarChart3 size={18} />
+                    KPI Config
+                  </button>
+                  <button
+                    onClick={() => setShowCycleModal(true)}
+                    className="bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-xl hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all duration-200 font-medium"
+                    title="Review Cycles"
+                  >
+                    <Calendar size={18} />
+                    Cycles
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -608,6 +801,7 @@ const Performance = () => {
                   <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
                 )}
                 <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Period</th>
+                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Cycle</th>
                 <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Review Date</th>
                 <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Rating</th>
                 <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Goals</th>
@@ -639,6 +833,9 @@ const Performance = () => {
                       )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                         {performance.period || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(reviewCycles.find(c => c.id === performance.reviewCycleId) || {}).name || '—'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(performance.reviewDate)}
@@ -697,6 +894,166 @@ const Performance = () => {
         </div>
       </div>
 
+      {/* Review Cycle Modal */}
+      {showCycleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
+          setShowCycleModal(false)
+          setEditingCycle(null)
+        }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Calendar size={28} className="text-blue-600" />
+                Review Cycles
+              </h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => openCycleModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">New Cycle</button>
+                <button
+                  onClick={() => { setShowCycleModal(false); setEditingCycle(null) }}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="md:col-span-1">
+                <h4 className="font-semibold text-gray-800 mb-2">Existing Cycles</h4>
+                <div className="space-y-2">
+                  {reviewCycles.length === 0 ? (
+                    <p className="text-sm text-gray-500">No review cycles defined.</p>
+                  ) : (
+                    reviewCycles.map(c => (
+                      <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between">
+                        <div>
+                          <div className="font-medium text-gray-800">{c.name}</div>
+                          <div className="text-xs text-gray-500">{c.startDate || 'N/A'} → {c.endDate || 'N/A'}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openCycleModal(c)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
+                          <button onClick={() => handleDeleteCycle(c.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="md:col-span-1">
+                <h4 className="font-semibold text-gray-800 mb-2">Create / Edit Cycle</h4>
+                <form onSubmit={handleCycleSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Name *</label>
+                    <input value={cycleFormData.name} onChange={(e) => setCycleFormData({ ...cycleFormData, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Start Date</label>
+                    <input type="date" value={cycleFormData.startDate} onChange={(e) => setCycleFormData({ ...cycleFormData, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">End Date</label>
+                    <input type="date" value={cycleFormData.endDate} onChange={(e) => setCycleFormData({ ...cycleFormData, endDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={cycleFormData.active} onChange={(e) => setCycleFormData({ ...cycleFormData, active: e.target.checked })} />
+                      <span className="text-gray-600">Active</span>
+                    </label>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => { setShowCycleModal(false); setEditingCycle(null) }} className="px-4 py-2 border rounded-lg">Close</button>
+                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg">{editingCycle ? 'Update' : 'Create'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Configuration Modal */}
+      {showKpiModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
+          setShowKpiModal(false)
+          setEditingKpi(null)
+        }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <BarChart3 size={28} className="text-blue-600" />
+                KPI Configuration
+              </h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => openKpiModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">New KPI</button>
+                <button
+                  onClick={() => { setShowKpiModal(false); setEditingKpi(null) }}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="md:col-span-1">
+                <h4 className="font-semibold text-gray-800 mb-2">Existing KPIs</h4>
+                <div className="space-y-2">
+                  {kpis.length === 0 ? (
+                    <p className="text-sm text-gray-500">No KPI templates yet.</p>
+                  ) : (
+                    kpis.map(k => (
+                      <div key={k.id} className="border rounded-lg p-3 flex items-start justify-between">
+                        <div>
+                          <div className="font-medium text-gray-800">{k.name}</div>
+                          <div className="text-xs text-gray-500">{k.target || 'No target specified'}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openKpiModal(k)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
+                          <button onClick={() => handleDeleteKpi(k.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="md:col-span-1">
+                <h4 className="font-semibold text-gray-800 mb-2">Create / Edit KPI</h4>
+                <form onSubmit={handleKpiSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Name *</label>
+                    <input value={kpiFormData.name} onChange={(e) => setKpiFormData({ ...kpiFormData, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Target</label>
+                    <input value={kpiFormData.target} onChange={(e) => setKpiFormData({ ...kpiFormData, target: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Weight</label>
+                    <input type="number" min="0" max="100" value={kpiFormData.weight} onChange={(e) => setKpiFormData({ ...kpiFormData, weight: parseInt(e.target.value || 0) })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={kpiFormData.active} onChange={(e) => setKpiFormData({ ...kpiFormData, active: e.target.checked })} />
+                      <span className="text-gray-600">Active</span>
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Description</label>
+                    <textarea value={kpiFormData.description} onChange={(e) => setKpiFormData({ ...kpiFormData, description: e.target.value })} className="w-full px-3 py-2 border rounded-lg" rows={4} />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => { setShowKpiModal(false); setEditingKpi(null) }} className="px-4 py-2 border rounded-lg">Close</button>
+                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg">{editingKpi ? 'Update' : 'Create'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* View Performance Modal */}
       {showViewModal && selectedPerformance && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
@@ -730,6 +1087,10 @@ const Performance = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Period</label>
                   <p className="text-lg font-semibold text-gray-800">{selectedPerformance.period || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Cycle</label>
+                  <p className="text-sm text-gray-800">{(reviewCycles.find(c => c.id === selectedPerformance.reviewCycleId) || {}).name || '—'}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Review Date</label>
@@ -866,6 +1227,42 @@ const Performance = () => {
                   )
                 })()}
               </div>
+
+              {/* KPI Results Display */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">KPI Results</label>
+                {selectedPerformance.kpiConfigId && (
+                  <p className="text-sm text-gray-700 mb-2">Template: <strong>{(kpis.find(k => k.id === selectedPerformance.kpiConfigId) || {}).name || 'N/A'}</strong></p>
+                )}
+
+                {(() => {
+                  const kpiItems = parseKpis(selectedPerformance.kpiResults)
+                  return (
+                    <div>
+                      {kpiItems.length > 0 ? (
+                        <div className="space-y-2">
+                          {kpiItems.map((k, i) => (
+                            <div key={i} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
+                              <div>
+                                <div className="font-medium text-gray-800">{k.name}</div>
+                                <div className="text-xs text-gray-500">{k.value}</div>
+                              </div>
+                              <div>
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${getKpiBadgeColor(k.percentage)}`}>
+                                  {k.percentage !== null ? `${k.percentage}%` : '—'}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-200 whitespace-pre-wrap">{selectedPerformance.kpiResults || 'No KPI results recorded'}</p>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-2">Achievements</label>
                 <p className="text-gray-800 bg-green-50 p-4 rounded-lg border border-green-200 whitespace-pre-wrap">
@@ -1008,6 +1405,48 @@ const Performance = () => {
                   rows="4"
                   placeholder="Enter goals, one per line:&#10;Improve client satisfaction&#10;Complete project management course&#10;Reduce bug resolution time"
                 />
+
+                {/* KPI selection + results */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">KPI Template (optional)</label>
+                  <select
+                    value={performanceFormData.kpiConfigId}
+                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, kpiConfigId: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">No KPI</option>
+                    {kpis.map(k => (
+                      <option key={k.id} value={k.id.toString()}>{k.name}{k.target ? ` — ${k.target}` : ''}</option>
+                    ))}
+                  </select>
+
+                  <label className="block text-sm font-medium text-gray-700 mb-2 mt-3">Review Cycle (optional)</label>
+                  <select
+                    value={performanceFormData.reviewCycleId || ''}
+                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, reviewCycleId: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">No Cycle</option>
+                    {reviewCycles.map(c => (
+                      <option key={c.id} value={c.id.toString()}>{c.name} {c.startDate && c.endDate ? `(${c.startDate} → ${c.endDate})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">KPI Results</label>
+                  <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs text-blue-700 font-medium mb-1">📌 Format:</p>
+                    <p className="text-xs text-blue-600">Enter KPI results one per line, as "KPI Name: value (optional %)", e.g. "Response Time: 18h (75%)" or "Sales: 120"</p>
+                  </div>
+                  <textarea
+                    value={performanceFormData.kpiResults}
+                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, kpiResults: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    rows="3"
+                    placeholder="Enter KPI results, one per line:&#10;Response Time: 18h (75%)&#10;Sales: 120"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Achievements</label>

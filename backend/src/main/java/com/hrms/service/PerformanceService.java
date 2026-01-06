@@ -74,6 +74,19 @@ public class PerformanceService {
             performance.setOverallProgress(performanceDetails.getOverallProgress());
         }
 
+        // KPI fields
+        if (performanceDetails.getKpiConfigId() != null) {
+            performance.setKpiConfigId(performanceDetails.getKpiConfigId());
+        }
+        if (performanceDetails.getKpiResults() != null) {
+            performance.setKpiResults(performanceDetails.getKpiResults());
+        }
+
+        // Review cycle
+        if (performanceDetails.getReviewCycleId() != null) {
+            performance.setReviewCycleId(performanceDetails.getReviewCycleId());
+        }
+
         return performanceRepository.save(performance);
     }
 

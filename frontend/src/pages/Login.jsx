@@ -19,7 +19,7 @@ const Login = () => {
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const navigate = useNavigate()
-
+ 
   useEffect(() => {
     // Check if a Super Admin exists; if not, redirect to register (run once on mount)
     const checkSuperAdmin = async () => {
