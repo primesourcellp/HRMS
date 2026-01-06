@@ -15,7 +15,10 @@ import Users from './pages/Users'
 import Shifts from './pages/Shifts'
 import HRTickets from './pages/HRTickets'
 import Analytics from './pages/Analytics'
+<<<<<<< HEAD
 import Recruitment from './pages/Recruitment'
+=======
+>>>>>>> master
 import CTCTemplates from './pages/CTCTemplates'
 import InitialRoute from './components/InitialRoute'
 import { isAuthenticated, verifyToken } from './utils/auth'
@@ -31,6 +34,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
+<<<<<<< HEAD
             <Route path="dashboard" element={<RoleProtectedRoute permission="dashboard"><Dashboard /></RoleProtectedRoute>} />
             <Route path="employees" element={<RoleProtectedRoute permission="employees"><Employees /></RoleProtectedRoute>} />
             <Route path="employees/new" element={<RoleProtectedRoute permission="employees"><Employees /></RoleProtectedRoute>} />
@@ -45,6 +49,20 @@ function App() {
             <Route path="users" element={<RoleProtectedRoute permission="users"><Users /></RoleProtectedRoute>} />
             <Route path="ctc-templates" element={<RoleProtectedRoute permission="payroll"><CTCTemplates /></RoleProtectedRoute>} />
             <Route path="settings" element={<RoleProtectedRoute permission="settings"><Settings /></RoleProtectedRoute>} />
+=======
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="employees" element={<Employees />} />
+            <Route path="attendance" element={<Attendance />} />
+            <Route path="leave" element={<LeaveManagement />} />
+            <Route path="payroll" element={<Payroll />} />
+            <Route path="performance" element={<Performance />} />
+            <Route path="shifts" element={<Shifts />} />
+            <Route path="tickets" element={<HRTickets />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="users" element={<Users />} />
+            <Route path="ctc-templates" element={<CTCTemplates />} />
+            <Route path="settings" element={<Settings />} />
+>>>>>>> master
           </Route>
         </Routes>
       </Router>

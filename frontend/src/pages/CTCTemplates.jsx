@@ -440,7 +440,11 @@ const CTCTemplates = () => {
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Transport Allowance (Fixed ₹)</label>
                       <input
                         type="number"
+<<<<<<< HEAD
                         step="1"
+=======
+                        step="0.01"
+>>>>>>> master
                         value={formData.transportAllowanceFixed || ''}
                         onChange={(e) => setFormData({ ...formData, transportAllowanceFixed: e.target.value ? parseFloat(e.target.value) : null })}
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -469,7 +473,11 @@ const CTCTemplates = () => {
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Allowance (Fixed ₹)</label>
                       <input
                         type="number"
+<<<<<<< HEAD
                         step="1"
+=======
+                        step="0.01"
+>>>>>>> master
                         value={formData.medicalAllowanceFixed || ''}
                         onChange={(e) => setFormData({ ...formData, medicalAllowanceFixed: e.target.value ? parseFloat(e.target.value) : null })}
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -494,7 +502,11 @@ const CTCTemplates = () => {
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Special Allowance (Fixed ₹)</label>
                       <input
                         type="number"
+<<<<<<< HEAD
                         step="1"
+=======
+                        step="0.01"
+>>>>>>> master
                         value={formData.specialAllowanceFixed || ''}
                         onChange={(e) => setFormData({ ...formData, specialAllowanceFixed: e.target.value ? parseFloat(e.target.value) : null })}
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -550,7 +562,11 @@ const CTCTemplates = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">ESI Applicable Threshold (₹)</label>
                     <input
                       type="number"
+<<<<<<< HEAD
                       step="1"
+=======
+                      step="0.01"
+>>>>>>> master
                       value={formData.esiApplicableThreshold}
                       onChange={(e) => setFormData({ ...formData, esiApplicableThreshold: parseFloat(e.target.value) || 0 })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -561,7 +577,11 @@ const CTCTemplates = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Professional Tax (Fixed ₹)</label>
                     <input
                       type="number"
+<<<<<<< HEAD
                       step="1"
+=======
+                      step="0.01"
+>>>>>>> master
                       value={formData.professionalTaxAmount || ''}
                       onChange={(e) => setFormData({ ...formData, professionalTaxAmount: e.target.value ? parseFloat(e.target.value) : null })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

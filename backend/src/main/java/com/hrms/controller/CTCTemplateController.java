@@ -66,7 +66,10 @@ public class CTCTemplateController {
      * Convert Annual CTC to Salary Structure using template
      * Core endpoint: Auto-generate salary breakup per client rules
      * IMPORTANT: This endpoint must come BEFORE @GetMapping("/{id}") to avoid path variable conflicts
+<<<<<<< HEAD
      * Using explicit path mapping to ensure it's matched before the generic {id} pattern
+=======
+>>>>>>> master
      */
     @PostMapping("/convert-ctc")
     public ResponseEntity<Map<String, Object>> convertCTCToSalaryStructure(

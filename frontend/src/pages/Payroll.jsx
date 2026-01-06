@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
+<<<<<<< HEAD
 import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2 } from 'lucide-react'
+=======
+import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2, Settings, Info, AlertCircle, Building2 } from 'lucide-react'
+>>>>>>> master
 import api from '../services/api'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -11,7 +15,7 @@ const Payroll = () => {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeView, setActiveView] = useState('salaryDetails') // 'salaryDetails' or 'processedPayrolls'
+  const [activeView, setActiveView] = useState('salaryDetails') // 'salaryDetails', 'processedPayrolls', or 'ctcTemplates'
   const [showPayrollModal, setShowPayrollModal] = useState(false)
   const [showSalaryModal, setShowSalaryModal] = useState(false)
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
@@ -62,6 +66,36 @@ const Payroll = () => {
     client: ''
   })
   const [showCtcConverter, setShowCtcConverter] = useState(false)
+<<<<<<< HEAD
+=======
+  // CTC Template Management State
+  const [ctcTemplateSearchTerm, setCtcTemplateSearchTerm] = useState('')
+  const [ctcTemplateClientFilter, setCtcTemplateClientFilter] = useState('All')
+  const [showCtcTemplateModal, setShowCtcTemplateModal] = useState(false)
+  const [editingCtcTemplate, setEditingCtcTemplate] = useState(null)
+  const [ctcTemplateClients, setCtcTemplateClients] = useState([])
+  const [ctcTemplateFormData, setCtcTemplateFormData] = useState({
+    templateName: '',
+    clientName: '',
+    description: '',
+    basicSalaryPercentage: 40.0,
+    hraPercentage: 50.0,
+    transportAllowancePercentage: null,
+    transportAllowanceFixed: null,
+    medicalAllowancePercentage: null,
+    medicalAllowanceFixed: null,
+    specialAllowancePercentage: null,
+    specialAllowanceFixed: null,
+    otherAllowancesPercentage: null,
+    pfPercentage: 12.0,
+    esiPercentage: 0.75,
+    esiApplicableThreshold: 21000.0,
+    professionalTaxAmount: null,
+    tdsPercentage: null,
+    otherDeductionsPercentage: null,
+    active: true
+  })
+>>>>>>> master
 
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
@@ -83,6 +117,7 @@ const Payroll = () => {
         ])
         setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
+<<<<<<< HEAD
       } else if (isAdmin) {
         const [payrollsData, employeesData, salaryStructuresData, ctcTemplatesData] = await Promise.all([
           api.getPayrolls(),
@@ -102,6 +137,31 @@ const Payroll = () => {
           console.log('Loaded CTC templates:', templates.length, templates)
         }
       }
+=======
+        } else if (isAdmin) {
+          // Load all templates if viewing CTC Templates tab, otherwise load only active ones
+          const shouldLoadAllTemplates = activeView === 'ctcTemplates'
+          const [payrollsData, employeesData, salaryStructuresData, ctcTemplatesData, clientsData] = await Promise.all([
+            api.getPayrolls(),
+            api.getEmployees(),
+            api.getSalaryStructures(),
+            api.getCTCTemplates(null, !shouldLoadAllTemplates), // Get all templates if viewing CTC Templates tab, otherwise active only
+            api.getClients()
+          ])
+          setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
+          setEmployees(Array.isArray(employeesData) ? employeesData : [])
+          setSalaryStructures(Array.isArray(salaryStructuresData) ? salaryStructuresData : [])
+          const templates = Array.isArray(ctcTemplatesData) ? ctcTemplatesData : []
+          setCtcTemplates(templates)
+          setCtcTemplateClients(Array.isArray(clientsData) ? clientsData : [])
+          // Debug: Log templates to help diagnose
+          if (templates.length === 0) {
+            console.warn('No CTC templates found. Please create templates first.')
+          } else {
+            console.log('Loaded CTC templates:', templates.length, templates)
+          }
+        }
+>>>>>>> master
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -418,19 +478,25 @@ const Payroll = () => {
   const handleOpenSalaryModal = (salary = null) => {
     if (salary) {
       setEditingSalary(salary)
+      // Helper function to round to 2 decimal places
+      const roundToTwoDecimals = (value) => {
+        if (value === null || value === undefined) return 0
+        return Math.round((parseFloat(value) || 0) * 100) / 100
+      }
+      
       setSalaryFormData({
         employeeId: salary.employeeId?.toString() || '',
-        basicSalary: salary.basicSalary || 0,
-        hra: salary.hra || 0,
-        transportAllowance: salary.transportAllowance || 0,
-        medicalAllowance: salary.medicalAllowance || 0,
-        specialAllowance: salary.specialAllowance || 0,
-        otherAllowances: salary.otherAllowances || 0,
-        pf: salary.pf || 0,
-        esi: salary.esi || 0,
-        tds: salary.tds || 0,
-        professionalTax: salary.professionalTax || 0,
-        otherDeductions: salary.otherDeductions || 0,
+        basicSalary: roundToTwoDecimals(salary.basicSalary),
+        hra: roundToTwoDecimals(salary.hra),
+        transportAllowance: roundToTwoDecimals(salary.transportAllowance),
+        medicalAllowance: roundToTwoDecimals(salary.medicalAllowance),
+        specialAllowance: roundToTwoDecimals(salary.specialAllowance),
+        otherAllowances: roundToTwoDecimals(salary.otherAllowances),
+        pf: roundToTwoDecimals(salary.pf),
+        esi: roundToTwoDecimals(salary.esi),
+        tds: roundToTwoDecimals(salary.tds),
+        professionalTax: roundToTwoDecimals(salary.professionalTax),
+        otherDeductions: roundToTwoDecimals(salary.otherDeductions),
         effectiveFrom: salary.effectiveFrom ? format(parseISO(salary.effectiveFrom), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
       })
       setShowCtcConverter(false)
@@ -480,6 +546,7 @@ const Payroll = () => {
         parseInt(ctcConversionData.templateId)
       )
 
+<<<<<<< HEAD
       // Populate salary form with converted values
       setSalaryFormData({
         ...salaryFormData,
@@ -494,6 +561,28 @@ const Payroll = () => {
         tds: result.tds || 0,
         professionalTax: result.professionalTax || 0,
         otherDeductions: result.otherDeductions || 0
+=======
+      // Helper function to round to 2 decimal places
+      const roundToTwoDecimals = (value) => {
+        if (value === null || value === undefined) return 0
+        return Math.round((parseFloat(value) || 0) * 100) / 100
+      }
+
+      // Populate salary form with converted values (rounded to 2 decimal places)
+      setSalaryFormData({
+        ...salaryFormData,
+        basicSalary: roundToTwoDecimals(result.basicSalary),
+        hra: roundToTwoDecimals(result.hra),
+        transportAllowance: roundToTwoDecimals(result.transportAllowance),
+        medicalAllowance: roundToTwoDecimals(result.medicalAllowance),
+        specialAllowance: roundToTwoDecimals(result.specialAllowance),
+        otherAllowances: roundToTwoDecimals(result.otherAllowances),
+        pf: roundToTwoDecimals(result.pf),
+        esi: roundToTwoDecimals(result.esi),
+        tds: roundToTwoDecimals(result.tds),
+        professionalTax: roundToTwoDecimals(result.professionalTax),
+        otherDeductions: roundToTwoDecimals(result.otherDeductions)
+>>>>>>> master
       })
 
       alert('CTC converted to salary structure successfully! Review and edit the values before saving.')
@@ -570,6 +659,106 @@ const Payroll = () => {
       setLoading(false)
     }
   }
+
+  // CTC Template Management Handlers
+  const handleOpenCtcTemplateModal = (template = null) => {
+    if (template) {
+      setEditingCtcTemplate(template)
+      setCtcTemplateFormData({
+        templateName: template.templateName || '',
+        clientName: template.clientName || '',
+        description: template.description || '',
+        basicSalaryPercentage: template.basicSalaryPercentage || 40.0,
+        hraPercentage: template.hraPercentage || 50.0,
+        transportAllowancePercentage: template.transportAllowancePercentage || null,
+        transportAllowanceFixed: template.transportAllowanceFixed || null,
+        medicalAllowancePercentage: template.medicalAllowancePercentage || null,
+        medicalAllowanceFixed: template.medicalAllowanceFixed || null,
+        specialAllowancePercentage: template.specialAllowancePercentage || null,
+        specialAllowanceFixed: template.specialAllowanceFixed || null,
+        otherAllowancesPercentage: template.otherAllowancesPercentage || null,
+        pfPercentage: template.pfPercentage || 12.0,
+        esiPercentage: template.esiPercentage || 0.75,
+        esiApplicableThreshold: template.esiApplicableThreshold || 21000.0,
+        professionalTaxAmount: template.professionalTaxAmount || null,
+        tdsPercentage: template.tdsPercentage || null,
+        otherDeductionsPercentage: template.otherDeductionsPercentage || null,
+        active: template.active !== undefined ? template.active : true
+      })
+    } else {
+      setEditingCtcTemplate(null)
+      setCtcTemplateFormData({
+        templateName: '',
+        clientName: '',
+        description: '',
+        basicSalaryPercentage: 40.0,
+        hraPercentage: 50.0,
+        transportAllowancePercentage: null,
+        transportAllowanceFixed: null,
+        medicalAllowancePercentage: null,
+        medicalAllowanceFixed: null,
+        specialAllowancePercentage: null,
+        specialAllowanceFixed: null,
+        otherAllowancesPercentage: null,
+        pfPercentage: 12.0,
+        esiPercentage: 0.75,
+        esiApplicableThreshold: 21000.0,
+        professionalTaxAmount: null,
+        tdsPercentage: null,
+        otherDeductionsPercentage: null,
+        active: true
+      })
+    }
+    setShowCtcTemplateModal(true)
+  }
+
+  const handleCtcTemplateSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      setLoading(true)
+      if (editingCtcTemplate) {
+        await api.updateCTCTemplate(editingCtcTemplate.id, ctcTemplateFormData)
+        alert('CTC Template updated successfully!')
+      } else {
+        await api.createCTCTemplate(ctcTemplateFormData)
+        alert('CTC Template created successfully!')
+      }
+      await loadData()
+      setShowCtcTemplateModal(false)
+      setEditingCtcTemplate(null)
+    } catch (error) {
+      console.error('Error saving CTC template:', error)
+      alert('Error saving template: ' + (error.message || 'Failed to save'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteCtcTemplate = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
+      return
+    }
+    try {
+      setLoading(true)
+      await api.deleteCTCTemplate(id)
+      alert('Template deleted successfully!')
+      await loadData()
+    } catch (error) {
+      console.error('Error deleting template:', error)
+      alert('Error deleting template: ' + (error.message || 'Failed to delete'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredCtcTemplates = ctcTemplates.filter(t => {
+    const matchesSearch = !ctcTemplateSearchTerm || 
+      t.templateName?.toLowerCase().includes(ctcTemplateSearchTerm.toLowerCase()) ||
+      t.clientName?.toLowerCase().includes(ctcTemplateSearchTerm.toLowerCase()) ||
+      t.description?.toLowerCase().includes(ctcTemplateSearchTerm.toLowerCase())
+    const matchesClient = ctcTemplateClientFilter === 'All' || t.clientName === ctcTemplateClientFilter
+    return matchesSearch && matchesClient
+  })
 
   const handleExportCSV = () => {
     const csvData = filteredPayrolls.map(p => {
@@ -648,10 +837,10 @@ const Payroll = () => {
 
   return (
     <div className="space-y-4 sm:space-y-5 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
-      {/* Toggle Buttons for Salary Details and Processed Payrolls - Admin Only */}
+      {/* Toggle Buttons for Salary Details, Processed Payrolls, and CTC Templates - Admin Only */}
       {isAdmin && (
         <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <button
               onClick={() => setActiveView('salaryDetails')}
               className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
@@ -673,6 +862,17 @@ const Payroll = () => {
             >
               <FileText size={20} />
               Processed Payrolls
+            </button>
+            <button
+              onClick={() => setActiveView('ctcTemplates')}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+                activeView === 'ctcTemplates'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Settings size={20} />
+              CTC Templates
             </button>
           </div>
         </div>
@@ -1312,8 +1512,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.hra}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, hra: e.target.value })}
+=======
+                      value={typeof salaryFormData.hra === 'number' ? salaryFormData.hra.toFixed(2) : salaryFormData.hra}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, hra: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1323,8 +1531,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.transportAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, transportAllowance: e.target.value })}
+=======
+                      value={typeof salaryFormData.transportAllowance === 'number' ? salaryFormData.transportAllowance.toFixed(2) : salaryFormData.transportAllowance}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, transportAllowance: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1334,8 +1550,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.medicalAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, medicalAllowance: e.target.value })}
+=======
+                      value={typeof salaryFormData.medicalAllowance === 'number' ? salaryFormData.medicalAllowance.toFixed(2) : salaryFormData.medicalAllowance}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, medicalAllowance: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1345,8 +1569,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.specialAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, specialAllowance: e.target.value })}
+=======
+                      value={typeof salaryFormData.specialAllowance === 'number' ? salaryFormData.specialAllowance.toFixed(2) : salaryFormData.specialAllowance}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, specialAllowance: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1356,8 +1588,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.otherAllowances}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, otherAllowances: e.target.value })}
+=======
+                      value={typeof salaryFormData.otherAllowances === 'number' ? salaryFormData.otherAllowances.toFixed(2) : salaryFormData.otherAllowances}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, otherAllowances: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1374,8 +1614,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.pf}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, pf: e.target.value })}
+=======
+                      value={typeof salaryFormData.pf === 'number' ? salaryFormData.pf.toFixed(2) : salaryFormData.pf}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, pf: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1385,8 +1633,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.esi}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, esi: e.target.value })}
+=======
+                      value={typeof salaryFormData.esi === 'number' ? salaryFormData.esi.toFixed(2) : salaryFormData.esi}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, esi: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1396,8 +1652,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.tds}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, tds: e.target.value })}
+=======
+                      value={typeof salaryFormData.tds === 'number' ? salaryFormData.tds.toFixed(2) : salaryFormData.tds}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, tds: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1407,8 +1671,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.professionalTax}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, professionalTax: e.target.value })}
+=======
+                      value={typeof salaryFormData.professionalTax === 'number' ? salaryFormData.professionalTax.toFixed(2) : salaryFormData.professionalTax}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, professionalTax: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1418,8 +1690,16 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
+<<<<<<< HEAD
                       value={salaryFormData.otherDeductions}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, otherDeductions: e.target.value })}
+=======
+                      value={typeof salaryFormData.otherDeductions === 'number' ? salaryFormData.otherDeductions.toFixed(2) : salaryFormData.otherDeductions}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSalaryFormData({ ...salaryFormData, otherDeductions: Math.round(val * 100) / 100 })
+                      }}
+>>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1819,6 +2099,146 @@ const Payroll = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* CTC Templates View */}
+      {isAdmin && activeView === 'ctcTemplates' && (
+        <>
+          {/* Filters and Actions for CTC Templates */}
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search templates by name, client, or description..."
+                    value={ctcTemplateSearchTerm}
+                    onChange={(e) => setCtcTemplateSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {ctcTemplateSearchTerm && (
+                    <button
+                      onClick={() => setCtcTemplateSearchTerm('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={ctcTemplateClientFilter}
+                  onChange={(e) => setCtcTemplateClientFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="All">All Clients</option>
+                  {ctcTemplateClients.map(client => (
+                    <option key={client} value={client}>{client}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={() => handleOpenCtcTemplateModal()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+              >
+                <Plus size={20} />
+                Create Template
+              </button>
+            </div>
+          </div>
+
+          {/* CTC Templates Table */}
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
+            <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gray-50">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
+                <Settings size={24} className="text-blue-600" />
+                CTC Templates ({filteredCtcTemplates.length})
+              </h3>
+            </div>
+            {loading && filteredCtcTemplates.length === 0 ? (
+              <div className="p-8 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                <p className="text-gray-600">Loading templates...</p>
+              </div>
+            ) : filteredCtcTemplates.length === 0 ? (
+              <div className="p-8 text-center">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Templates Found</h3>
+                <p className="text-gray-500 mb-4">
+                  {ctcTemplates.length === 0 
+                    ? 'Create your first CTC template to get started'
+                    : 'No templates match your search criteria'}
+                </p>
+                {ctcTemplates.length === 0 && (
+                  <button
+                    onClick={() => handleOpenCtcTemplateModal()}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    Create Template
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b-2 border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Template Name</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Client</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Basic %</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">HRA %</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">PF %</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredCtcTemplates.map(template => (
+                      <tr key={template.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{template.templateName}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{template.clientName || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{template.basicSalaryPercentage}%</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{template.hraPercentage}%</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{template.pfPercentage}%</td>
+                        <td className="px-4 py-3">
+                          {template.active ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <CheckCircle size={12} className="mr-1" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              <XCircle size={12} className="mr-1" />
+                              Inactive
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleOpenCtcTemplateModal(template)}
+                              className="text-blue-600 hover:text-blue-800 transition-colors"
+                              title="Edit"
+                            >
+                              <Edit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCtcTemplate(template.id)}
+                              className="text-red-600 hover:text-red-800 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* View Salary Details Modal */}
@@ -2404,6 +2824,320 @@ const Payroll = () => {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CTC Template Create/Edit Modal */}
+      {showCtcTemplateModal && isAdmin && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Settings size={28} className="text-blue-600" />
+                {editingCtcTemplate ? 'Edit CTC Template' : 'Create CTC Template'}
+              </h3>
+              <button
+                onClick={() => setShowCtcTemplateModal(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCtcTemplateSubmit} className="space-y-5">
+              {/* Basic Information */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Basic Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Template Name *</label>
+                    <input
+                      type="text"
+                      value={ctcTemplateFormData.templateName}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, templateName: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Client Name *</label>
+                    <input
+                      type="text"
+                      value={ctcTemplateFormData.clientName}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, clientName: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                      list="ctc-clients-list"
+                    />
+                    <datalist id="ctc-clients-list">
+                      {ctcTemplateClients.map(client => (
+                        <option key={client} value={client} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                    <textarea
+                      value={ctcTemplateFormData.description}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, description: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows="3"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Salary Components */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Salary Components (Percentages of CTC)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Basic Salary % *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.basicSalaryPercentage}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, basicSalaryPercentage: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">HRA % (of Basic) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.hraPercentage}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, hraPercentage: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Allowances */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Allowances</h4>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Transport Allowance (% of CTC)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ctcTemplateFormData.transportAllowancePercentage || ''}
+                        onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, transportAllowancePercentage: e.target.value ? parseFloat(e.target.value) : null })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="0"
+                        max="100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Transport Allowance (Fixed ₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ctcTemplateFormData.transportAllowanceFixed || ''}
+                        onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, transportAllowanceFixed: e.target.value ? parseFloat(e.target.value) : null })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 flex items-center gap-2">
+                    <Info size={14} />
+                    <span>Note: Fixed amount takes precedence over percentage. Leave both empty if not applicable.</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Allowance (% of CTC)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ctcTemplateFormData.medicalAllowancePercentage || ''}
+                        onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, medicalAllowancePercentage: e.target.value ? parseFloat(e.target.value) : null })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="0"
+                        max="100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Allowance (Fixed ₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ctcTemplateFormData.medicalAllowanceFixed || ''}
+                        onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, medicalAllowanceFixed: e.target.value ? parseFloat(e.target.value) : null })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Special Allowance (% of CTC)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ctcTemplateFormData.specialAllowancePercentage || ''}
+                        onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, specialAllowancePercentage: e.target.value ? parseFloat(e.target.value) : null })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="0"
+                        max="100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Special Allowance (Fixed ₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ctcTemplateFormData.specialAllowanceFixed || ''}
+                        onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, specialAllowanceFixed: e.target.value ? parseFloat(e.target.value) : null })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Other Allowances (% of CTC)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.otherAllowancesPercentage || ''}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, otherAllowancesPercentage: e.target.value ? parseFloat(e.target.value) : null })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Deductions */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Deductions</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">PF % (of Basic) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.pfPercentage}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, pfPercentage: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">ESI % (of Gross)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.esiPercentage}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, esiPercentage: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">ESI Applicable Threshold (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.esiApplicableThreshold}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, esiApplicableThreshold: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Professional Tax (Fixed ₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.professionalTaxAmount || ''}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, professionalTaxAmount: e.target.value ? parseFloat(e.target.value) : null })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">TDS % (of Gross)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.tdsPercentage || ''}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, tdsPercentage: e.target.value ? parseFloat(e.target.value) : null })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Other Deductions % (of Gross)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ctcTemplateFormData.otherDeductionsPercentage || ''}
+                      onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, otherDeductionsPercentage: e.target.value ? parseFloat(e.target.value) : null })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={ctcTemplateFormData.active}
+                    onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, active: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-700">Active (Template will be available for use)</span>
+                </label>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCtcTemplateModal(false)}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-all font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl transition-all font-semibold"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={20} className="animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={20} />
+                      {editingCtcTemplate ? 'Update Template' : 'Create Template'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
