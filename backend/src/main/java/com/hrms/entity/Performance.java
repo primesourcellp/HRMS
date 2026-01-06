@@ -51,6 +51,17 @@ public class Performance {
     @Column(name = "overall_progress", nullable = false)
     private Integer overallProgress;
 
+    // KPI fields: optional reference to a KPI configuration and KPI results for the review
+    @Column(name = "kpi_config_id")
+    private Long kpiConfigId;
+
+    @Column(name = "kpi_results", columnDefinition = "TEXT")
+    private String kpiResults;
+
+    // Review cycle reference
+    @Column(name = "review_cycle_id")
+    private Long reviewCycleId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
     @JsonIgnore
@@ -162,6 +173,30 @@ public class Performance {
 
     public void setOverallProgress(Integer overallProgress) {
         this.overallProgress = overallProgress;
+    }
+
+    public Long getKpiConfigId() {
+        return kpiConfigId;
+    }
+
+    public void setKpiConfigId(Long kpiConfigId) {
+        this.kpiConfigId = kpiConfigId;
+    }
+
+    public String getKpiResults() {
+        return kpiResults;
+    }
+
+    public void setKpiResults(String kpiResults) {
+        this.kpiResults = kpiResults;
+    }
+
+    public Long getReviewCycleId() {
+        return reviewCycleId;
+    }
+
+    public void setReviewCycleId(Long reviewCycleId) {
+        this.reviewCycleId = reviewCycleId;
     }
 
     public Employee getEmployee() {
