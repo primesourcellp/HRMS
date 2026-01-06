@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import api from '../services/api'
+import { verifyToken } from '../utils/auth'
 
 const HRMSContext = createContext()
 
@@ -19,9 +20,33 @@ export const HRMSProvider = ({ children }) => {
   const [performance, setPerformance] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Load initial data
+  // Load initial data only after authentication is verified
   useEffect(() => {
-    loadAllData()
+    const initializeData = async () => {
+      try {
+        // First verify authentication
+        const isAuth = localStorage.getItem('isAuthenticated') === 'true'
+        if (!isAuth) {
+          setLoading(false)
+          return
+        }
+
+        // Verify token with backend to ensure it's valid
+        const tokenValid = await verifyToken()
+        if (!tokenValid) {
+          setLoading(false)
+          return
+        }
+
+        // Token is valid, now load data
+        await loadAllData()
+      } catch (error) {
+        console.error('Error initializing data:', error)
+        setLoading(false)
+      }
+    }
+
+    initializeData()
   }, [])
 
   const loadAllData = async () => {

@@ -16,6 +16,7 @@ import Shifts from './pages/Shifts'
 import HRTickets from './pages/HRTickets'
 import Analytics from './pages/Analytics'
 import Recruitment from './pages/Recruitment'
+import CTCTemplates from './pages/CTCTemplates'
 import InitialRoute from './components/InitialRoute'
 import { isAuthenticated, verifyToken } from './utils/auth'
 import { hasPermission, getUserRole } from './utils/roles'
@@ -42,6 +43,7 @@ function App() {
             <Route path="recruitment" element={<RoleProtectedRoute permission="recruitment"><Recruitment /></RoleProtectedRoute>} />
             <Route path="analytics" element={<RoleProtectedRoute permission="analytics"><Analytics /></RoleProtectedRoute>} />
             <Route path="users" element={<RoleProtectedRoute permission="users"><Users /></RoleProtectedRoute>} />
+            <Route path="ctc-templates" element={<RoleProtectedRoute permission="payroll"><CTCTemplates /></RoleProtectedRoute>} />
             <Route path="settings" element={<RoleProtectedRoute permission="settings"><Settings /></RoleProtectedRoute>} />
           </Route>
         </Routes>

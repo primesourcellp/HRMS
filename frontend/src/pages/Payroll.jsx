@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye } from 'lucide-react'
+import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2 } from 'lucide-react'
 import api from '../services/api'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -55,6 +55,13 @@ const Payroll = () => {
     otherDeductions: 0,
     effectiveFrom: format(new Date(), 'yyyy-MM-dd')
   })
+  const [ctcTemplates, setCtcTemplates] = useState([])
+  const [ctcConversionData, setCtcConversionData] = useState({
+    annualCtc: '',
+    templateId: '',
+    client: ''
+  })
+  const [showCtcConverter, setShowCtcConverter] = useState(false)
 
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
@@ -77,14 +84,23 @@ const Payroll = () => {
         setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
       } else if (isAdmin) {
-        const [payrollsData, employeesData, salaryStructuresData] = await Promise.all([
+        const [payrollsData, employeesData, salaryStructuresData, ctcTemplatesData] = await Promise.all([
           api.getPayrolls(),
           api.getEmployees(),
-          api.getSalaryStructures()
+          api.getSalaryStructures(),
+          api.getCTCTemplates(null, true) // Get active templates only
         ])
         setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
         setSalaryStructures(Array.isArray(salaryStructuresData) ? salaryStructuresData : [])
+        const templates = Array.isArray(ctcTemplatesData) ? ctcTemplatesData : []
+        setCtcTemplates(templates)
+        // Debug: Log templates to help diagnose
+        if (templates.length === 0) {
+          console.warn('No CTC templates found. Please create templates first.')
+        } else {
+          console.log('Loaded CTC templates:', templates.length, templates)
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -417,6 +433,7 @@ const Payroll = () => {
         otherDeductions: salary.otherDeductions || 0,
         effectiveFrom: salary.effectiveFrom ? format(parseISO(salary.effectiveFrom), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
       })
+      setShowCtcConverter(false)
     } else {
       setEditingSalary(null)
       setSalaryFormData({
@@ -434,8 +451,59 @@ const Payroll = () => {
         otherDeductions: 0,
         effectiveFrom: format(new Date(), 'yyyy-MM-dd')
       })
+      setCtcConversionData({ annualCtc: '', templateId: '', client: '' })
+      setShowCtcConverter(false)
     }
     setShowSalaryModal(true)
+  }
+
+  // Handle employee selection change - auto-filter templates by client
+  const handleEmployeeChangeForCTC = (employeeId) => {
+    const employee = employees.find(emp => emp.id === parseInt(employeeId))
+    if (employee && employee.client) {
+      setCtcConversionData({ ...ctcConversionData, client: employee.client })
+    }
+    setSalaryFormData({ ...salaryFormData, employeeId })
+  }
+
+  // Convert CTC to Salary Structure
+  const handleConvertCTC = async () => {
+    if (!ctcConversionData.annualCtc || !ctcConversionData.templateId) {
+      alert('Please enter Annual CTC and select a CTC Template')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const result = await api.convertCTCToSalaryStructure(
+        parseFloat(ctcConversionData.annualCtc),
+        parseInt(ctcConversionData.templateId)
+      )
+
+      // Populate salary form with converted values
+      setSalaryFormData({
+        ...salaryFormData,
+        basicSalary: result.basicSalary || 0,
+        hra: result.hra || 0,
+        transportAllowance: result.transportAllowance || 0,
+        medicalAllowance: result.medicalAllowance || 0,
+        specialAllowance: result.specialAllowance || 0,
+        otherAllowances: result.otherAllowances || 0,
+        pf: result.pf || 0,
+        esi: result.esi || 0,
+        tds: result.tds || 0,
+        professionalTax: result.professionalTax || 0,
+        otherDeductions: result.otherDeductions || 0
+      })
+
+      alert('CTC converted to salary structure successfully! Review and edit the values before saving.')
+      setShowCtcConverter(false)
+    } catch (error) {
+      console.error('Error converting CTC:', error)
+      alert('Error converting CTC: ' + (error.message || 'Failed to convert'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSalarySubmit = async (e) => {
@@ -1091,14 +1159,14 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
                     <select
                       value={salaryFormData.employeeId}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, employeeId: e.target.value })}
+                      onChange={(e) => handleEmployeeChangeForCTC(e.target.value)}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                       required
                     >
                       <option value="">Select Employee</option>
                       {employees.map(emp => (
                         <option key={emp.id} value={emp.id}>
-                          {emp.firstName} {emp.lastName} {emp.employeeId ? `(${emp.employeeId})` : ''}
+                          {emp.firstName} {emp.lastName} {emp.employeeId ? `(${emp.employeeId})` : ''} {emp.client ? `- ${emp.client}` : ''}
                         </option>
                       ))}
                     </select>
@@ -1114,7 +1182,114 @@ const Payroll = () => {
                     />
                   </div>
                 </div>
+                {!editingSalary && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setShowCtcConverter(!showCtcConverter)}
+                      className="w-full px-4 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl hover:from-purple-600 hover:to-blue-600 flex items-center justify-center gap-2 font-semibold transition-all shadow-lg hover:shadow-xl"
+                    >
+                      {showCtcConverter ? (
+                        <>
+                          <X size={20} />
+                          Hide CTC Converter
+                        </>
+                      ) : (
+                        <>
+                          <DollarSign size={20} />
+                          Convert CTC to Salary Structure
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* CTC Converter Section - Use Case 1: Auto-generate salary breakup per client rules */}
+              {showCtcConverter && !editingSalary && (
+                <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow-sm p-5 border-2 border-purple-200">
+                  <h4 className="text-xl font-bold text-purple-800 mb-4 flex items-center gap-2">
+                    <DollarSign size={24} className="text-purple-600" />
+                    CTC to Salary Structure Converter
+                  </h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Enter employee's Annual CTC and select a client-specific template. The system will auto-generate all salary components.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Annual CTC (₹) *</label>
+                      <input
+                        type="number"
+                        value={ctcConversionData.annualCtc}
+                        onChange={(e) => setCtcConversionData({ ...ctcConversionData, annualCtc: e.target.value })}
+                        placeholder="Enter Annual CTC"
+                        className="w-full px-4 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">CTC Template *</label>
+                      <select
+                        value={ctcConversionData.templateId}
+                        onChange={(e) => setCtcConversionData({ ...ctcConversionData, templateId: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                        disabled={ctcTemplates.length === 0}
+                      >
+                        <option value="">
+                          {ctcTemplates.length === 0 
+                            ? 'No templates available - Please create CTC templates first' 
+                            : 'Select Template'}
+                        </option>
+                        {ctcTemplates
+                          .filter(t => {
+                            // If client is set, show templates matching that client OR templates with no client
+                            if (ctcConversionData.client) {
+                              return !t.clientName || t.clientName === ctcConversionData.client
+                            }
+                            // If no client selected, show all templates
+                            return true
+                          })
+                          .map(template => (
+                            <option key={template.id} value={template.id}>
+                              {template.templateName} {template.clientName ? `(${template.clientName})` : ''}
+                            </option>
+                          ))}
+                      </select>
+                      {ctcTemplates.length === 0 && (
+                        <p className="mt-2 text-sm text-amber-600">
+                          ⚠️ No CTC templates found. Please create templates in the CTC Template Management section first.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {ctcConversionData.annualCtc && ctcConversionData.templateId && (
+                    <div className="mt-4 p-3 bg-white rounded-lg border border-purple-200">
+                      <p className="text-sm text-gray-600">
+                        <strong>Monthly CTC:</strong> ₹{((parseFloat(ctcConversionData.annualCtc) || 0) / 12).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleConvertCTC}
+                    disabled={!ctcConversionData.annualCtc || !ctcConversionData.templateId || loading}
+                    className="mt-4 w-full px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold transition-all shadow-lg hover:shadow-xl"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={20} className="animate-spin" />
+                        Converting...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign size={20} />
+                        Convert & Auto-Fill Salary Structure
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* Salary Components */}
               <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
@@ -1124,7 +1299,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Basic Salary *</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.basicSalary}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, basicSalary: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1136,7 +1311,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">HRA (House Rent Allowance)</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.hra}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, hra: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1147,7 +1322,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Transport Allowance</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.transportAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, transportAllowance: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1158,7 +1333,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Allowance</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.medicalAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, medicalAllowance: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1169,7 +1344,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Special Allowance</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.specialAllowance}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, specialAllowance: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1180,7 +1355,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Other Allowances</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.otherAllowances}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, otherAllowances: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1198,7 +1373,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">PF (Provident Fund)</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.pf}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, pf: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1209,7 +1384,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">ESI (Employee State Insurance)</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.esi}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, esi: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1220,7 +1395,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">TDS (Tax Deducted at Source)</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.tds}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, tds: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1231,7 +1406,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Professional Tax</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.professionalTax}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, professionalTax: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1242,7 +1417,7 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Other Deductions</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={salaryFormData.otherDeductions}
                       onChange={(e) => setSalaryFormData({ ...salaryFormData, otherDeductions: e.target.value })}
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

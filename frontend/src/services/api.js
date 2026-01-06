@@ -93,19 +93,37 @@ const fetchWithAuth = async (url, options = {}) => {
       // Use sessionStorage to prevent redirect loops across page loads
       if (!getRedirectFlag()) {
         const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
+        
+        // Always redirect on 401 if we're on a protected route
+        // This ensures users are sent to login when session expires
+        const isProtectedRoute = currentPath !== '/login' && 
+                                 currentPath !== '/register' && 
+                                 currentPath !== '/' &&
+                                 (isAuthenticated || 
+                                  currentPath.startsWith('/dashboard') || 
+                                  currentPath.startsWith('/employees') ||
+                                  currentPath.startsWith('/attendance') || 
+                                  currentPath.startsWith('/leave') ||
+                                  currentPath.startsWith('/payroll') || 
+                                  currentPath.startsWith('/performance') ||
+                                  currentPath.startsWith('/shifts') ||
+                                  currentPath.startsWith('/tickets') ||
+                                  currentPath.startsWith('/users') ||
+                                  currentPath.startsWith('/settings'))
 
-        // If user appears authenticated but got 401, session expired - redirect
-        // If not authenticated, ProtectedRoute should handle it, but redirect anyway to be safe
-        if (isAuthenticated || currentPath.startsWith('/dashboard') || currentPath.startsWith('/employees') ||
-          currentPath.startsWith('/attendance') || currentPath.startsWith('/leave') ||
-          currentPath.startsWith('/payroll') || currentPath.startsWith('/performance')) {
+        if (isProtectedRoute) {
           setRedirectFlag(true)
-          // Redirect immediately - no delay needed since we have the flag
-          console.log('Authentication failed, redirecting to login...')
+          // Clear auth data
           localStorage.removeItem('isAuthenticated')
+          localStorage.removeItem('userEmail')
+          localStorage.removeItem('userRole')
+          localStorage.removeItem('userId')
+          localStorage.removeItem('userType')
+          // Redirect immediately
+          console.log('Session expired or invalid token. Redirecting to login...')
           window.location.href = '/login'
           // Return a response that won't cause errors
-          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          return new Response(JSON.stringify({ error: 'Unauthorized', message: 'Session expired. Please login again.' }), {
             status: 401,
             headers: { 'Content-Type': 'application/json' }
           })
@@ -1662,6 +1680,111 @@ const api = {
       return data
     } catch (error) {
       console.error('Error rejecting shift change request:', error)
+      throw error
+    }
+  },
+
+  // CTC Template APIs for Multi-Client Payroll Management
+  getCTCTemplates: async (clientName = null, activeOnly = false) => {
+    try {
+      let url = `${API_BASE_URL}/ctc-templates`
+      const params = new URLSearchParams()
+      if (clientName) params.append('clientName', clientName)
+      if (activeOnly) params.append('activeOnly', 'true')
+      if (params.toString()) url += `?${params.toString()}`
+      
+      const response = await fetchWithAuth(url)
+      if (!response.ok) {
+        console.error('CTC Template API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching CTC templates:', error)
+      return []
+    }
+  },
+
+  getCTCTemplateById: async (templateId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/ctc-templates/${templateId}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CTC template: ${response.status}`)
+      }
+      const data = await response.json()
+      return data.template || data
+    } catch (error) {
+      console.error('Error fetching CTC template by ID:', error)
+      throw error
+    }
+  },
+
+  createCTCTemplate: async (templateData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/ctc-templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(templateData)
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to create CTC template')
+      }
+      return data.template || data
+    } catch (error) {
+      console.error('Error creating CTC template:', error)
+      throw error
+    }
+  },
+
+  updateCTCTemplate: async (templateId, templateData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/ctc-templates/${templateId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(templateData)
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to update CTC template')
+      }
+      return data.template || data
+    } catch (error) {
+      console.error('Error updating CTC template:', error)
+      throw error
+    }
+  },
+
+  deleteCTCTemplate: async (templateId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/ctc-templates/${templateId}`, {
+        method: 'DELETE'
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to delete CTC template')
+      }
+      return data
+    } catch (error) {
+      console.error('Error deleting CTC template:', error)
+      throw error
+    }
+  },
+
+  convertCTCToSalaryStructure: async (annualCtc, templateId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/ctc-templates/convert-ctc?annualCtc=${annualCtc}&templateId=${templateId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to convert CTC to salary structure')
+      }
+      return data.salaryStructure || data
+    } catch (error) {
+      console.error('Error converting CTC to salary structure:', error)
       throw error
     }
   }
