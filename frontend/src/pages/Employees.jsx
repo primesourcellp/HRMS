@@ -69,7 +69,8 @@ const [editingEmployee, setEditingEmployee] = useState(null)
 const [isEditingInView, setIsEditingInView] = useState(false)
 const [viewFormData, setViewFormData] = useState({}) 
 const [loading, setLoading] = useState(true) 
-const [error, setError] = useState(null) 
+const [error, setError] = useState(null)
+const [openMenuId, setOpenMenuId] = useState(null) 
 const [formData, setFormData] = useState({ 
 employeeId: '', 
 firstName: '', 
@@ -183,6 +184,27 @@ const loadClients = async () => {
 useEffect(() => {
   loadClients()
 }, [])
+
+// Handle click outside to close menu
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    // Check if click is outside any menu dropdown
+    const isMenuButton = event.target.closest('[data-menu-button]')
+    const isMenuDropdown = event.target.closest('[data-menu-dropdown]')
+    
+    if (!isMenuButton && !isMenuDropdown) {
+      setOpenMenuId(null)
+    }
+  }
+
+  if (openMenuId !== null) {
+    document.addEventListener('mousedown', handleClickOutside)
+  }
+
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside)
+  }
+}, [openMenuId])
 // Update form data when editingEmployee changes 
 useEffect(() => { 
 if (showModal && editingEmployee) { 
@@ -1910,36 +1932,67 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 		{employee.employeeStatus || 'N/A'} 
 	</span> 
 </td> 
-<td className="px-6 py-4 whitespace-nowrap text-sm font-medium"> 
-<div className="flex items-center gap-2"> 
-	{/* <button 
-		onClick={() => handleViewEmployee(employee)} 
-		className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors" 
-		title="View Employee Details" 
-	> 
-		<Eye size={18} /> 
-	</button>  */}
+<td className="px-6 py-4 whitespace-nowrap text-sm font-medium relative"> 
+<div className="flex items-center justify-end">
 	<button 
-		onClick={() => handleOpenModal(employee)} 
-		className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors" 
-		title="Edit Employee" 
+		data-menu-button
+		onClick={(e) => {
+			e.stopPropagation()
+			setOpenMenuId(openMenuId === employee.id ? null : employee.id)
+		}}
+		className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors" 
+		title="Actions" 
 	> 
-		<Edit size={18} /> 
-	</button> 
-	<button 
-		onClick={() => handleDelete(employee.id)} 
-		className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors" 
-		title="Delete Employee" 
-	> 
-		<Trash2 size={18} /> 
-	</button> 
-	<button 
-		onClick={() => openDocModal(employee)} 
-		className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors" 
-		title="View Documents" 
-	> 
-		<FileText size={18} /> 
-	</button> 
+		<MoreVertical size={18} /> 
+	</button>
+	{openMenuId === employee.id && (
+		<div data-menu-dropdown className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					handleViewEmployee(employee)
+					setOpenMenuId(null)
+				}}
+				className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<Eye size={16} />
+				View Details
+			</button>
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					handleOpenModal(employee)
+					setOpenMenuId(null)
+				}}
+				className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<Edit size={16} />
+				Edit
+			</button>
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					openDocModal(employee)
+					setOpenMenuId(null)
+				}}
+				className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<FileText size={16} />
+				View Documents
+			</button>
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					handleDelete(employee.id)
+					setOpenMenuId(null)
+				}}
+				className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+			>
+				<Trash2 size={16} />
+				Delete
+			</button>
+		</div>
+	)}
 </div> 
 </td> 
 </tr> 
