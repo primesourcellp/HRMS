@@ -1193,7 +1193,7 @@ if (showViewModal && selectedEmployee) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Offered Date</label>
                   <input
                     type="text"
                     value={selectedEmployee.dateOfJoining ? formatDate(selectedEmployee.dateOfJoining) : 'N/A'}
@@ -1685,7 +1685,7 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Offered Date *</label>
                   <input
                     type="date"
                     value={formData.dateOfJoining}
@@ -1858,7 +1858,7 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
         <tr className="bg-gradient-to-r from-blue-600 to-indigo-700">
           <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">S.No</th>
           <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Employee</th>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Joining Date</th>
+          <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Offered Date</th>
           <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Role</th>
           <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Client</th>
           <th className="px-6 py-4 text-left text-xs font-semibold text-white/90 uppercase tracking-wider">Email</th>

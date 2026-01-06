@@ -582,7 +582,7 @@ const Users = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining *</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Offered Date *</label>
                       <input
                         type="date"
                         value={employeeFormData.dateOfJoining}
