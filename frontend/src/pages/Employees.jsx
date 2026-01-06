@@ -65,7 +65,9 @@ const [showModal, setShowModal] = useState(false)
 const [showDocModal, setShowDocModal] = useState(false) 
 const [showViewModal, setShowViewModal] = useState(false) 
 const [selectedEmployee, setSelectedEmployee] = useState(null) 
-const [editingEmployee, setEditingEmployee] = useState(null) 
+const [editingEmployee, setEditingEmployee] = useState(null)
+const [isEditingInView, setIsEditingInView] = useState(false)
+const [viewFormData, setViewFormData] = useState({}) 
 const [loading, setLoading] = useState(true) 
 const [error, setError] = useState(null) 
 const [formData, setFormData] = useState({ 
@@ -122,6 +124,8 @@ description: ''
 }) 
 const [docFile, setDocFile] = useState(null) 
 const [designations, setDesignations] = useState([])
+const [roles, setRoles] = useState([])
+const [employmentTypes, setEmploymentTypes] = useState([])
 const userRole = localStorage.getItem('userRole') 
 useEffect(() => { 
   loadEmployees() 
@@ -138,9 +142,31 @@ const loadDesignations = (employeesList) => {
       )
     ).sort()
     setDesignations(designationList)
+    
+    // Extract unique roles from employees
+    const roleList = Array.from(
+      new Set(
+        employeesList
+          .map(emp => emp.role)
+          .filter(role => role && role.trim() !== '')
+      )
+    ).sort()
+    setRoles(roleList)
+    
+    // Extract unique employment types from employees
+    const employmentTypeList = Array.from(
+      new Set(
+        employeesList
+          .map(emp => emp.employmentType)
+          .filter(type => type && type.trim() !== '')
+      )
+    ).sort()
+    setEmploymentTypes(employmentTypeList)
   } catch (error) {
     console.error('Error loading designations:', error)
     setDesignations([])
+    setRoles([])
+    setEmploymentTypes([])
   }
 } 
 
@@ -590,13 +616,111 @@ const handleViewEmployee = async (employee) => {
 		setSelectedEmployee(full || employee)
 		// Load documents for the employee
 		await loadDocuments(employee.id)
+		// Initialize view form data
+		const formattedJoinDate = formatDateForInput(full?.dateOfJoining || employee.dateOfJoining)
+		const formattedDateOfBirth = formatDateForInput(full?.dateOfBirth || employee.dateOfBirth)
+		setViewFormData({
+			employeeId: (full || employee).employeeId || '',
+			firstName: (full || employee).firstName || '',
+			lastName: (full || employee).lastName || '',
+			client: (full || employee).client || '',
+			email: (full || employee).email || '',
+			password: '',
+			role: (full || employee).role || '',
+			department: (full || employee).department || '',
+			location: (full || employee).location || '',
+			designation: (full || employee).designation || '',
+			employmentType: (full || employee).employmentType || '',
+			employeeStatus: (full || employee).employeeStatus || 'Active',
+			sourceOfHire: (full || employee).sourceOfHire || '',
+			dateOfJoining: formattedJoinDate,
+			dateOfBirth: formattedDateOfBirth,
+			age: calculateAge(formattedDateOfBirth),
+			gender: (full || employee).gender || '',
+			maritalStatus: (full || employee).maritalStatus || '',
+			aboutMe: (full || employee).aboutMe || '',
+			workPhoneNumber: (full || employee).workPhoneNumber || '',
+			personalMobileNumber: (full || employee).personalMobileNumber || '',
+			salary: (full || employee).salary || ''
+		})
 	} catch (err) {
 		console.error('Error fetching full employee for view:', err)
 		setSelectedEmployee(employee)
 		// Still try to load documents even if employee fetch fails
 		await loadDocuments(employee.id)
+		// Initialize view form data with employee data
+		const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
+		const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
+		setViewFormData({
+			employeeId: employee.employeeId || '',
+			firstName: employee.firstName || '',
+			lastName: employee.lastName || '',
+			client: employee.client || '',
+			email: employee.email || '',
+			password: '',
+			role: employee.role || '',
+			department: employee.department || '',
+			location: employee.location || '',
+			designation: employee.designation || '',
+			employmentType: employee.employmentType || '',
+			employeeStatus: employee.employeeStatus || 'Active',
+			sourceOfHire: employee.sourceOfHire || '',
+			dateOfJoining: formattedJoinDate,
+			dateOfBirth: formattedDateOfBirth,
+			age: calculateAge(formattedDateOfBirth),
+			gender: employee.gender || '',
+			maritalStatus: employee.maritalStatus || '',
+			aboutMe: employee.aboutMe || '',
+			workPhoneNumber: employee.workPhoneNumber || '',
+			personalMobileNumber: employee.personalMobileNumber || '',
+			salary: employee.salary || ''
+		})
 	} finally {
 		setShowViewModal(true)
+		setIsEditingInView(false)
+	}
+}
+
+const handleSaveViewEmployee = async () => {
+	if (!selectedEmployee) return
+	
+	try {
+		setLoading(true)
+		const employeeData = {
+			firstName: viewFormData.firstName,
+			lastName: viewFormData.lastName,
+			email: viewFormData.email,
+			phone: viewFormData.personalMobileNumber || viewFormData.workPhoneNumber,
+			personalMobileNumber: viewFormData.personalMobileNumber,
+			workPhoneNumber: viewFormData.workPhoneNumber,
+			department: viewFormData.department,
+			designation: viewFormData.designation,
+			client: viewFormData.client,
+			location: viewFormData.location,
+			employmentType: viewFormData.employmentType,
+			employeeStatus: viewFormData.employeeStatus,
+			sourceOfHire: viewFormData.sourceOfHire,
+			dateOfJoining: viewFormData.dateOfJoining,
+			dateOfBirth: viewFormData.dateOfBirth,
+			gender: viewFormData.gender,
+			maritalStatus: viewFormData.maritalStatus,
+			aboutMe: viewFormData.aboutMe,
+			salary: viewFormData.salary,
+			role: viewFormData.role
+		}
+		
+		if (viewFormData.password) {
+			employeeData.password = viewFormData.password
+		}
+		
+		await api.updateEmployee(selectedEmployee.id, employeeData, userRole)
+		await handleViewEmployee(selectedEmployee) // Reload employee data
+		setIsEditingInView(false)
+		alert('Employee updated successfully!')
+	} catch (error) {
+		alert('Error updating employee: ' + error.message)
+	} finally {
+		setLoading(false)
 	}
 }
 
@@ -901,8 +1025,385 @@ return (
 ); 
 } 
     
-// If on new employee page or editing, show only the form (full page)
-if ((isNewEmployeePage && showModal) || (showModal && editingEmployee)) {
+// If viewing employee details, show inline detail view (full page)
+if (showViewModal && selectedEmployee) {
+  return (
+    <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
+      <div className="w-full mx-auto">
+        <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
+              <Eye size={28} className="text-blue-600" />
+              Employee Details
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  handleOpenModal(selectedEmployee)
+                  setShowViewModal(false)
+                  setSelectedEmployee(null)
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Edit size={18} />
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  setShowViewModal(false)
+                  setSelectedEmployee(null)
+                  setIsEditingInView(false)
+                }}
+                className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <div className="space-y-5">
+            {/* Basic Information */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.id || selectedEmployee.employeeId || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">First Name</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.firstName || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.lastName || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.email || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                  <input
+                    type="password"
+                    value="••••••••"
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Password is hidden for security</p>
+                </div>
+              </div>
+            </div>
+            {/* Work Information */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.department || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.role || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.employmentType || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Designation</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.designation || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Client</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.client || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Status</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.employeeStatus || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Source of Hire</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.sourceOfHire || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                    <input
+                      type="text"
+                      value={selectedEmployee.salary ? parseFloat(selectedEmployee.salary).toLocaleString() : 'N/A'}
+                      readOnly
+                      className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.dateOfJoining ? formatDate(selectedEmployee.dateOfJoining) : 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.location || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+              </div>
+            </div>
+            {/* Personal Details */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Personal Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.dateOfBirth ? formatDate(selectedEmployee.dateOfBirth) : 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.dateOfBirth ? calculateAge(selectedEmployee.dateOfBirth) || 'N/A' : 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.gender || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Marital Status</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.maritalStatus || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Source of Hire</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.sourceOfHire || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">About Me</label>
+                  <textarea
+                    value={selectedEmployee.aboutMe || 'N/A'}
+                    readOnly
+                    rows="3"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+            {/* Contact Details */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.workPhoneNumber || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.personalMobileNumber || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+              </div>
+            </div>
+            {/* Work Experience */}
+            {selectedEmployee.workExperiences && selectedEmployee.workExperiences.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Work Experience</h4>
+                <div className="space-y-4">
+                  {selectedEmployee.workExperiences.map((exp, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="text-base font-semibold text-gray-900">{exp.jobTitle || 'N/A'}</p>
+                          <p className="text-sm text-gray-600">{exp.companyName || 'N/A'}</p>
+                        </div>
+                        {exp.relevant && (
+                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Relevant</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        {exp.fromDate ? formatDate(exp.fromDate) : 'N/A'} - {exp.toDate ? formatDate(exp.toDate) : 'Present'}
+                      </p>
+                      {exp.jobDescription && (
+                        <p className="text-sm text-gray-600 mt-2">{exp.jobDescription}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Education Details */}
+            {selectedEmployee.educationDetails && selectedEmployee.educationDetails.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Education Details</h4>
+                <div className="space-y-4">
+                  {selectedEmployee.educationDetails.map((edu, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <p className="text-base font-semibold text-gray-900">{edu.degree || 'N/A'}</p>
+                      <p className="text-sm text-gray-600">{edu.institutionName || 'N/A'}</p>
+                      <p className="text-sm text-gray-500">
+                        {edu.fromDate ? formatDate(edu.fromDate) : 'N/A'} - {edu.toDate ? formatDate(edu.toDate) : 'Present'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Documents Section */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Documents</h4>
+              {documents[selectedEmployee.id] && documents[selectedEmployee.id].length > 0 ? (
+                <div className="space-y-3">
+                  {documents[selectedEmployee.id].map((doc) => (
+                    <div key={doc.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <FileText className="text-blue-600" size={20} />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{doc.fileName}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <p className="text-sm text-gray-600">{doc.documentType}</p>
+                            {doc.description && (
+                              <span className="text-sm text-gray-500">• {doc.description}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handleViewDocument(doc.id, doc.fileName, e)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="View Document"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Download Document"
+                        >
+                          <Download size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-4">No documents uploaded</p>
+              )}
+            </div>
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowViewModal(false)
+                  setSelectedEmployee(null)
+                  setIsEditingInView(false)
+                }}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold shadow-md hover:shadow-lg transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// If on new employee page, editing, or adding from list page, show only the form (full page)
+if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showModal && !isNewEmployeePage && !editingEmployee)) {
   // Import the form content from modal section - we'll render it inline
   const FormContent = () => {
     // This will be the same form as in the modal - we'll reference it below
@@ -910,10 +1411,10 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee)) {
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 border-2 border-gray-200">
-          <div className="flex items-center justify-between mb-6">
+    <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
+      <div className="w-full mx-auto">
+        <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
+          <div className="flex items-center justify-between mb-4">
             <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
               <Plus size={28} className="text-blue-600" />
               {editingEmployee ? 'Edit' : 'Add'} Employee
@@ -1095,6 +1596,48 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee)) {
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Select Role</option>
+                    {roles.length > 0 ? (
+                      roles.map((role) => (
+                        <option key={role} value={role}>{role}</option>
+                      ))
+                    ) : (
+                      <option value="EMPLOYEE">EMPLOYEE</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type *</label>
+                  <select
+                    value={formData.employmentType}
+                    onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Select Employment Type</option>
+                    {employmentTypes.length > 0 ? (
+                      employmentTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Full-Time">Full-Time</option>
+                        <option value="Part-Time">Part-Time</option>
+                        <option value="Contract">Contract</option>
+                        <option value="Temporary">Temporary</option>
+                        <option value="Intern">Intern</option>
+                      </>
+                    )}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Designation *</label>
@@ -1431,869 +1974,7 @@ Add First Employee
 )} 
 </div> 
 )} 
-</div> 
-{/* Add/Edit Employee Modal - Only show when adding from list page (not editing or new page) */} 
-{showModal && !isNewEmployeePage && !editingEmployee && (
-  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
-    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-7xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
-      <div className="flex items-center justify-between mb-6"> 
-<h3 className={`${isNewEmployeePage ? 'text-2xl md:text-3xl' : 'text-2xl'} font-bold text-blue-600 flex items-center gap-3`}> 
-<Plus size={isNewEmployeePage ? 28 : 24} className="text-blue-600" />
-{editingEmployee ? 'Edit' : 'Add'} Employee 
-</h3> 
-<button 
-onClick={() => { 
-setShowModal(false) 
-if (isNewEmployeePage) {
-  navigate('/employees')
-}
-// Reset form when closing 
-setEditingEmployee(null) 
-setFormData({ 
-employeeId: '', 
-firstName: '', 
-lastName: '',
-client: '', 
-
-email: '', 
-password: '', 
-role: '', 
-department: '', 
-location: '', 
-designation: '', 
-employmentType: '', 
-employeeStatus: 'Active', 
-sourceOfHire: '', 
-dateOfJoining: '', 
-dateOfBirth: '', 
-age: '', 
-gender: '', 
-maritalStatus: '', 
-aboutMe: '', 
-expertise: '', 
-
-pan: '', 
-aadhaar: '', 
-workPhoneNumber: '', 
-personalMobileNumber: '', 
-extension: '', 
-personalEmailAddress: '', 
-seatingLocation: '', 
-tags: '', 
-presentAddressLine1: '', 
-presentAddressLine2: '', 
-presentCity: '', 
-presentCountry: '', 
-presentState: '', 
-presentPostalCode: '', 
-sameAsPresentAddress: false, 
-permanentAddressLine1: '', 
-permanentAddressLine2: '', 
-permanentCity: '', 
-permanentCountry: '', 
-permanentState: '', 
-permanentPostalCode: '', 
-dateOfExit: '', 
- 
-}) 
-
-}} 
-className="text-gray-500 hover:text-gray-700" 
-> 
-<span className="text-2xl">×</span> 
-</button> 
-</div> 
-<form onSubmit={handleSubmit} className="space-y-5" autoComplete="off"> 
-{/* Basic Information */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-{editingEmployee && (
-  <div> 
-    <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label> 
-    <input 
-      type="text" 
-      value={formData.employeeId} 
-      onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })} 
-      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
-      required 
-      readOnly={true}
-    /> 
-  </div>
-)} 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">First Name *</label> 
-<input 
-type="text" 
-value={formData.firstName} 
-onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} 
- placeholder="Enter First Name"
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Last Name *</label> 
-<input 
-type="text" 
-value={formData.lastName} 
-onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} 
- placeholder="Enter Last Name"
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
-/> 
 </div>
-
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label> 
-{/* Hidden dummy input to prevent browser autofill */}
-{!editingEmployee && (
-  <input
-    type="email"
-    name="fake-email"
-    autoComplete="off"
-    tabIndex={-1}
-    style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-    readOnly
-  />
-)}
-<input 
-type="text" 
-name={`employee-email-${editingEmployee ? editingEmployee.id : 'new'}`}
-id={`employee-email-${editingEmployee ? editingEmployee.id : 'new'}`}
-key={`email-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
-value={formData.email || ''} 
-onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
-placeholder="Enter Email Address"
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-autoComplete="off"
-data-lpignore="true"
-data-form-type="other"
-required 
-/> 
-</div>
-<div>
-<label className="block text-sm font-semibold text-gray-700 mb-2">
-  {editingEmployee ? 'New Password (leave blank to keep current)' : 'Password *'}
-</label>
-{/* Hidden dummy input to prevent browser autofill */}
-{!editingEmployee && (
-  <input
-    type="password"
-    name="fake-password"
-    autoComplete="off"
-    tabIndex={-1}
-    style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-    readOnly
-  />
-)}
-<input 
-  type="password" 
-  name={`employee-password-${editingEmployee ? editingEmployee.id : 'new'}`}
-  id={`employee-password-${editingEmployee ? editingEmployee.id : 'new'}`}
-  key={`password-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
-  value={formData.password || ''}
-  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-  placeholder={editingEmployee ? 'Enter new password (optional)' : 'Enter password'}
-  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-  autoComplete="new-password"
-  data-lpignore="true"
-  data-form-type="other"
-  required={!editingEmployee}
-/>
-{editingEmployee && (
-  <p className="mt-1 text-xs text-gray-500">
-    Only enter a new password if you want to change it
-  </p>
-)}
-</div>
-
-</div> 
-</div> 
-{/* Work Information */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2"> Department * </label>
-  <input
-    type="text"
-    value={formData.department}
-    onChange={(e) =>setFormData({ ...formData, department: e.target.value })}
-    placeholder="Enter Department"
-    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-    required
-  />
-</div>
-
-
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Role</label> 
-<select 
-value={formData.role} 
-onChange={(e) => setFormData({ ...formData, role: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-> 
-<option value="">Select</option> 
-<option value="ADMIN">Admin</option> 
-<option value="HR">HR</option> 
-<option value="EMPLOYEE">Employee</option> 
-<option value="SUPER_ADMIN">Super Admin</option> 
-</select> 
-</div> 
-
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type</label> 
-<select 
-value={formData.employmentType} 
-onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-> 
-<option value="">Select</option> 
-<option value="FULL_TIME">Full-Time</option> 
-<option value="PART_TIME">Part-Time</option> 
-<option value="INTERN">Intern</option> 
-</select> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Designation *</label> 
-<select 
-type="text" 
-value={formData.designation} 
-onChange={(e) => setFormData({ ...formData, designation: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
->
-<option value="">Select</option> 
-<option value="TL">Team Leader</option> 
-<option value="Software Developer">Software Developer</option> 
-<option value="Senior Software Engineer">Senior Software Engineer</option> 
-<option value="Tester">Tester</option> 
-<option value="Supporter">Supporter</option> 
-</select> 
-</div> 
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
-  <input
-    list="client-list"
-    type="text"
-    value={formData.client}
-    onChange={(e) =>setFormData({ ...formData, client: e.target.value })}
-    placeholder="Enter client name"
-    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-    required
-  />
-  <datalist id="client-list">
-    {clients.map((c) => (
-      <option key={c} value={c} />
-    ))}
-  </datalist>
-</div>
-
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Employee Status</label> 
-<select 
-value={formData.employeeStatus} 
-onChange={(e) => setFormData({ ...formData, employeeStatus: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-> 
-<option value="Active">Active</option> 
-<option value="Inactive">Inactive</option> 
-
-</select> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Source of Hire</label> 
-<select
-type="text" 
-value={formData.sourceOfHire} 
-onChange={(e) => setFormData({ ...formData, sourceOfHire: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
->
-<option value="">Select</option> 
-<option value="LinkedIn">LinkedIn</option> 
-<option value="Indeed">Indeed</option> 
-<option value="Referral">Referral</option> 
-<option value="Campus Recruitment">Campus Recruitment</option> 
-	</select> 
-</div>
-<div>
-<label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
-<div className="relative">
-  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
-  <input 
-    type="number" 
-    min="0"
-    step="0.01"
-    value={formData.salary || ''}
-    onChange={(e) => setFormData({ ...formData, salary: e.target.value })} 
-    className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-    placeholder="0.00"
-  />
-</div>
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining *</label> 
-<input 
-type="date" 
-value={formData.dateOfJoining} 
-onChange={(e) => setFormData({ ...formData, dateOfJoining: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-required 
-/> 
-</div> 
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2"> Location *</label>
-  <input
-    type="text"
-    value={formData.location}
-    onChange={(e) =>
-      setFormData({ ...formData, location: e.target.value })}
-    placeholder="Enter location"
-    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-    required
-  />
-</div>
-
-</div> 
-</div> 
-{/* Personal Details */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Personal Details</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label> 
-<input 
-type="date" 
-value={formData.dateOfBirth} 
-onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Age</label> 
-<input 
-type="text" 
-value={formData.age} 
-onChange={(e) => setFormData({ ...formData, age: e.target.value })} 
-placeholder="Enter Age"
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label> 
-<select 
-value={formData.gender} 
-onChange={(e) => setFormData({ ...formData, gender: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-> 
-<option value="">Select</option> 
-<option value="MALE">Male</option> 
-<option value="FEMALE">Female</option> 
-<option value="OTHER">Other</option> 
-</select> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Marital Status</label> 
-<select 
-value={formData.maritalStatus} 
-onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-> 
-<option value="">Select</option> 
-<option value="SINGLE">Single</option> 
-<option value="MARRIED">Married</option> 
-<option value="DIVORCED">Divorced</option> 
-<option value="WIDOWED">Widowed</option> 
-</select> 
-</div> 
-<div className="col-span-2"> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">About Me</label> 
-<textarea 
-value={formData.aboutMe} 
-onChange={(e) => setFormData({ ...formData, aboutMe: e.target.value })} 
-rows="3" 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-></textarea> 
-</div> 
-
-</div> 
-</div> 
-
-
-{/* Contact Details */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label> 
-<input 
-type="tel" 
-value={formData.workPhoneNumber} 
-onChange={(e) => setFormData({ ...formData, workPhoneNumber: e.target.value })} 
-placeholder="Enter Phone Number"
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number</label> 
-<input 
-type="tel" 
-value={formData.personalMobileNumber} 
-onChange={(e) => setFormData({ ...formData, personalMobileNumber: e.target.value })} 
-placeholder="Enter Phone Number"
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Personal Email Address</label> 
-<input 
-type="email" 
-value={formData.personalEmailAddress} 
-onChange={(e) => setFormData({ ...formData, personalEmailAddress: e.target.value })} 
-placeholder="Enter Personal Email Address"
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-
-</div> 
-</div> 
-{/* Present Address */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Present Address</h4> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div className="col-span-2"> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Address Line 1</label> 
-<input 
-type="text" 
-value={formData.presentAddressLine1} 
-onChange={(e) => setFormData({ ...formData, presentAddressLine1: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div className="col-span-2"> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Address Line 2</label> 
-<input 
-type="text" 
-value={formData.presentAddressLine2} 
-onChange={(e) => setFormData({ ...formData, presentAddressLine2: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">City</label> 
-<input 
-type="text" 
-value={formData.presentCity} 
-onChange={(e) => setFormData({ ...formData, presentCity: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Country</label> 
-<input 
-type="text" 
-value={formData.presentCountry} 
-onChange={(e) => setFormData({ ...formData, presentCountry: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">State</label> 
-<input 
-type="text" 
-value={formData.presentState} 
-onChange={(e) => setFormData({ ...formData, presentState: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Postal Code</label> 
-<input 
-type="text" 
-value={formData.presentPostalCode} 
-onChange={(e) => setFormData({ ...formData, presentPostalCode: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-/> 
-</div> 
-</div> 
-</div> 
-{/* Permanent Address */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
-<h4 className="text-xl font-bold text-gray-800 mb-4">Permanent Address</h4> 
-<div className="mb-4 flex items-center"> 
-<input 
-type="checkbox" 
-id="sameAsPresentAddress" 
-checked={formData.sameAsPresentAddress} 
-onChange={(e) => { 
-setFormData({ ...formData, sameAsPresentAddress: e.target.checked }) 
-if (e.target.checked) { 
-setFormData(prev => ({ 
-...prev, 
-permanentAddressLine1: prev.presentAddressLine1, 
-permanentAddressLine2: prev.presentAddressLine2, 
-permanentCity: prev.presentCity, 
-permanentCountry: prev.presentCountry, 
-permanentState: prev.presentState, 
-permanentPostalCode: prev.presentPostalCode, 
-})) 
-} else { 
-setFormData(prev => ({ 
-...prev, 
-permanentAddressLine1: '', 
-permanentAddressLine2: '', 
-permanentCity: '', 
-permanentCountry: '', 
-permanentState: '', 
-permanentPostalCode: '', 
-})) 
-} 
-}} 
-className="mr-2" 
-/> 
-<label htmlFor="sameAsPresentAddress" className="text-sm font-semibold text-gray-700">Same as Present Address</label> 
-</div> 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div className="col-span-2"> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Address Line 1</label> 
-<input 
-type="text" 
-value={formData.permanentAddressLine1} 
-onChange={(e) => setFormData({ ...formData, permanentAddressLine1: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-disabled={formData.sameAsPresentAddress} 
-/> 
-</div> 
-<div className="col-span-2"> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Address Line 2</label> 
-<input 
-type="text" 
-value={formData.permanentAddressLine2} 
-onChange={(e) => setFormData({ ...formData, permanentAddressLine2: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-disabled={formData.sameAsPresentAddress} 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">City</label> 
-<input 
-type="text" 
-value={formData.permanentCity} 
-onChange={(e) => setFormData({ ...formData, permanentCity: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-disabled={formData.sameAsPresentAddress} 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Country</label> 
-<input 
-type="text" 
-value={formData.permanentCountry} 
-onChange={(e) => setFormData({ ...formData, permanentCountry: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-disabled={formData.sameAsPresentAddress} 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">State</label> 
-<input 
-type="text" 
-value={formData.permanentState} 
-onChange={(e) => setFormData({ ...formData, permanentState: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-disabled={formData.sameAsPresentAddress} 
-/> 
-</div> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Postal Code</label> 
-<input 
-type="text" 
-value={formData.permanentPostalCode} 
-onChange={(e) => setFormData({ ...formData, permanentPostalCode: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-disabled={formData.sameAsPresentAddress} 
-/> 
-</div> 
-</div> 
-</div> 
-
-{/* Work Experience */}
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-<h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-between">
-  Work Experience
-  <button
-    type="button"
-    onClick={() => setWorkExperiences([...workExperiences, { companyName: '', jobTitle: '', fromDate: '', toDate: '', jobDescription: '', relevant: false }])}
-    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-  >
-    + Add Experience
-  </button>
-</h4>
-{workExperiences.map((exp, index) => (
-  <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
-    <div className="flex justify-between items-center mb-3">
-      <span className="font-semibold text-gray-700">Experience #{index + 1}</span>
-      <button
-        type="button"
-        onClick={() => setWorkExperiences(workExperiences.filter((_, i) => i !== index))}
-        className="text-red-600 hover:text-red-800 text-sm"
-      >
-        Remove
-      </button>
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
-        <input
-          type="text"
-          value={exp.companyName || ''}
-          onChange={(e) => {
-            const updated = [...workExperiences]
-            updated[index].companyName = e.target.value
-            setWorkExperiences(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Job Title</label>
-        <input
-          type="text"
-          value={exp.jobTitle || ''}
-          onChange={(e) => {
-            const updated = [...workExperiences]
-            updated[index].jobTitle = e.target.value
-            setWorkExperiences(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">From Date</label>
-        <input
-          type="date"
-          value={exp.fromDate || ''}
-          onChange={(e) => {
-            const updated = [...workExperiences]
-            updated[index].fromDate = e.target.value
-            setWorkExperiences(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">To Date</label>
-        <input
-          type="date"
-          value={exp.toDate || ''}
-          onChange={(e) => {
-            const updated = [...workExperiences]
-            updated[index].toDate = e.target.value
-            setWorkExperiences(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-      <div className="col-span-2">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Job Description</label>
-        <textarea
-          value={exp.jobDescription || ''}
-          onChange={(e) => {
-            const updated = [...workExperiences]
-            updated[index].jobDescription = e.target.value
-            setWorkExperiences(updated)
-          }}
-          rows="2"
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        ></textarea>
-      </div>
-      <div className="flex items-center">
-        <input
-          type="checkbox"
-          id={`relevant-${index}`}
-          checked={exp.relevant || false}
-          onChange={(e) => {
-            const updated = [...workExperiences]
-            updated[index].relevant = e.target.checked
-            setWorkExperiences(updated)
-          }}
-          className="mr-2"
-        />
-        <label htmlFor={`relevant-${index}`} className="text-sm font-semibold text-gray-700">Relevant Experience</label>
-      </div>
-    </div>
-  </div>
-))}
-{workExperiences.length === 0 && (
-  <p className="text-gray-500 text-sm">No work experience added. Click "Add Experience" to add.</p>
-)}
-</div>
-
-{/* Education Details */}
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-<h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-between">
-  Education Details
-  <button
-    type="button"
-    onClick={() => setEducationDetails([...educationDetails, { institutionName: '', degree: '', fromDate: '', toDate: '' }])}
-    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-  >
-    + Add Education
-  </button>
-</h4>
-{educationDetails.map((edu, index) => (
-  <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
-    <div className="flex justify-between items-center mb-3">
-      <span className="font-semibold text-gray-700">Education #{index + 1}</span>
-      <button
-        type="button"
-        onClick={() => setEducationDetails(educationDetails.filter((_, i) => i !== index))}
-        className="text-red-600 hover:text-red-800 text-sm"
-      >
-        Remove
-      </button>
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Institution Name</label>
-        <input
-          type="text"
-          value={edu.institutionName || ''}
-          onChange={(e) => {
-            const updated = [...educationDetails]
-            updated[index].institutionName = e.target.value
-            setEducationDetails(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Degree / Qualification</label>
-        <input
-          type="text"
-          value={edu.degree || ''}
-          onChange={(e) => {
-            const updated = [...educationDetails]
-            updated[index].degree = e.target.value
-            setEducationDetails(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">From Date</label>
-        <input
-          type="date"
-          value={edu.fromDate || ''}
-          onChange={(e) => {
-            const updated = [...educationDetails]
-            updated[index].fromDate = e.target.value
-            setEducationDetails(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">To Date</label>
-        <input
-          type="date"
-          value={edu.toDate || ''}
-          onChange={(e) => {
-            const updated = [...educationDetails]
-            updated[index].toDate = e.target.value
-            setEducationDetails(updated)
-          }}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-    </div>
-  </div>
-))}
-{educationDetails.length === 0 && (
-  <p className="text-gray-500 text-sm">No education details added. Click "Add Education" to add.</p>
-)}
-</div>
-
-<div className="flex gap-3 justify-end pt-4 border-t border-gray-200"> 
-<button 
-type="button" 
-onClick={() => { 
-setShowModal(false) 
-if (isNewEmployeePage) {
-  navigate('/employees')
-}
-// Reset form when canceling 
-setEditingEmployee(null) 
-setFormData({ 
-employeeId: '', 
-firstName: '', 
-lastName: '',
-client: '', 
-
-email: '', 
-password: '', 
-role: '', 
-department: '', 
-location: '', 
-designation: '', 
-employmentType: '', 
-employeeStatus: 'Active', 
-sourceOfHire: '', 
-dateOfJoining: '', 
-dateOfBirth: '', 
-age: '', 
-gender: '', 
-maritalStatus: '', 
-aboutMe: '', 
-expertise: '', 
-
-pan: '', 
-aadhaar: '', 
-workPhoneNumber: '', 
-personalMobileNumber: '', 
-extension: '', 
-personalEmailAddress: '', 
-seatingLocation: '', 
-tags: '', 
-presentAddressLine1: '', 
-presentAddressLine2: '', 
-presentCity: '', 
-presentCountry: '', 
-presentState: '', 
-presentPostalCode: '', 
-sameAsPresentAddress: false, 
-permanentAddressLine1: '', 
-permanentAddressLine2: '', 
-permanentCity: '', 
-permanentCountry: '', 
-permanentState: '', 
-permanentPostalCode: '', 
-dateOfExit: '', 
- 
-}) 
-setWorkExperiences([])
-setEducationDetails([])
-}} 
-className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors" 
-> 
-Cancel 
-</button> 
-<button 
-type="submit" 
-disabled={loading} 
-className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold" 
-> 
-{loading ? 'Saving...' : 'Save Employee'} 
-</button> 
-</div> 
-</form> 
-    </div> 
-  </div>
-)}
-
-
 {/* Document Modal - Redesigned */} 
 {showDocModal && selectedEmployee && ( 
 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
@@ -2311,18 +1992,22 @@ Documents - {(selectedEmployee.firstName || '') + ' ' + (selectedEmployee.lastNa
 <form onSubmit={handleUploadDocument} className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-white rounded-xl border-2 border-blue-200 space-y-4"> 
 <div className="grid grid-cols-2 gap-4"> 
 <div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">Document Type</label> 
-<select 
-value={docFormData.documentType} 
-onChange={(e) => setDocFormData({ ...docFormData, documentType: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-> 
-<option value="AADHAAR">Aadhaar</option> 
-<option value="PAN">PAN</option> 
-<option value="CERTIFICATE">Certificate</option> 
-<option value="RESUME">Resume</option> 
-<option value="PASSPORT">Passport</option> 
-</select> 
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Document Type</label>
+                  <select
+                    value={docFormData.documentType}
+                    onChange={(e) => setDocFormData({ ...docFormData, documentType: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="AADHAAR">Aadhaar Card</option>
+                    <option value="PAN">PAN Card</option>
+                    <option value="RELIEVING">Relieving Certificate</option>
+                    <option value="OFFER">Offer Letter</option>
+                    <option value="NDA">NDA</option>
+                    <option value="ID_PROOF">ID Proof</option>
+                    <option value="CERTIFICATE">Certificate</option>
+                    <option value="RESUME">Resume</option>
+                    <option value="PASSPORT">Passport</option>
+                  </select>
 </div> 
 <div> 
 <label className="block text-sm font-medium text-gray-700 mb-1">File</label> 
@@ -2362,30 +2047,8 @@ className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disab
 <p className="text-sm text-gray-500">{doc.documentType}</p> 
 </div> 
 </div> 
-<div className="flex items-center gap-2"> 
-<span className={`px-2 py-1 rounded text-xs ${ 
-doc.verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' 
-}`}> 
-{doc.verified ? 'Verified' : 'Pending'} 
-</span> 
-{!doc.verified && userRole && (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') && ( 
-<button 
-onClick={async () => { 
-try { 
-await api.verifyDocument(doc.id, true) 
-await loadDocuments(selectedEmployee.id) 
-alert('Document verified successfully') 
-} catch (error) { 
-alert('Error verifying document: ' + error.message) 
-} 
-}} 
-className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700" 
-title="Verify Document" 
-> 
-Verify 
-</button> 
-)} 
-<button 
+<div className="flex items-center gap-2">
+							<button 
 onClick={(e) => handleViewDocument(doc.id, doc.fileName, e)} 
 className="p-2 text-green-600 hover:bg-green-50 rounded" 
 title="View Document" 
@@ -2427,263 +2090,11 @@ title="Delete Document"
 </div> 
 </div> 
 </div> 
-)} 
-{/* View Employee Details Modal */} 
-{showViewModal && selectedEmployee && ( 
-<div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
-<div className="bg-white rounded-2xl shadow-2xl p-6 w-full border-2 border-gray-200 max-h-[90vh] overflow-y-auto"> 
-<div className="flex items-center justify-between mb-6"> 
-<h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3"> 
-<Eye size={24} className="text-blue-600" /> 
-Employee Details 
-</h3> 
-<button 
-onClick={() => { 
-setShowViewModal(false) 
-setSelectedEmployee(null) 
-}} 
-className="text-gray-500 hover:text-gray-700" 
-> 
-<span className="text-2xl">×</span> 
-</button> 
-</div> 
-<div className="space-y-6"> 
-	{/* Personal Information */} 
-	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200"> 
-		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"> 
-			<User size={20} className="text-blue-600" /> 
-			Personal Information 
-		</h4> 
-		<div className="grid grid-cols-2 gap-4"> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Employee ID</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.id || selectedEmployee.employeeId || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Name</p> 
-				<p className="text-base font-semibold text-gray-900">{(selectedEmployee.firstName || '') + ' ' + (selectedEmployee.lastName || '')}</p> 
-			</div> 
-			
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Email</p> 
-				<div className="flex items-center gap-2"> 
-					<Mail size={16} className="text-gray-400" /> 
-					<p className="text-base font-semibold text-gray-900">{selectedEmployee.email || 'N/A'}</p> 
-				</div> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Phone (Personal)</p> 
-				<div className="flex items-center gap-2"> 
-					<Phone size={16} className="text-gray-400" /> 
-					<p className="text-base font-semibold text-gray-900">{selectedEmployee.personalMobileNumber || 'N/A'}</p> 
-				</div> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Phone (Work)</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.workPhoneNumber || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Date of Birth</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.dateOfBirth ? formatDate(selectedEmployee.dateOfBirth) : 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Age</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.age || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Gender</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.gender || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Marital Status</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.maritalStatus || 'N/A'}</p> 
-			</div> 
-			<div className="col-span-2"> 
-				<p className="text-sm text-gray-600 mb-1">About</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.aboutMe || 'N/A'}</p> 
-			</div> 
-		</div> 
-	</div> 
-	{/* Employment Information */} 
-	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200"> 
-		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"> 
-			<FileText size={20} className="text-blue-600" /> 
-			Employment Information 
-		</h4> 
-		<div className="grid grid-cols-2 gap-4"> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Department</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.department || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Designation</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.designation || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Role</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.role || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Client</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.client || 'N/A'}</p> 
-			</div>
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Location</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.location || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Employment Type</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.employmentType || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Source of Hire</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.sourceOfHire || 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Date of Joining</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.dateOfJoining ? formatDate(selectedEmployee.dateOfJoining) : 'N/A'}</p> 
-			</div> 
-			
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Salary</p> 
-				<p className="text-base font-semibold text-gray-900">{selectedEmployee.salary ? `₹${parseFloat(selectedEmployee.salary).toLocaleString()}` : 'N/A'}</p> 
-			</div> 
-			<div> 
-				<p className="text-sm text-gray-600 mb-1">Status</p> 
-				<span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm inline-block ${ 
-					selectedEmployee.employeeStatus === 'Active' ? 'bg-green-100 text-green-800 border border-green-200' : 
-					selectedEmployee.employeeStatus === 'Inactive' ? 'bg-gray-100 text-gray-800 border border-gray-200' : 
-					selectedEmployee.employeeStatus === 'On Leave' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 
-					selectedEmployee.employeeStatus === 'Resigned' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : 
-					selectedEmployee.employeeStatus === 'Suspended' ? 'bg-orange-100 text-orange-800 border border-orange-200' : 
-					'bg-red-100 text-red-800 border border-red-200' 
-				}`}> 
-					{selectedEmployee.employeeStatus || 'N/A'} 
-				</span> 
-			</div> 
-			
-			 
-		</div> 
-	</div>
-	{/* Work Experience */}
-	{selectedEmployee.workExperiences && selectedEmployee.workExperiences.length > 0 && (
-	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-			<FileText size={20} className="text-blue-600" />
-			Work Experience
-		</h4>
-		<div className="space-y-4">
-			{selectedEmployee.workExperiences.map((exp, index) => (
-				<div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
-					<div className="flex justify-between items-start mb-2">
-						<div>
-							<p className="text-base font-semibold text-gray-900">{exp.jobTitle || 'N/A'}</p>
-							<p className="text-sm text-gray-600">{exp.companyName || 'N/A'}</p>
-						</div>
-						{exp.relevant && (
-							<span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Relevant</span>
-						)}
-					</div>
-					<p className="text-sm text-gray-500">
-						{exp.fromDate ? formatDate(exp.fromDate) : 'N/A'} - {exp.toDate ? formatDate(exp.toDate) : 'Present'}
-					</p>
-					{exp.jobDescription && (
-						<p className="text-sm text-gray-600 mt-2">{exp.jobDescription}</p>
-					)}
-				</div>
-			))}
-		</div>
-	</div>
-	)}
-	{/* Education Details */}
-	{selectedEmployee.educationDetails && selectedEmployee.educationDetails.length > 0 && (
-	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-			<FileText size={20} className="text-blue-600" />
-			Education Details
-		</h4>
-		<div className="space-y-4">
-			{selectedEmployee.educationDetails.map((edu, index) => (
-				<div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
-					<p className="text-base font-semibold text-gray-900">{edu.degree || 'N/A'}</p>
-					<p className="text-sm text-gray-600">{edu.institutionName || 'N/A'}</p>
-					<p className="text-sm text-gray-500">
-						{edu.fromDate ? formatDate(edu.fromDate) : 'N/A'} - {edu.toDate ? formatDate(edu.toDate) : 'Present'}
-					</p>
-				</div>
-			))}
-		</div>
-	</div>
-	)}
-	{/* Documents Section */}
-	<div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-		<h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-			<FileText size={20} className="text-blue-600" />
-			Documents
-		</h4>
-		{documents[selectedEmployee.id] && documents[selectedEmployee.id].length > 0 ? (
-			<div className="space-y-3">
-				{documents[selectedEmployee.id].map((doc) => (
-					<div key={doc.id} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
-						<div className="flex items-center gap-3 flex-1">
-							<FileText className="text-blue-600" size={20} />
-							<div className="flex-1">
-								<p className="font-medium text-gray-900">{doc.fileName}</p>
-								<div className="flex items-center gap-3 mt-1">
-									<p className="text-sm text-gray-600">{doc.documentType}</p>
-									{doc.description && (
-										<span className="text-sm text-gray-500">• {doc.description}</span>
-									)}
-									<span className={`px-2 py-1 rounded text-xs font-medium ${
-										doc.verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-									}`}>
-										{doc.verified ? 'Verified' : 'Pending'}
-									</span>
-								</div>
-							</div>
-						</div>
-						<div className="flex items-center gap-2">
-							<button
-								onClick={(e) => handleViewDocument(doc.id, doc.fileName, e)}
-								className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-								title="View Document"
-							>
-								<Eye size={18} />
-							</button>
-							<button
-								onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
-								className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-								title="Download Document"
-							>
-								<Download size={18} />
-							</button>
-						</div>
-					</div>
-				))}
-			</div>
-		) : (
-			<p className="text-center text-gray-500 py-4">No documents uploaded</p>
-		)}
-	</div>
-{/* Action Buttons */} 
-<div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200"> 
-<button 
-onClick={() => { 
-setShowViewModal(false) 
-setSelectedEmployee(null) 
-}} 
-className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold shadow-md hover:shadow-lg transition-all" 
-> 
-Close 
-</button> 
-</div> 
-</div> 
-</div> 
-</div> 
-)} 
-</div> 
-) 
-} 
+)}
+</div>
+)
+}
+
 export default Employees 
 
 

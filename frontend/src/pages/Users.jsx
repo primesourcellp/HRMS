@@ -109,6 +109,8 @@ const Users = () => {
   const [educationDetails, setEducationDetails] = useState([])
   const [clients, setClients] = useState([])
   const [designations, setDesignations] = useState([])
+  const [roles, setRoles] = useState([])
+  const [employmentTypes, setEmploymentTypes] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const currentUserRole = localStorage.getItem('userRole')
@@ -386,6 +388,279 @@ const Users = () => {
   const canDelete = currentUserRole === 'SUPER_ADMIN'
   const isEmployeeForm = !editingUser && formData.role === 'EMPLOYEE'
 
+  // If employee form, show as full-width inline form (like Edit/Detail View)
+  if (showModal && isEmployeeForm) {
+    return (
+      <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
+        <div className="w-full mx-auto">
+          <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
+                <Plus size={28} className="text-blue-600" />
+                Add New Employee
+              </h3>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+              {/* Employee Form */}
+              <div className="space-y-5">
+                {/* Basic Information */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label>
+                      <input
+                        type="text"
+                        value={employeeFormData.employeeId}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, employeeId: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">First Name *</label>
+                      <input
+                        type="text"
+                        value={employeeFormData.firstName}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, firstName: e.target.value })}
+                        placeholder="Enter First Name"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name *</label>
+                      <input
+                        type="text"
+                        value={employeeFormData.lastName}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, lastName: e.target.value })}
+                        placeholder="Enter Last Name"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
+                      <input
+                        type="text"
+                        value={employeeFormData.email || ''}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, email: e.target.value })}
+                        placeholder="Enter Email Address"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Password *</label>
+                      <input
+                        type="password"
+                        value={employeeFormData.password || ''}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, password: e.target.value })}
+                        placeholder="Enter password"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        autoComplete="new-password"
+                        data-lpignore="true"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Work Information */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Department *</label>
+                      <input
+                        type="text"
+                        value={employeeFormData.department}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, department: e.target.value })}
+                        placeholder="Enter Department"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
+                      <select
+                        value={employeeFormData.role}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, role: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      >
+                        <option value="">Select Role</option>
+                        {roles.length > 0 ? (
+                          roles.map((role) => (
+                            <option key={role} value={role}>{role}</option>
+                          ))
+                        ) : (
+                          <option value="EMPLOYEE">EMPLOYEE</option>
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type *</label>
+                      <select
+                        value={employeeFormData.employmentType}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, employmentType: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      >
+                        <option value="">Select Employment Type</option>
+                        {employmentTypes.length > 0 ? (
+                          employmentTypes.map((type) => (
+                            <option key={type} value={type}>{type}</option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="Full-Time">Full-Time</option>
+                            <option value="Part-Time">Part-Time</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Temporary">Temporary</option>
+                            <option value="Intern">Intern</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Designation *</label>
+                      <input
+                        list="designation-list"
+                        type="text"
+                        value={employeeFormData.designation}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, designation: e.target.value })}
+                        placeholder="Enter designation"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                      <datalist id="designation-list">
+                        {designations.map((designation) => (
+                          <option key={designation} value={designation} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
+                      <input
+                        list="client-list"
+                        type="text"
+                        value={employeeFormData.client}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, client: e.target.value })}
+                        placeholder="Enter client name"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                      <datalist id="client-list">
+                        {clients.map((c) => (
+                          <option key={c} value={c} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label>
+                      <input
+                        type="text"
+                        value={employeeFormData.location}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, location: e.target.value })}
+                        placeholder="Enter location"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining *</label>
+                      <input
+                        type="date"
+                        value={employeeFormData.dateOfJoining}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, dateOfJoining: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={employeeFormData.salary || ''}
+                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, salary: e.target.value })}
+                          className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Details */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
+                      <input
+                        type="tel"
+                        value={employeeFormData.workPhoneNumber}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, workPhoneNumber: e.target.value })}
+                        placeholder="Enter Phone Number"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number *</label>
+                      <input
+                        type="tel"
+                        value={employeeFormData.personalMobileNumber}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, personalMobileNumber: e.target.value })}
+                        placeholder="Enter Phone Number"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                >
+                  {loading ? 'Saving...' : 'Create Employee'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
       {/* Search Bar */}
@@ -529,13 +804,13 @@ const Users = () => {
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && (
+      {/* Modal - Only for regular users, not employees */}
+      {showModal && !isEmployeeForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`bg-white rounded-xl shadow-2xl w-full ${isEmployeeForm ? 'max-w-7xl' : 'max-w-2xl'} max-h-[90vh] overflow-y-auto`}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-xl font-semibold text-gray-800">
-                {isEmployeeForm ? 'Add New Employee' : editingUser ? 'Edit User' : 'Add New User'}
+                {editingUser ? 'Edit User' : 'Add New User'}
               </h3>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -545,193 +820,8 @@ const Users = () => {
                 </div>
               )}
 
-              {isEmployeeForm ? (
-                // Employee Form
-                <div className="space-y-5">
-                  {/* Basic Information */}
-                  <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-                    <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label>
-                        <input
-                          type="text"
-                          value={employeeFormData.employeeId}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, employeeId: e.target.value })}
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">First Name *</label>
-                        <input
-                          type="text"
-                          value={employeeFormData.firstName}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, firstName: e.target.value })}
-                          placeholder="Enter First Name"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name *</label>
-                        <input
-                          type="text"
-                          value={employeeFormData.lastName}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, lastName: e.target.value })}
-                          placeholder="Enter Last Name"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
-                        <input
-                          type="text"
-                          value={employeeFormData.email || ''}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, email: e.target.value })}
-                          placeholder="Enter Email Address"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          autoComplete="off"
-                          data-lpignore="true"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Password *</label>
-                        <input
-                          type="password"
-                          value={employeeFormData.password || ''}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, password: e.target.value })}
-                          placeholder="Enter password"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          autoComplete="new-password"
-                          data-lpignore="true"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Work Information */}
-                  <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-                    <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Department *</label>
-                        <input
-                          type="text"
-                          value={employeeFormData.department}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, department: e.target.value })}
-                          placeholder="Enter Department"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Designation *</label>
-                        <input
-                          list="designation-list"
-                          type="text"
-                          value={employeeFormData.designation}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, designation: e.target.value })}
-                          placeholder="Enter designation"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                        <datalist id="designation-list">
-                          {designations.map((designation) => (
-                            <option key={designation} value={designation} />
-                          ))}
-                        </datalist>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
-                        <input
-                          list="client-list"
-                          type="text"
-                          value={employeeFormData.client}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, client: e.target.value })}
-                          placeholder="Enter client name"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                        <datalist id="client-list">
-                          {clients.map((c) => (
-                            <option key={c} value={c} />
-                          ))}
-                        </datalist>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label>
-                        <input
-                          type="text"
-                          value={employeeFormData.location}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, location: e.target.value })}
-                          placeholder="Enter location"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining *</label>
-                        <input
-                          type="date"
-                          value={employeeFormData.dateOfJoining}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, dateOfJoining: e.target.value })}
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={employeeFormData.salary || ''}
-                            onChange={(e) => setEmployeeFormData({ ...employeeFormData, salary: e.target.value })}
-                            className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Contact Details */}
-                  <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-                    <h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
-                        <input
-                          type="tel"
-                          value={employeeFormData.workPhoneNumber}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, workPhoneNumber: e.target.value })}
-                          placeholder="Enter Phone Number"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number *</label>
-                        <input
-                          type="tel"
-                          value={employeeFormData.personalMobileNumber}
-                          onChange={(e) => setEmployeeFormData({ ...employeeFormData, personalMobileNumber: e.target.value })}
-                          placeholder="Enter Phone Number"
-                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // Regular User Form
-                <div className="grid grid-cols-2 gap-4">
+              {/* Regular User Form */}
+              <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
                     <input
@@ -800,14 +890,14 @@ const Users = () => {
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
                 >
                   {loading ? 'Saving...' : isEmployeeForm ? 'Create Employee' : editingUser ? 'Update' : 'Create'} User
                 </button>

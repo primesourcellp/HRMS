@@ -137,12 +137,43 @@ public class EmployeeController {
             HttpServletRequest httpRequest) {
 
         String role = (String) httpRequest.getAttribute("userRole");
+        Long currentUserId = (Long) httpRequest.getAttribute("userId");
+        
         if (role == null) {
             role = userRole;
         }
-        if (role == null || (!role.equals("SUPER_ADMIN") && !role.equals("ADMIN"))) {
+        
+        // Authorization check
+        if (role == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("success", false, "message", "Only SUPER_ADMIN or ADMIN can update employees"));
+                    .body(Map.of("success", false, "message", "Unauthorized access"));
+        }
+        
+        // SUPER_ADMIN and ADMIN can update any employee
+        boolean isAdmin = role.equals("SUPER_ADMIN") || role.equals("ADMIN");
+        
+        // EMPLOYEE can only update their own profile
+        boolean isOwnProfile = role.equals("EMPLOYEE") && currentUserId != null && currentUserId.equals(id);
+        
+        if (!isAdmin && !isOwnProfile) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "message", "You can only update your own profile"));
+        }
+        
+        // If employee is updating their own profile, restrict certain fields
+        if (isOwnProfile && !isAdmin) {
+            // Employees cannot update sensitive fields - set them to null so they won't be changed
+            employee.setSalary(null);
+            employee.setDepartment(null);
+            employee.setDesignation(null);
+            employee.setRole(null);
+            employee.setEmployeeStatus(null);
+            employee.setDateOfJoining(null);
+            employee.setDateOfExit(null);
+            employee.setClient(null);
+            employee.setLocation(null);
+            employee.setEmploymentType(null);
+            employee.setEmployeeId(null); // Prevent changing employee ID
         }
 
         try {

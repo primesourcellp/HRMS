@@ -1,6 +1,32 @@
 import { useState, useEffect } from 'react'
-import { User, Bell } from 'lucide-react'
+import { User, Bell, FileText, Upload } from 'lucide-react'
 import api from '../services/api'
+
+const formatDateForInput = (dateString) => {
+  if (!dateString) return ''
+  if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+    return dateString.split('T')[0]
+  }
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ''
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  } catch (e) {
+    console.error('Error formatting date:', e)
+    return ''
+  }
+}
+
+const calculateAge = (dateOfBirth) => {
+  if (!dateOfBirth) return ''
+  const dob = new Date(dateOfBirth)
+  const diffMs = Date.now() - dob.getTime()
+  const ageDt = new Date(diffMs)
+  return Math.abs(ageDt.getUTCFullYear() - 1970).toString()
+}
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('profile')
@@ -11,8 +37,22 @@ const Settings = () => {
     phone: '',
     department: '',
     position: '',
-    role: localStorage.getItem('userRole') || ''
+    role: localStorage.getItem('userRole') || '',
+    // Employee-specific fields
+    gender: '',
+    dateOfBirth: '',
+    age: '',
+    maritalStatus: '',
+    aboutMe: '',
+    sourceOfHire: ''
   })
+  const [documents, setDocuments] = useState([])
+  const [docFormData, setDocFormData] = useState({
+    documentType: 'AADHAAR',
+    description: ''
+  })
+  const [docFile, setDocFile] = useState(null)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
 
   const [notifications, setNotifications] = useState({
     emailNotifications: true,
@@ -35,12 +75,16 @@ const Settings = () => {
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
+    ...(isEmployee ? [{ id: 'documents', label: 'Documents', icon: FileText }] : []),
     { id: 'notifications', label: 'Notifications', icon: Bell }
   ]
 
   useEffect(() => {
     loadUserProfile()
     loadAppearanceSettings()
+    if (isEmployee && userId) {
+      loadDocuments()
+    }
     
     // Set up system theme change listener for 'auto' mode
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -163,13 +207,20 @@ const Settings = () => {
           : null
         
         if (employee) {
+          const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
           setProfileData({
-            name: employee.name || '',
+            name: employee.name || employee.firstName + ' ' + (employee.lastName || '') || '',
             email: employee.email || '',
-            phone: employee.phone || '',
+            phone: employee.phone || employee.personalMobileNumber || '',
             department: employee.department || '',
-            position: employee.position || '',
-            role: 'EMPLOYEE'
+            position: employee.designation || '',
+            role: 'EMPLOYEE',
+            gender: employee.gender || '',
+            dateOfBirth: formattedDateOfBirth,
+            age: calculateAge(formattedDateOfBirth),
+            maritalStatus: employee.maritalStatus || '',
+            aboutMe: employee.aboutMe || '',
+            sourceOfHire: employee.sourceOfHire || ''
           })
         }
       } else {
@@ -217,11 +268,18 @@ const Settings = () => {
         
         if (employee) {
           await api.updateEmployee(employee.id, {
-            name: profileData.name,
+            firstName: profileData.name.split(' ')[0] || profileData.name,
+            lastName: profileData.name.split(' ').slice(1).join(' ') || '',
             email: profileData.email,
             phone: profileData.phone,
+            personalMobileNumber: profileData.phone,
             department: profileData.department,
-            position: profileData.position
+            designation: profileData.position,
+            gender: profileData.gender,
+            dateOfBirth: profileData.dateOfBirth,
+            maritalStatus: profileData.maritalStatus,
+            aboutMe: profileData.aboutMe,
+            sourceOfHire: profileData.sourceOfHire
           }, userRole)
         }
       } else {
@@ -250,6 +308,53 @@ const Settings = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadDocuments = async () => {
+    if (!userId) return
+    try {
+      const data = await api.getEmployeeDocuments(userId)
+      setDocuments(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error loading documents:', error)
+      setDocuments([])
+    }
+  }
+
+  const handleUploadDocument = async (e) => {
+    e.preventDefault()
+    if (!docFile || !userId) {
+      alert('Please select a file')
+      return
+    }
+
+    try {
+      setUploadingDoc(true)
+      const formData = new FormData()
+      formData.append('file', docFile)
+      formData.append('employeeId', userId)
+      formData.append('documentType', docFormData.documentType)
+      formData.append('description', docFormData.description)
+      
+      await api.uploadDocument(formData)
+      await loadDocuments()
+      setDocFile(null)
+      setDocFormData({ documentType: 'AADHAAR', description: '' })
+      alert('Document uploaded successfully!')
+    } catch (error) {
+      alert('Error uploading document: ' + (error.message || 'Unknown error'))
+    } finally {
+      setUploadingDoc(false)
+    }
+  }
+
+  const handleDateOfBirthChange = (e) => {
+    const dob = e.target.value
+    setProfileData({
+      ...profileData,
+      dateOfBirth: dob,
+      age: calculateAge(dob)
+    })
   }
 
   const handleNotificationChange = (key) => {
@@ -385,8 +490,10 @@ const Settings = () => {
                     type="text"
                     value={profileData.department}
                     onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                            readOnly
                   />
+                  <p className="text-xs text-gray-500 mt-1">Contact HR to change</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
@@ -394,7 +501,79 @@ const Settings = () => {
                     type="text"
                     value={profileData.position}
                     onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                            readOnly
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Contact HR to change</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                  <select
+                    value={profileData.gender}
+                    onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={profileData.dateOfBirth}
+                    onChange={handleDateOfBirthChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
+                  <input
+                    type="text"
+                    value={profileData.age}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Calculated from Date of Birth</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Marital Status</label>
+                  <select
+                    value={profileData.maritalStatus}
+                    onChange={(e) => setProfileData({ ...profileData, maritalStatus: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select</option>
+                    <option value="SINGLE">Single</option>
+                    <option value="MARRIED">Married</option>
+                    <option value="DIVORCED">Divorced</option>
+                    <option value="WIDOWED">Widowed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Source of Hire</label>
+                  <select
+                    value={profileData.sourceOfHire}
+                    onChange={(e) => setProfileData({ ...profileData, sourceOfHire: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select</option>
+                    <option value="LinkedIn">LinkedIn</option>
+                    <option value="Indeed">Indeed</option>
+                    <option value="Referral">Referral</option>
+                    <option value="Campus Recruitment">Campus Recruitment</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">About Me</label>
+                  <textarea
+                    value={profileData.aboutMe}
+                    onChange={(e) => setProfileData({ ...profileData, aboutMe: e.target.value })}
+                    rows="4"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Tell us about yourself..."
                   />
                 </div>
                       </>
@@ -445,6 +624,88 @@ const Settings = () => {
               </div>
             </form>
               )}
+            </div>
+          )}
+
+          {/* Documents Tab - Only for Employees */}
+          {activeTab === 'documents' && isEmployee && (
+            <div className="space-y-4 md:space-y-6">
+              <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">My Documents</h3>
+              
+              {/* Upload Form */}
+              <form onSubmit={handleUploadDocument} className="bg-blue-50 border border-blue-200 rounded-lg p-4 md:p-6 space-y-4">
+                <h4 className="text-sm md:text-base font-semibold text-blue-800 mb-3">Upload Document</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Document Type</label>
+                    <select
+                      value={docFormData.documentType}
+                      onChange={(e) => setDocFormData({ ...docFormData, documentType: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="AADHAAR">Aadhaar Card</option>
+                      <option value="PAN">PAN Card</option>
+                      <option value="RELIEVING">Relieving Certificate</option>
+                      <option value="OFFER">Offer Letter</option>
+                      <option value="NDA">NDA</option>
+                      <option value="ID_PROOF">ID Proof</option>
+                      <option value="CERTIFICATE">Certificate</option>
+                      <option value="RESUME">Resume</option>
+                      <option value="PASSPORT">Passport</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">File</label>
+                    <input
+                      type="file"
+                      onChange={(e) => setDocFile(e.target.files[0])}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
+                  <input
+                    type="text"
+                    value={docFormData.description}
+                    onChange={(e) => setDocFormData({ ...docFormData, description: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Add a description..."
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={uploadingDoc}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Upload size={18} />
+                  {uploadingDoc ? 'Uploading...' : 'Upload Document'}
+                </button>
+              </form>
+
+              {/* Documents List */}
+              <div className="space-y-3">
+                <h4 className="text-sm md:text-base font-semibold text-gray-800 mb-3">Uploaded Documents</h4>
+                {documents.length > 0 ? (
+                  documents.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-3 flex-1">
+                        <FileText className="text-blue-600" size={20} />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{doc.fileName}</p>
+                          <p className="text-sm text-gray-500">{doc.documentType}</p>
+                          {doc.description && (
+                            <p className="text-xs text-gray-400 mt-1">{doc.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-gray-500 py-8">No documents uploaded yet</p>
+                )}
+              </div>
             </div>
           )}
 
