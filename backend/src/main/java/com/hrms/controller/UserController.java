@@ -135,5 +135,34 @@ public class UserController {
                     .body(Map.of("error", e.getMessage()));
         }
     }
+
+    @PostMapping("/{id}/change-password")
+    public ResponseEntity<?> changePassword(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+        try {
+            String currentPassword = (String) request.get("currentPassword");
+            String newPassword = (String) request.get("newPassword");
+            
+            if (currentPassword == null || currentPassword.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Current password is required"));
+            }
+            
+            if (newPassword == null || newPassword.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "New password is required"));
+            }
+            
+            if (newPassword.length() < 6) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "New password must be at least 6 characters long"));
+            }
+            
+            userService.changePassword(id, currentPassword, newPassword);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Password changed successfully"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
 

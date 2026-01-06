@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Bell, FileText, Upload } from 'lucide-react'
+import { User, Bell, FileText, Upload, Shield } from 'lucide-react'
 import api from '../services/api'
 
 const formatDateForInput = (dateString) => {
@@ -71,10 +71,21 @@ const Settings = () => {
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+  const isSuperAdmin = userRole === 'SUPER_ADMIN'
   const isEmployee = userRole === 'EMPLOYEE'
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
+    ...(isSuperAdmin ? [{ id: 'security', label: 'Security', icon: Shield }] : []),
     ...(isEmployee ? [{ id: 'documents', label: 'Documents', icon: FileText }] : []),
     { id: 'notifications', label: 'Notifications', icon: Bell }
   ]
@@ -361,6 +372,51 @@ const Settings = () => {
     setNotifications({ ...notifications, [key]: !notifications[key] })
   }
 
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    setPasswordError('')
+    setPasswordSuccess('')
+
+    // Validation
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError('All fields are required')
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long')
+      return
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New password and confirm password do not match')
+      return
+    }
+
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      setPasswordError('New password must be different from current password')
+      return
+    }
+
+    try {
+      setChangingPassword(true)
+      await api.changePassword(userId, passwordData.currentPassword, passwordData.newPassword)
+      setPasswordSuccess('Password changed successfully!')
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      })
+      setTimeout(() => {
+        setPasswordSuccess('')
+      }, 5000)
+    } catch (error) {
+      setPasswordError(error.message || 'Failed to change password. Please try again.')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
 
   return (
     <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
@@ -624,6 +680,94 @@ const Settings = () => {
               </div>
             </form>
               )}
+            </div>
+          )}
+
+          {/* Security Tab - Only for Super Admin */}
+          {activeTab === 'security' && isSuperAdmin && (
+            <div className="space-y-4 md:space-y-6">
+              <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">Change Password</h3>
+              
+              <form onSubmit={handlePasswordChange} className="bg-blue-50 border border-blue-200 rounded-lg p-4 md:p-6 space-y-4">
+                {passwordError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    {passwordError}
+                  </div>
+                )}
+                {passwordSuccess && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                    {passwordSuccess}
+                  </div>
+                )}
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Current Password <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter your current password"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      New Password <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter your new password (min. 6 characters)"
+                      required
+                      minLength={6}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirm New Password <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Confirm your new password"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-blue-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                      setPasswordError('')
+                      setPasswordSuccess('')
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors text-gray-700 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={changingPassword}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {changingPassword ? 'Changing Password...' : 'Change Password'}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 

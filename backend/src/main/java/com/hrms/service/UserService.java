@@ -95,5 +95,24 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
     }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void changePassword(Long id, String currentPassword, String newPassword) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+        
+        // Verify current password
+        if (user.getPassword() == null || user.getPassword().isEmpty()) {
+            throw new RuntimeException("Current password is not set");
+        }
+        
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+        
+        // Update to new password
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
 }
 
