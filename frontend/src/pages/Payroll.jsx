@@ -93,7 +93,7 @@ const Payroll = () => {
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'MANAGER' || userRole === 'FINANCE'
   const isEmployee = userType === 'employee'
 
   useEffect(() => {
