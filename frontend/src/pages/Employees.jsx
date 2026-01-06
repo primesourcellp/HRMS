@@ -127,7 +127,22 @@ const [docFile, setDocFile] = useState(null)
 const [designations, setDesignations] = useState([])
 const [roles, setRoles] = useState([])
 const [employmentTypes, setEmploymentTypes] = useState([])
+const [openDropdownId, setOpenDropdownId] = useState(null)
 const userRole = localStorage.getItem('userRole') 
+
+// Close dropdown when clicking outside
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (openDropdownId && !event.target.closest('.dropdown-menu-container')) {
+      setOpenDropdownId(null)
+    }
+  }
+  document.addEventListener('mousedown', handleClickOutside)
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside)
+  }
+}, [openDropdownId])
+
 useEffect(() => { 
   loadEmployees() 
 }, [])
@@ -1932,6 +1947,7 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 		{employee.employeeStatus || 'N/A'} 
 	</span> 
 </td> 
+<<<<<<< HEAD
 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium relative"> 
 <div className="flex items-center justify-end">
 	<button 
@@ -1939,54 +1955,99 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 		onClick={(e) => {
 			e.stopPropagation()
 			setOpenMenuId(openMenuId === employee.id ? null : employee.id)
+=======
+<td className="px-6 py-4 whitespace-nowrap text-sm font-medium"> 
+<div className="relative dropdown-menu-container"> 
+	<button 
+		onClick={(e) => {
+			e.stopPropagation()
+			setOpenDropdownId(openDropdownId === employee.id ? null : employee.id)
+>>>>>>> master
 		}}
 		className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors" 
 		title="Actions" 
 	> 
 		<MoreVertical size={18} /> 
+<<<<<<< HEAD
 	</button>
 	{openMenuId === employee.id && (
 		<div data-menu-dropdown className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+=======
+	</button> 
+	
+	{openDropdownId === employee.id && (
+		<div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+>>>>>>> master
 			<button
 				onClick={(e) => {
 					e.stopPropagation()
 					handleViewEmployee(employee)
+<<<<<<< HEAD
 					setOpenMenuId(null)
 				}}
 				className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 			>
 				<Eye size={16} />
+=======
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<Eye size={16} className="text-green-600" />
+>>>>>>> master
 				View Details
 			</button>
 			<button
 				onClick={(e) => {
 					e.stopPropagation()
 					handleOpenModal(employee)
+<<<<<<< HEAD
 					setOpenMenuId(null)
 				}}
 				className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 			>
 				<Edit size={16} />
+=======
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<Edit size={16} className="text-blue-600" />
+>>>>>>> master
 				Edit
 			</button>
 			<button
 				onClick={(e) => {
 					e.stopPropagation()
 					openDocModal(employee)
+<<<<<<< HEAD
 					setOpenMenuId(null)
 				}}
 				className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 			>
 				<FileText size={16} />
+=======
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<FileText size={16} className="text-blue-600" />
+>>>>>>> master
 				View Documents
 			</button>
 			<button
 				onClick={(e) => {
 					e.stopPropagation()
 					handleDelete(employee.id)
+<<<<<<< HEAD
 					setOpenMenuId(null)
 				}}
 				className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+=======
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+>>>>>>> master
 			>
 				<Trash2 size={16} />
 				Delete
