@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
-<<<<<<< HEAD
-import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2 } from 'lucide-react'
-=======
 import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2, Settings, Info, AlertCircle, Building2 } from 'lucide-react'
->>>>>>> master
 import api from '../services/api'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -66,8 +62,6 @@ const Payroll = () => {
     client: ''
   })
   const [showCtcConverter, setShowCtcConverter] = useState(false)
-<<<<<<< HEAD
-=======
   // CTC Template Management State
   const [ctcTemplateSearchTerm, setCtcTemplateSearchTerm] = useState('')
   const [ctcTemplateClientFilter, setCtcTemplateClientFilter] = useState('All')
@@ -95,7 +89,6 @@ const Payroll = () => {
     otherDeductionsPercentage: null,
     active: true
   })
->>>>>>> master
 
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
@@ -117,27 +110,6 @@ const Payroll = () => {
         ])
         setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
-<<<<<<< HEAD
-      } else if (isAdmin) {
-        const [payrollsData, employeesData, salaryStructuresData, ctcTemplatesData] = await Promise.all([
-          api.getPayrolls(),
-          api.getEmployees(),
-          api.getSalaryStructures(),
-          api.getCTCTemplates(null, true) // Get active templates only
-        ])
-        setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
-        setEmployees(Array.isArray(employeesData) ? employeesData : [])
-        setSalaryStructures(Array.isArray(salaryStructuresData) ? salaryStructuresData : [])
-        const templates = Array.isArray(ctcTemplatesData) ? ctcTemplatesData : []
-        setCtcTemplates(templates)
-        // Debug: Log templates to help diagnose
-        if (templates.length === 0) {
-          console.warn('No CTC templates found. Please create templates first.')
-        } else {
-          console.log('Loaded CTC templates:', templates.length, templates)
-        }
-      }
-=======
         } else if (isAdmin) {
           // Load all templates if viewing CTC Templates tab, otherwise load only active ones
           const shouldLoadAllTemplates = activeView === 'ctcTemplates'
@@ -161,7 +133,6 @@ const Payroll = () => {
             console.log('Loaded CTC templates:', templates.length, templates)
           }
         }
->>>>>>> master
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -546,22 +517,6 @@ const Payroll = () => {
         parseInt(ctcConversionData.templateId)
       )
 
-<<<<<<< HEAD
-      // Populate salary form with converted values
-      setSalaryFormData({
-        ...salaryFormData,
-        basicSalary: result.basicSalary || 0,
-        hra: result.hra || 0,
-        transportAllowance: result.transportAllowance || 0,
-        medicalAllowance: result.medicalAllowance || 0,
-        specialAllowance: result.specialAllowance || 0,
-        otherAllowances: result.otherAllowances || 0,
-        pf: result.pf || 0,
-        esi: result.esi || 0,
-        tds: result.tds || 0,
-        professionalTax: result.professionalTax || 0,
-        otherDeductions: result.otherDeductions || 0
-=======
       // Helper function to round to 2 decimal places
       const roundToTwoDecimals = (value) => {
         if (value === null || value === undefined) return 0
@@ -582,7 +537,6 @@ const Payroll = () => {
         tds: roundToTwoDecimals(result.tds),
         professionalTax: roundToTwoDecimals(result.professionalTax),
         otherDeductions: roundToTwoDecimals(result.otherDeductions)
->>>>>>> master
       })
 
       alert('CTC converted to salary structure successfully! Review and edit the values before saving.')
@@ -1512,16 +1466,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.hra}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, hra: e.target.value })}
-=======
                       value={typeof salaryFormData.hra === 'number' ? salaryFormData.hra.toFixed(2) : salaryFormData.hra}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, hra: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1531,16 +1480,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.transportAllowance}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, transportAllowance: e.target.value })}
-=======
                       value={typeof salaryFormData.transportAllowance === 'number' ? salaryFormData.transportAllowance.toFixed(2) : salaryFormData.transportAllowance}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, transportAllowance: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1550,16 +1494,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.medicalAllowance}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, medicalAllowance: e.target.value })}
-=======
                       value={typeof salaryFormData.medicalAllowance === 'number' ? salaryFormData.medicalAllowance.toFixed(2) : salaryFormData.medicalAllowance}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, medicalAllowance: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1569,16 +1508,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.specialAllowance}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, specialAllowance: e.target.value })}
-=======
                       value={typeof salaryFormData.specialAllowance === 'number' ? salaryFormData.specialAllowance.toFixed(2) : salaryFormData.specialAllowance}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, specialAllowance: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1588,16 +1522,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.otherAllowances}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, otherAllowances: e.target.value })}
-=======
                       value={typeof salaryFormData.otherAllowances === 'number' ? salaryFormData.otherAllowances.toFixed(2) : salaryFormData.otherAllowances}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, otherAllowances: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1614,16 +1543,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.pf}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, pf: e.target.value })}
-=======
                       value={typeof salaryFormData.pf === 'number' ? salaryFormData.pf.toFixed(2) : salaryFormData.pf}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, pf: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1633,16 +1557,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.esi}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, esi: e.target.value })}
-=======
                       value={typeof salaryFormData.esi === 'number' ? salaryFormData.esi.toFixed(2) : salaryFormData.esi}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, esi: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1652,16 +1571,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.tds}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, tds: e.target.value })}
-=======
                       value={typeof salaryFormData.tds === 'number' ? salaryFormData.tds.toFixed(2) : salaryFormData.tds}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, tds: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1671,16 +1585,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.professionalTax}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, professionalTax: e.target.value })}
-=======
                       value={typeof salaryFormData.professionalTax === 'number' ? salaryFormData.professionalTax.toFixed(2) : salaryFormData.professionalTax}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, professionalTax: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
@@ -1690,16 +1599,11 @@ const Payroll = () => {
                     <input
                       type="number"
                       step="0.01"
-<<<<<<< HEAD
-                      value={salaryFormData.otherDeductions}
-                      onChange={(e) => setSalaryFormData({ ...salaryFormData, otherDeductions: e.target.value })}
-=======
                       value={typeof salaryFormData.otherDeductions === 'number' ? salaryFormData.otherDeductions.toFixed(2) : salaryFormData.otherDeductions}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0
                         setSalaryFormData({ ...salaryFormData, otherDeductions: Math.round(val * 100) / 100 })
                       }}
->>>>>>> master
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                     />
