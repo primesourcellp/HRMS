@@ -833,6 +833,150 @@ const api = {
     }
   },
 
+  // Promotion history endpoints
+  getPromotionsByEmployee: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/promotions/employee/${employeeId}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch promotions for employee (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching promotions:', error)
+      throw error
+    }
+  },
+  createPromotion: async (promotion) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/promotions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(promotion)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create promotion (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating promotion:', error)
+      throw error
+    }
+  },
+  updatePromotion: async (id, promotion) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/promotions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(promotion)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to update promotion (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating promotion:', error)
+      throw error
+    }
+  },
+  deletePromotion: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/promotions/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to delete promotion (${response.status})`)
+      }
+      return true
+    } catch (error) {
+      console.error('Error deleting promotion:', error)
+      throw error
+    }
+  },
+
+  // Appraisal compensation (linked to reviews)
+  getCompensationsByPerformance: async (performanceId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compensations/performance/${performanceId}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch compensations for performance (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching compensations:', error)
+      throw error
+    }
+  },
+  getCompensationsByEmployee: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compensations/employee/${employeeId}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch compensations for employee (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching compensations:', error)
+      throw error
+    }
+  },
+  createCompensation: async (comp) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compensations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(comp)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create compensation (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating compensation:', error)
+      throw error
+    }
+  },
+  updateCompensation: async (id, comp) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compensations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(comp)
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to update compensation (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating compensation:', error)
+      throw error
+    }
+  },
+  deleteCompensation: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compensations/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to delete compensation (${response.status})`)
+      }
+      return true
+    } catch (error) {
+      console.error('Error deleting compensation:', error)
+      throw error
+    }
+  },
+
   createKpi: async (kpi) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/kpis`, {
