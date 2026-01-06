@@ -121,10 +121,28 @@ documentType: 'AADHAAR',
 description: '' 
 }) 
 const [docFile, setDocFile] = useState(null) 
+const [designations, setDesignations] = useState([])
 const userRole = localStorage.getItem('userRole') 
 useEffect(() => { 
   loadEmployees() 
-}, []) 
+}, [])
+
+const loadDesignations = (employeesList) => {
+  try {
+    // Extract unique designations from employees
+    const designationList = Array.from(
+      new Set(
+        employeesList
+          .map(emp => emp.designation)
+          .filter(des => des && des.trim() !== '')
+      )
+    ).sort()
+    setDesignations(designationList)
+  } catch (error) {
+    console.error('Error loading designations:', error)
+    setDesignations([])
+  }
+} 
 
 const loadClients = async () => {
   try {
@@ -252,17 +270,19 @@ const diffMs = Date.now() - dob.getTime()
 const ageDt = new Date(diffMs) 
 return Math.abs(ageDt.getUTCFullYear() - 1970).toString() 
 } 
-const loadEmployees = async () => { 
-		try { 
-			setLoading(true) 
-			setError(null) 
-			const data = await api.getEmployees() 
-			console.log('Employees loaded:', data, 'Type:', typeof data, 'IsArray:', Array.isArray(data)) 
-			if (Array.isArray(data)) { 
-				setEmployees(data) 
-				if (data.length === 0) { 
+const loadEmployees = async () => {
+		try {
+			setLoading(true)
+			setError(null)
+			const data = await api.getEmployees()
+			console.log('Employees loaded:', data, 'Type:', typeof data, 'IsArray:', Array.isArray(data))
+			if (Array.isArray(data)) {
+				setEmployees(data)
+				// Load designations from employees
+				loadDesignations(data)
+				if (data.length === 0) {
 					// Clear any previous error - empty list is a valid state
-					setError(null) 
+					setError(null)
 				} 
 			} else { 
 				console.error('Invalid data format:', data) 
@@ -881,8 +901,14 @@ return (
 ); 
 } 
     
-// If on new employee page, show only the form (full page)
-if (isNewEmployeePage && showModal) {
+// If on new employee page or editing, show only the form (full page)
+if ((isNewEmployeePage && showModal) || (showModal && editingEmployee)) {
+  // Import the form content from modal section - we'll render it inline
+  const FormContent = () => {
+    // This will be the same form as in the modal - we'll reference it below
+    return null // Placeholder
+  }
+  
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
@@ -890,12 +916,14 @@ if (isNewEmployeePage && showModal) {
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
               <Plus size={28} className="text-blue-600" />
-              Add Employee
+              {editingEmployee ? 'Edit' : 'Add'} Employee
             </h3>
             <button
               onClick={() => {
                 setShowModal(false)
-                navigate('/employees')
+                if (isNewEmployeePage) {
+                  navigate('/employees')
+                }
                 setEditingEmployee(null)
                 setFormData({
                   employeeId: '',
@@ -950,8 +978,293 @@ if (isNewEmployeePage && showModal) {
               ×
             </button>
           </div>
-          {/* The form will be rendered below in the modal section, but we need to show it here too */}
-          {/* We'll conditionally render the form content here when isNewEmployeePage is true */}
+          {/* Form content - simplified to match Users.jsx structure */}
+          <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
+            {/* Basic Information */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {editingEmployee && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label>
+                    <input
+                      type="text"
+                      value={formData.employeeId}
+                      onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                      readOnly={true}
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">First Name *</label>
+                  <input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    placeholder="Enter First Name"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name *</label>
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    placeholder="Enter Last Name"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
+                  {!editingEmployee && (
+                    <input
+                      type="email"
+                      name="fake-email"
+                      autoComplete="off"
+                      tabIndex={-1}
+                      style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+                      readOnly
+                    />
+                  )}
+                  <input
+                    type="text"
+                    name={`employee-email-full-${editingEmployee ? editingEmployee.id : 'new'}`}
+                    id={`employee-email-full-${editingEmployee ? editingEmployee.id : 'new'}`}
+                    key={`email-full-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
+                    value={formData.email || ''}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="Enter Email Address"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    {editingEmployee ? 'New Password (leave blank to keep current)' : 'Password *'}
+                  </label>
+                  {!editingEmployee && (
+                    <input
+                      type="password"
+                      name="fake-password"
+                      autoComplete="off"
+                      tabIndex={-1}
+                      style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+                      readOnly
+                    />
+                  )}
+                  <input
+                    type="password"
+                    name={`employee-password-full-${editingEmployee ? editingEmployee.id : 'new'}`}
+                    id={`employee-password-full-${editingEmployee ? editingEmployee.id : 'new'}`}
+                    key={`password-full-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
+                    value={formData.password || ''}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder={editingEmployee ? 'Enter new password (optional)' : 'Enter password'}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required={!editingEmployee}
+                  />
+                  {editingEmployee && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Only enter a new password if you want to change it
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Work Information */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Department *</label>
+                  <input
+                    type="text"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    placeholder="Enter Department"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Designation *</label>
+                  <input
+                    list="designation-list-full"
+                    type="text"
+                    value={formData.designation}
+                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                    placeholder="Enter designation"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                  <datalist id="designation-list-full">
+                    {designations.map((designation) => (
+                      <option key={designation} value={designation} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
+                  <input
+                    list="client-list-full"
+                    type="text"
+                    value={formData.client}
+                    onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+                    placeholder="Enter client name"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                  <datalist id="client-list-full">
+                    {clients.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="Enter location"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Joining *</label>
+                  <input
+                    type="date"
+                    value={formData.dateOfJoining}
+                    onChange={(e) => setFormData({ ...formData, dateOfJoining: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.salary || ''}
+                      onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
+                      className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Contact Details */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
+                  <input
+                    type="tel"
+                    value={formData.workPhoneNumber}
+                    onChange={(e) => setFormData({ ...formData, workPhoneNumber: e.target.value })}
+                    placeholder="Enter Phone Number"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number *</label>
+                  <input
+                    type="tel"
+                    value={formData.personalMobileNumber}
+                    onChange={(e) => setFormData({ ...formData, personalMobileNumber: e.target.value })}
+                    placeholder="Enter Phone Number"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowModal(false)
+                  if (isNewEmployeePage) {
+                    navigate('/employees')
+                  }
+                  setEditingEmployee(null)
+                  setFormData({
+                    employeeId: '',
+                    firstName: '',
+                    lastName: '',
+                    client: '',
+                    email: '',
+                    password: '',
+                    role: '',
+                    department: '',
+                    location: '',
+                    designation: '',
+                    employmentType: '',
+                    employeeStatus: 'Active',
+                    sourceOfHire: '',
+                    dateOfJoining: '',
+                    dateOfBirth: '',
+                    age: '',
+                    gender: '',
+                    maritalStatus: '',
+                    aboutMe: '',
+                    expertise: '',
+                    pan: '',
+                    aadhaar: '',
+                    workPhoneNumber: '',
+                    personalMobileNumber: '',
+                    extension: '',
+                    personalEmailAddress: '',
+                    seatingLocation: '',
+                    tags: '',
+                    presentAddressLine1: '',
+                    presentAddressLine2: '',
+                    presentCity: '',
+                    presentCountry: '',
+                    presentState: '',
+                    presentPostalCode: '',
+                    sameAsPresentAddress: false,
+                    permanentAddressLine1: '',
+                    permanentAddressLine2: '',
+                    permanentCity: '',
+                    permanentCountry: '',
+                    permanentState: '',
+                    permanentPostalCode: '',
+                    dateOfExit: '',
+                    salary: '',
+                  })
+                  setWorkExperiences([])
+                  setEducationDetails([])
+                }}
+                className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+              >
+                {loading ? 'Saving...' : 'Save Employee'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -1119,8 +1432,8 @@ Add First Employee
 </div> 
 )} 
 </div> 
-{/* Add/Edit Employee Modal - Redesigned */} 
-{showModal && !isNewEmployeePage && (
+{/* Add/Edit Employee Modal - Only show when adding from list page (not editing or new page) */} 
+{showModal && !isNewEmployeePage && !editingEmployee && (
   <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm"> 
     <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-7xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
       <div className="flex items-center justify-between mb-6"> 
@@ -1195,18 +1508,19 @@ className="text-gray-500 hover:text-gray-700"
 <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
 <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div> 
-<label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label> 
-<input 
-type="text" 
-value={formData.employeeId} 
-onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })} 
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
- 
-required 
-readOnly={editingEmployee ? true : false} // Employee ID read-only when editing 
-/> 
-</div> 
+{editingEmployee && (
+  <div> 
+    <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label> 
+    <input 
+      type="text" 
+      value={formData.employeeId} 
+      onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })} 
+      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
+      required 
+      readOnly={true}
+    /> 
+  </div>
+)} 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">First Name *</label> 
 <input 

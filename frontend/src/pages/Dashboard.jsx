@@ -1,8 +1,8 @@
 import { useHRMS } from '../context/HRMSContext'
-import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, X } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
+import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { useRolePermissions } from '../hooks/useRolePermissions'
@@ -10,6 +10,8 @@ import { useRolePermissions } from '../hooks/useRolePermissions'
 const Dashboard = () => {
   const { employees, attendance, leaves, payrolls } = useHRMS()
   const [dashboardStats, setDashboardStats] = useState(null)
+  const [executiveData, setExecutiveData] = useState(null)
+  const [loadingExecutive, setLoadingExecutive] = useState(false)
   const [employeeId, setEmployeeId] = useState(null)
   const [employeeShift, setEmployeeShift] = useState(null)
   const [weeklyAttendanceData, setWeeklyAttendanceData] = useState([])
@@ -18,6 +20,33 @@ const Dashboard = () => {
   const [checkInLoading, setCheckInLoading] = useState(false)
   const [checkInMessage, setCheckInMessage] = useState(null)
   const [checkInError, setCheckInError] = useState(null)
+  const [widgetVisibility, setWidgetVisibility] = useState(() => {
+    // Load from localStorage if available
+    const saved = localStorage.getItem('dashboardWidgetVisibility')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        console.error('Error parsing saved widget visibility:', e)
+      }
+    }
+    // Default visibility
+    return {
+      kpis: true,
+      monthlyAttendance: true,
+      leavePatterns: true,
+      payrollVariance: true,
+      departmentAnalytics: true,
+      locationAnalytics: true
+    }
+  })
+  const [showWidgetConfig, setShowWidgetConfig] = useState(false)
+  const [attendanceView, setAttendanceView] = useState('monthly') // 'monthly' or 'daily'
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+  const dailyChartRef = useRef(null)
   const navigate = useNavigate()
   const permissions = useRolePermissions()
   const { 
@@ -28,6 +57,8 @@ const Dashboard = () => {
     isFinance = false, 
     canManageEmployees = false 
   } = permissions || {}
+  
+  const isExecutiveView = isAdmin || isHRAdmin
 
   useEffect(() => {
     // Check if user is an employee
@@ -36,6 +67,11 @@ const Dashboard = () => {
     const empId = userId ? parseInt(userId) : null
     setEmployeeId(empId)
     loadDashboardStats(empId && (isEmployee || userType === 'employee') ? empId : null)
+    
+    // Load executive dashboard for Super Admin/HR Admin
+    if (isExecutiveView) {
+      loadExecutiveDashboard()
+    }
     
     // Load employee shift and today's attendance if user is an employee
     if (empId && (isEmployee || userType === 'employee')) {
@@ -47,7 +83,7 @@ const Dashboard = () => {
     if (!isEmployee && userType !== 'employee') {
       loadWeeklyAttendanceData()
     }
-  }, [employees, isEmployee]) // Re-run when employees data is loaded
+  }, [employees, isEmployee, isExecutiveView, selectedMonth]) // Re-run when employees data is loaded or selectedMonth changes
 
   const loadEmployeeShift = async (empId) => {
     try {
@@ -91,6 +127,69 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error loading dashboard stats:', error)
     }
+  }
+
+  const loadExecutiveDashboard = async () => {
+    setLoadingExecutive(true)
+    try {
+      const data = await api.getExecutiveDashboard(12, selectedMonth)
+      setExecutiveData(data)
+    } catch (error) {
+      console.error('Error loading executive dashboard:', error)
+    } finally {
+      setLoadingExecutive(false)
+    }
+  }
+
+  const toggleWidget = (widgetName) => {
+    setWidgetVisibility(prev => {
+      const updated = {
+        ...prev,
+        [widgetName]: !prev[widgetName]
+      }
+      // Save to localStorage
+      localStorage.setItem('dashboardWidgetVisibility', JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  const resetWidgets = () => {
+    const defaultVisibility = {
+      kpis: true,
+      monthlyAttendance: true,
+      leavePatterns: true,
+      payrollVariance: true,
+      departmentAnalytics: true,
+      locationAnalytics: true
+    }
+    setWidgetVisibility(defaultVisibility)
+    localStorage.setItem('dashboardWidgetVisibility', JSON.stringify(defaultVisibility))
+  }
+
+  const showAllWidgets = () => {
+    const allVisible = {
+      kpis: true,
+      monthlyAttendance: true,
+      leavePatterns: true,
+      payrollVariance: true,
+      departmentAnalytics: true,
+      locationAnalytics: true
+    }
+    setWidgetVisibility(allVisible)
+    localStorage.setItem('dashboardWidgetVisibility', JSON.stringify(allVisible))
+  }
+
+  const hideAllWidgets = () => {
+    const allHidden = {
+      kpis: false,
+      monthlyAttendance: false,
+      leavePatterns: false,
+      payrollVariance: false,
+      departmentAnalytics: false,
+      locationAnalytics: false
+    }
+    setWidgetVisibility(allHidden)
+    localStorage.setItem('dashboardWidgetVisibility', JSON.stringify(allHidden))
   }
 
   const loadTodayAttendance = async (empId) => {
@@ -394,6 +493,42 @@ const Dashboard = () => {
   // Check if employee can check in
   const canCheckIn = isEmployee && employeeId && (!todayAttendance || !todayAttendance.checkIn)
 
+  // Executive Dashboard KPIs
+  const executiveKPIs = executiveData ? [
+    {
+      title: 'Headcount',
+      value: executiveData.headcount || 0,
+      subtitle: 'Active Employees',
+      icon: Users,
+      color: 'bg-blue-500',
+      trend: 'up'
+    },
+    {
+      title: 'Attrition Rate',
+      value: `${executiveData.attritionRate || 0}%`,
+      subtitle: `${executiveData.exitedEmployees || 0} exited (12M)`,
+      icon: TrendingUp,
+      color: executiveData.attritionRate > 10 ? 'bg-red-500' : 'bg-orange-500',
+      trend: executiveData.attritionRate > 10 ? 'up' : 'down'
+    },
+    {
+      title: 'Attendance %',
+      value: `${executiveData.attendancePercentage || 0}%`,
+      subtitle: 'Current Month',
+      icon: Clock,
+      color: 'bg-green-500',
+      trend: 'up'
+    },
+    {
+      title: 'Payroll Cost',
+      value: `$${(executiveData.payrollCost || 0).toLocaleString()}`,
+      subtitle: 'Current Month',
+      icon: DollarSign,
+      color: 'bg-purple-500',
+      trend: 'up'
+    }
+  ] : []
+
   return (
     <div className="space-y-3 sm:space-y-4 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
       {/* Success/Error Messages */}
@@ -410,7 +545,472 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Stats Grid */}
+      {/* Executive Dashboard View */}
+      {isExecutiveView && (
+        <div className="space-y-4">
+          {/* Widget Configuration Modal */}
+          {showWidgetConfig && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <LayoutGrid className="w-5 h-5" />
+                    Configure Dashboard Widgets
+                  </h2>
+                  <button
+                    onClick={() => setShowWidgetConfig(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    Select which widgets to display on your dashboard. Changes are saved automatically.
+                  </p>
+                  
+                  {/* Quick Actions */}
+                  <div className="flex gap-2 mb-6 pb-4 border-b border-gray-200">
+                    <button
+                      onClick={showAllWidgets}
+                      className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+                    >
+                      Show All
+                    </button>
+                    <button
+                      onClick={hideAllWidgets}
+                      className="px-3 py-1.5 text-xs font-medium bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                    >
+                      Hide All
+                    </button>
+                    <button
+                      onClick={resetWidgets}
+                      className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                    >
+                      Reset to Default
+                    </button>
+                  </div>
+
+                  {/* Widget Toggles */}
+                  <div className="space-y-3">
+                    {/* KPIs Widget */}
+                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-blue-500 p-2 rounded-lg">
+                          <Users className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Key Performance Indicators (KPIs)</h3>
+                          <p className="text-xs text-gray-500">Headcount, Attrition Rate, Attendance %, Payroll Cost</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={widgetVisibility.kpis}
+                          onChange={() => toggleWidget('kpis')}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Monthly Attendance Widget */}
+                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-green-500 p-2 rounded-lg">
+                          <Clock className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Attendance Trends</h3>
+                          <p className="text-xs text-gray-500">Monthly and Daily attendance charts with trends</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={widgetVisibility.monthlyAttendance}
+                          onChange={() => toggleWidget('monthlyAttendance')}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Leave Patterns Widget */}
+                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-yellow-500 p-2 rounded-lg">
+                          <Calendar className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Leave Patterns</h3>
+                          <p className="text-xs text-gray-500">Approved vs Pending leave trends over time</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={widgetVisibility.leavePatterns}
+                          onChange={() => toggleWidget('leavePatterns')}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Payroll Variance Widget */}
+                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-purple-500 p-2 rounded-lg">
+                          <DollarSign className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Payroll Variance</h3>
+                          <p className="text-xs text-gray-500">Payroll costs and month-over-month variance</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={widgetVisibility.payrollVariance}
+                          onChange={() => toggleWidget('payrollVariance')}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Department Analytics Widget */}
+                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-indigo-500 p-2 rounded-lg">
+                          <Building2 className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Department Analytics</h3>
+                          <p className="text-xs text-gray-500">Department-wise headcount, attendance, and payroll</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={widgetVisibility.departmentAnalytics}
+                          onChange={() => toggleWidget('departmentAnalytics')}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Location Analytics Widget */}
+                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-teal-500 p-2 rounded-lg">
+                          <MapPin className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Location Analytics</h3>
+                          <p className="text-xs text-gray-500">Location-wise headcount, attendance, and payroll</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={widgetVisibility.locationAnalytics}
+                          onChange={() => toggleWidget('locationAnalytics')}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowWidgetConfig(false)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Executive KPIs - Compact Size */}
+          {widgetVisibility.kpis && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              {loadingExecutive ? (
+                <div className="col-span-5 text-center py-3 text-xs">Loading executive data...</div>
+              ) : (
+                <>
+                  {executiveKPIs.map((kpi, index) => {
+                    const Icon = kpi.icon
+                    return (
+                      <div key={index} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-2 border border-gray-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className={`${kpi.color} p-1 rounded-lg shadow-sm`}>
+                            <Icon className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                        <h3 className="text-base font-bold text-gray-800 mb-0.5">{kpi.value}</h3>
+                        <p className="text-xs font-semibold text-gray-700 mb-0.5">{kpi.title}</p>
+                        <p className="text-xs text-gray-500">{kpi.subtitle}</p>
+                      </div>
+                    )
+                  })}
+                  {/* Configure Widgets Button - Inline with grid, next to Payroll Cost */}
+                  <button
+                    onClick={() => setShowWidgetConfig(true)}
+                    className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-2 border border-gray-200 border-dashed hover:border-blue-400 flex flex-col items-center justify-center gap-1.5"
+                    title="Configure Dashboard Widgets"
+                  >
+                    <LayoutGrid className="w-4 h-4 text-gray-400" />
+                    <span className="text-xs font-medium text-gray-600 text-center">Configure Widgets</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Attendance Trends - Monthly/Daily Switchable */}
+          {widgetVisibility.monthlyAttendance && (
+            <div className="bg-white rounded-lg shadow-md p-5 border border-gray-200 relative">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-800">
+                  {attendanceView === 'monthly' ? 'Monthly Attendance Trends' : `Daily Attendance Trends - ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
+                </h3>
+                <div className="flex items-center gap-3">
+                  {/* Month Filter */}
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value)
+                    }}
+                    className="px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    title="Select month"
+                  />
+                  {/* Toggle Switch */}
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setAttendanceView('monthly')}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        attendanceView === 'monthly'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => setAttendanceView('daily')}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        attendanceView === 'daily'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Daily
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {attendanceView === 'monthly' && executiveData?.monthlyAttendanceTrends ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart 
+                    data={executiveData.monthlyAttendanceTrends}
+                    barCategoryGap="10%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="present" fill="#10b981" name="Present" barSize={50} />
+                    <Bar dataKey="absent" fill="#ef4444" name="Absent" barSize={50} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : attendanceView === 'daily' && executiveData?.dailyAttendanceTrends ? (
+                <div className="relative">
+                  {/* Scrollable Chart Container */}
+                  <div 
+                    ref={dailyChartRef}
+                    className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-gray-100" 
+                    style={{ maxHeight: '320px', scrollBehavior: 'smooth' }}
+                  >
+                    <div style={{ minWidth: `${executiveData.dailyAttendanceTrends.length * 50}px` }}>
+                      <ResponsiveContainer width="100%" height={280} minWidth={executiveData.dailyAttendanceTrends.length * 50}>
+                        <BarChart 
+                          data={executiveData.dailyAttendanceTrends}
+                          barCategoryGap="10%"
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="date" 
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                            interval={0}
+                            tick={{ fontSize: 9 }}
+                            tickFormatter={(value, index) => {
+                              const data = executiveData.dailyAttendanceTrends[index]
+                              if (data?.isToday) {
+                                return value + ' (Today)'
+                              }
+                              return value
+                            }}
+                          />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar 
+                            dataKey="present" 
+                            name="Present"
+                            fill="#10b981"
+                            barSize={50}
+                          />
+                          <Bar 
+                            dataKey="absent" 
+                            name="Absent"
+                            fill="#ef4444"
+                            barSize={50}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  {/* Scroll Indicator */}
+                  <div className="mt-2 text-xs text-gray-500 text-center">
+                    <span className="flex items-center justify-center gap-1">
+                      Use arrows or scroll to view all 31 days
+                    </span>
+                  </div>
+                </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full" style={{ height: '280px' }}>
+                    <p className="text-gray-500">Loading attendance data...</p>
+                  </div>
+                )}
+            </div>
+          )}
+
+          {/* Leave Patterns */}
+          {widgetVisibility.leavePatterns && executiveData?.leavePatterns && (
+            <div className="bg-white rounded-lg shadow-md p-5 border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Leave Patterns</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={executiveData.leavePatterns}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Area type="monotone" dataKey="approvedLeaves" stackId="1" stroke="#10b981" fill="#10b981" name="Approved" />
+                  <Area type="monotone" dataKey="pendingLeaves" stackId="1" stroke="#f59e0b" fill="#f59e0b" name="Pending" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Payroll Variance */}
+          {widgetVisibility.payrollVariance && executiveData?.payrollVariance && (
+            <div className="bg-white rounded-lg shadow-md p-5 border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Payroll Variance</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={executiveData.payrollVariance}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis yAxisId="left" />
+                  <YAxis yAxisId="right" orientation="right" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="amount" fill="#8b5cf6" name="Payroll Amount ($)" />
+                  <Line yAxisId="right" type="monotone" dataKey="variance" stroke="#ef4444" strokeWidth={2} name="Variance %" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Department & Location Analytics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Department Analytics */}
+            {widgetVisibility.departmentAnalytics && executiveData?.departmentAnalytics && (
+              <div className="bg-white rounded-lg shadow-md p-5 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <Building2 className="w-5 h-5" />
+                    Department Analytics
+                  </h3>
+                </div>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {Object.entries(executiveData.departmentAnalytics).map(([dept, data]) => (
+                    <div key={dept} className="border-b pb-3 last:border-b-0">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-semibold text-gray-700">{dept}</span>
+                        <span className="text-sm text-gray-600">{data.headcount} employees</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Attendance:</span>
+                          <span className="ml-2 font-semibold text-green-600">{data.attendanceRate}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Payroll:</span>
+                          <span className="ml-2 font-semibold text-purple-600">${(data.payrollCost || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Location Analytics */}
+            {widgetVisibility.locationAnalytics && executiveData?.locationAnalytics && (
+              <div className="bg-white rounded-lg shadow-md p-5 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Location Analytics
+                  </h3>
+                </div>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {Object.entries(executiveData.locationAnalytics).map(([location, data]) => (
+                    <div key={location} className="border-b pb-3 last:border-b-0">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-semibold text-gray-700">{location}</span>
+                        <span className="text-sm text-gray-600">{data.headcount} employees</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Attendance:</span>
+                          <span className="ml-2 font-semibold text-green-600">{data.attendanceRate}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Payroll:</span>
+                          <span className="ml-2 font-semibold text-purple-600">${(data.payrollCost || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Regular Dashboard Stats Grid (for non-executive or when executive view is not active) */}
+      {!isExecutiveView && (
+        <>
+          {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon
@@ -653,6 +1253,8 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+        </>
+      )}
 
     </div>
   )

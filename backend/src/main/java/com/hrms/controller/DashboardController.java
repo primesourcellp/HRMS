@@ -232,5 +232,343 @@ public class DashboardController {
         
         return ResponseEntity.ok(stats);
     }
+
+    @GetMapping("/executive")
+    public ResponseEntity<Map<String, Object>> getExecutiveDashboard(
+            @RequestParam(required = false) Integer months,
+            @RequestParam(required = false) String selectedMonth) {
+        
+        if (months == null || months <= 0) {
+            months = 12; // Default to last 12 months
+        }
+        
+        Map<String, Object> dashboard = new HashMap<>();
+        
+        try {
+            LocalDate today = LocalDate.now();
+            
+            List<Employee> allEmployees = employeeRepository.findAll();
+            
+            // ========== REAL-TIME KPIs ==========
+            
+            // 1. Headcount (Total Active Employees)
+            long totalHeadcount = allEmployees.stream()
+                    .filter(emp -> emp != null && 
+                            (emp.getEmployeeStatus() == null || 
+                             "Active".equalsIgnoreCase(emp.getEmployeeStatus())))
+                    .count();
+            dashboard.put("headcount", totalHeadcount);
+            
+            // 2. Attrition Rate (Employees who exited in last 12 months)
+            LocalDate twelveMonthsAgo = today.minusMonths(12);
+            long exitedEmployees = allEmployees.stream()
+                    .filter(emp -> emp != null && emp.getDateOfExit() != null &&
+                            emp.getDateOfExit().isAfter(twelveMonthsAgo) &&
+                            emp.getDateOfExit().isBefore(today.plusDays(1)))
+                    .count();
+            
+            // Calculate average headcount over the period
+            long avgHeadcount = totalHeadcount; // Simplified - can be enhanced
+            double attritionRate = avgHeadcount > 0 
+                    ? (double) exitedEmployees / avgHeadcount * 100 
+                    : 0.0;
+            dashboard.put("attritionRate", Math.round(attritionRate * 100.0) / 100.0);
+            dashboard.put("exitedEmployees", exitedEmployees);
+            
+            // 3. Attendance % (Current Month)
+            LocalDate monthStart = today.withDayOfMonth(1);
+            List<Attendance> monthAttendance = attendanceRepository.findAll().stream()
+                    .filter(a -> a != null && a.getDate() != null &&
+                            !a.getDate().isBefore(monthStart) &&
+                            !a.getDate().isAfter(today))
+                    .collect(Collectors.toList());
+            
+            long presentCount = monthAttendance.stream()
+                    .filter(a -> "Present".equalsIgnoreCase(a.getStatus()))
+                    .count();
+            long totalAttendanceRecords = monthAttendance.size();
+            double attendancePercentage = totalHeadcount > 0 && totalAttendanceRecords > 0
+                    ? (double) presentCount / (totalHeadcount * today.getDayOfMonth()) * 100
+                    : 0.0;
+            dashboard.put("attendancePercentage", Math.round(attendancePercentage * 100.0) / 100.0);
+            
+            // 4. Payroll Cost (Current Month)
+            String currentMonth = today.toString().substring(0, 7); // yyyy-MM
+            List<Payroll> currentMonthPayrolls = payrollRepository.findByMonth(currentMonth);
+            double payrollCost = currentMonthPayrolls.stream()
+                    .filter(p -> p != null && p.getAmount() != null)
+                    .mapToDouble(Payroll::getAmount)
+                    .sum();
+            dashboard.put("payrollCost", payrollCost);
+            
+            // ========== MONTHLY ATTENDANCE TRENDS ==========
+            List<Map<String, Object>> monthlyAttendance = new java.util.ArrayList<>();
+            for (int i = months - 1; i >= 0; i--) {
+                LocalDate month = today.minusMonths(i).withDayOfMonth(1);
+                LocalDate monthEnd = month.plusMonths(1).minusDays(1);
+                
+                List<Attendance> allAttendanceForMonth = attendanceRepository.findAll();
+                List<Attendance> monthData = allAttendanceForMonth.stream()
+                        .filter(a -> a != null && a.getDate() != null &&
+                                !a.getDate().isBefore(month) &&
+                                !a.getDate().isAfter(monthEnd))
+                        .collect(Collectors.toList());
+                
+                long monthPresent = monthData.stream()
+                        .filter(a -> "Present".equalsIgnoreCase(a.getStatus()))
+                        .count();
+                
+                // Calculate working days in month
+                long workingDays = 0;
+                LocalDate temp = month;
+                while (!temp.isAfter(monthEnd) && !temp.isAfter(today)) {
+                    int dayOfWeek = temp.getDayOfWeek().getValue();
+                    if (dayOfWeek < 6) { // Monday to Friday
+                        workingDays++;
+                    }
+                    temp = temp.plusDays(1);
+                }
+                
+                double monthAttendanceRate = totalHeadcount > 0 && workingDays > 0
+                        ? (double) monthPresent / (totalHeadcount * workingDays) * 100
+                        : 0.0;
+                
+                // Calculate absent count for the month
+                long monthAbsent = monthData.stream()
+                        .filter(a -> "Absent".equalsIgnoreCase(a.getStatus()))
+                        .count();
+                
+                Map<String, Object> monthDataMap = new HashMap<>();
+                monthDataMap.put("month", month.toString().substring(0, 7));
+                monthDataMap.put("attendanceRate", Math.round(monthAttendanceRate * 100.0) / 100.0);
+                monthDataMap.put("present", monthPresent);
+                monthDataMap.put("absent", monthAbsent);
+                monthDataMap.put("workingDays", workingDays);
+                monthlyAttendance.add(monthDataMap);
+            }
+            dashboard.put("monthlyAttendanceTrends", monthlyAttendance);
+            
+            // ========== DAILY ATTENDANCE TRENDS (Complete Month) ==========
+            List<Map<String, Object>> dailyAttendance = new java.util.ArrayList<>();
+            List<Attendance> allAttendance = attendanceRepository.findAll();
+            
+            // Determine which month to show
+            LocalDate targetMonth;
+            if (selectedMonth != null && !selectedMonth.isEmpty()) {
+                try {
+                    // Parse YYYY-MM format
+                    targetMonth = LocalDate.parse(selectedMonth + "-01");
+                } catch (Exception e) {
+                    targetMonth = today.withDayOfMonth(1); // Default to current month
+                }
+            } else {
+                targetMonth = today.withDayOfMonth(1); // Default to current month
+            }
+            
+            LocalDate dailyMonthStart = targetMonth.withDayOfMonth(1);
+            LocalDate dailyMonthEnd = targetMonth.withDayOfMonth(targetMonth.lengthOfMonth());
+            
+            // Get all days in the selected month
+            for (LocalDate date = dailyMonthStart; !date.isAfter(dailyMonthEnd); date = date.plusDays(1)) {
+                final LocalDate currentDate = date; // Make effectively final for lambda
+                List<Attendance> dayData = allAttendance.stream()
+                        .filter(a -> a != null && a.getDate() != null && a.getDate().equals(currentDate))
+                        .collect(Collectors.toList());
+                
+                long dayPresent = dayData.stream()
+                        .filter(a -> "Present".equalsIgnoreCase(a.getStatus()))
+                        .count();
+                
+                long dayAbsent = dayData.stream()
+                        .filter(a -> "Absent".equalsIgnoreCase(a.getStatus()))
+                        .count();
+                
+                // Format date similar to monthly view: "YYYY-MM-DD" format
+                String dateLabel = currentDate.toString(); // "YYYY-MM-DD" format
+                boolean isToday = currentDate.equals(today);
+                String displayLabel = isToday ? dateLabel + " (Today)" : dateLabel;
+                
+                Map<String, Object> dayDataMap = new HashMap<>();
+                dayDataMap.put("date", dateLabel);
+                dayDataMap.put("displayLabel", displayLabel);
+                dayDataMap.put("fullDate", currentDate.toString());
+                dayDataMap.put("present", dayPresent);
+                dayDataMap.put("absent", dayAbsent);
+                dayDataMap.put("isToday", isToday);
+                dailyAttendance.add(dayDataMap);
+            }
+            dashboard.put("dailyAttendanceTrends", dailyAttendance);
+            dashboard.put("selectedMonth", targetMonth.toString().substring(0, 7)); // YYYY-MM
+            
+            // ========== LEAVE PATTERNS ==========
+            List<com.hrms.entity.Leave> allLeaves = leaveRepository.findAll();
+            List<Map<String, Object>> leavePatterns = new java.util.ArrayList<>();
+            
+            for (int i = months - 1; i >= 0; i--) {
+                LocalDate month = today.minusMonths(i).withDayOfMonth(1);
+                LocalDate monthEnd = month.plusMonths(1).minusDays(1);
+                
+                long monthLeaves = allLeaves.stream()
+                        .filter(l -> l != null && l.getStartDate() != null &&
+                                !l.getStartDate().isAfter(monthEnd) &&
+                                !l.getEndDate().isBefore(month))
+                        .count();
+                
+                long approvedLeaves = allLeaves.stream()
+                        .filter(l -> l != null && l.getStartDate() != null &&
+                                !l.getStartDate().isAfter(monthEnd) &&
+                                !l.getEndDate().isBefore(month) &&
+                                "Approved".equalsIgnoreCase(l.getStatus()))
+                        .count();
+                
+                Map<String, Object> leaveData = new HashMap<>();
+                leaveData.put("month", month.toString().substring(0, 7));
+                leaveData.put("totalLeaves", monthLeaves);
+                leaveData.put("approvedLeaves", approvedLeaves);
+                leaveData.put("pendingLeaves", monthLeaves - approvedLeaves);
+                leavePatterns.add(leaveData);
+            }
+            dashboard.put("leavePatterns", leavePatterns);
+            
+            // ========== PAYROLL VARIANCE ==========
+            List<Map<String, Object>> payrollVariance = new java.util.ArrayList<>();
+            double previousMonthPayroll = 0.0;
+            
+            for (int i = months - 1; i >= 0; i--) {
+                LocalDate month = today.minusMonths(i).withDayOfMonth(1);
+                String monthStr = month.toString().substring(0, 7);
+                
+                List<Payroll> monthPayrolls = payrollRepository.findByMonth(monthStr);
+                double monthPayroll = monthPayrolls.stream()
+                        .filter(p -> p != null && p.getAmount() != null)
+                        .mapToDouble(Payroll::getAmount)
+                        .sum();
+                
+                double variance = previousMonthPayroll > 0
+                        ? ((monthPayroll - previousMonthPayroll) / previousMonthPayroll) * 100
+                        : 0.0;
+                
+                Map<String, Object> payrollData = new HashMap<>();
+                payrollData.put("month", monthStr);
+                payrollData.put("amount", monthPayroll);
+                payrollData.put("variance", Math.round(variance * 100.0) / 100.0);
+                payrollVariance.add(payrollData);
+                
+                previousMonthPayroll = monthPayroll;
+            }
+            dashboard.put("payrollVariance", payrollVariance);
+            
+            // ========== DEPARTMENT-WISE ANALYTICS ==========
+            Map<String, Map<String, Object>> departmentAnalytics = new HashMap<>();
+            Map<String, Long> deptHeadcount = allEmployees.stream()
+                    .filter(emp -> emp != null && emp.getDepartment() != null &&
+                            (emp.getEmployeeStatus() == null || 
+                             "Active".equalsIgnoreCase(emp.getEmployeeStatus())))
+                    .collect(Collectors.groupingBy(
+                            Employee::getDepartment,
+                            Collectors.counting()
+                    ));
+            
+            for (Map.Entry<String, Long> entry : deptHeadcount.entrySet()) {
+                String dept = entry.getKey();
+                long deptCount = entry.getValue();
+                
+                // Department attendance
+                long deptPresent = monthAttendance.stream()
+                        .filter(a -> {
+                            Optional<Employee> emp = allEmployees.stream()
+                                    .filter(e -> e != null && e.getId() != null && 
+                                            e.getId().equals(a.getEmployeeId()))
+                                    .findFirst();
+                            return emp.isPresent() && dept.equals(emp.get().getDepartment());
+                        })
+                        .filter(a -> "Present".equalsIgnoreCase(a.getStatus()))
+                        .count();
+                
+                double deptAttendanceRate = deptCount > 0
+                        ? (double) deptPresent / (deptCount * today.getDayOfMonth()) * 100
+                        : 0.0;
+                
+                // Department payroll
+                double deptPayroll = currentMonthPayrolls.stream()
+                        .filter(p -> {
+                            Optional<Employee> emp = allEmployees.stream()
+                                    .filter(e -> e != null && e.getId() != null && 
+                                            e.getId().equals(p.getEmployeeId()))
+                                    .findFirst();
+                            return emp.isPresent() && dept.equals(emp.get().getDepartment());
+                        })
+                        .filter(p -> p.getAmount() != null)
+                        .mapToDouble(Payroll::getAmount)
+                        .sum();
+                
+                Map<String, Object> deptData = new HashMap<>();
+                deptData.put("headcount", deptCount);
+                deptData.put("attendanceRate", Math.round(deptAttendanceRate * 100.0) / 100.0);
+                deptData.put("payrollCost", deptPayroll);
+                departmentAnalytics.put(dept, deptData);
+            }
+            dashboard.put("departmentAnalytics", departmentAnalytics);
+            
+            // ========== LOCATION-WISE ANALYTICS ==========
+            Map<String, Map<String, Object>> locationAnalytics = new HashMap<>();
+            Map<String, Long> locationHeadcount = allEmployees.stream()
+                    .filter(emp -> emp != null && emp.getLocation() != null &&
+                            (emp.getEmployeeStatus() == null || 
+                             "Active".equalsIgnoreCase(emp.getEmployeeStatus())))
+                    .collect(Collectors.groupingBy(
+                            Employee::getLocation,
+                            Collectors.counting()
+                    ));
+            
+            for (Map.Entry<String, Long> entry : locationHeadcount.entrySet()) {
+                String location = entry.getKey();
+                long locCount = entry.getValue();
+                
+                // Location attendance
+                long locPresent = monthAttendance.stream()
+                        .filter(a -> {
+                            Optional<Employee> emp = allEmployees.stream()
+                                    .filter(e -> e != null && e.getId() != null && 
+                                            e.getId().equals(a.getEmployeeId()))
+                                    .findFirst();
+                            return emp.isPresent() && location.equals(emp.get().getLocation());
+                        })
+                        .filter(a -> "Present".equalsIgnoreCase(a.getStatus()))
+                        .count();
+                
+                double locAttendanceRate = locCount > 0
+                        ? (double) locPresent / (locCount * today.getDayOfMonth()) * 100
+                        : 0.0;
+                
+                // Location payroll
+                double locPayroll = currentMonthPayrolls.stream()
+                        .filter(p -> {
+                            Optional<Employee> emp = allEmployees.stream()
+                                    .filter(e -> e != null && e.getId() != null && 
+                                            e.getId().equals(p.getEmployeeId()))
+                                    .findFirst();
+                            return emp.isPresent() && location.equals(emp.get().getLocation());
+                        })
+                        .filter(p -> p.getAmount() != null)
+                        .mapToDouble(Payroll::getAmount)
+                        .sum();
+                
+                Map<String, Object> locData = new HashMap<>();
+                locData.put("headcount", locCount);
+                locData.put("attendanceRate", Math.round(locAttendanceRate * 100.0) / 100.0);
+                locData.put("payrollCost", locPayroll);
+                locationAnalytics.put(location, locData);
+            }
+            dashboard.put("locationAnalytics", locationAnalytics);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            dashboard.put("error", "Error calculating executive dashboard: " + 
+                    (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+        
+        return ResponseEntity.ok(dashboard);
+    }
 }
 

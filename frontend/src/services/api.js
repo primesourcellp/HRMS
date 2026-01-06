@@ -846,6 +846,24 @@ const api = {
     }
   },
 
+  getExecutiveDashboard: async (months = 12, selectedMonth = null) => {
+    try {
+      let url = `${API_BASE_URL}/dashboard/executive?months=${months}`
+      if (selectedMonth) {
+        url += `&selectedMonth=${selectedMonth}`
+      }
+      const response = await fetchWithAuth(url)
+      if (!response.ok) {
+        console.error('Executive Dashboard API error:', response.status, response.statusText)
+        return {}
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching executive dashboard:', error)
+      return {}
+    }
+  },
+
   // Documents
   uploadDocument: (formData) => fetchWithAuth(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',
