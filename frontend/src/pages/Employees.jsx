@@ -126,7 +126,22 @@ const [docFile, setDocFile] = useState(null)
 const [designations, setDesignations] = useState([])
 const [roles, setRoles] = useState([])
 const [employmentTypes, setEmploymentTypes] = useState([])
+const [openDropdownId, setOpenDropdownId] = useState(null)
 const userRole = localStorage.getItem('userRole') 
+
+// Close dropdown when clicking outside
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (openDropdownId && !event.target.closest('.dropdown-menu-container')) {
+      setOpenDropdownId(null)
+    }
+  }
+  document.addEventListener('mousedown', handleClickOutside)
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside)
+  }
+}, [openDropdownId])
+
 useEffect(() => { 
   loadEmployees() 
 }, [])
@@ -1911,35 +1926,66 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 	</span> 
 </td> 
 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium"> 
-<div className="flex items-center gap-2"> 
-	{/* <button 
-		onClick={() => handleViewEmployee(employee)} 
-		className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors" 
-		title="View Employee Details" 
-	> 
-		<Eye size={18} /> 
-	</button>  */}
+<div className="relative dropdown-menu-container"> 
 	<button 
-		onClick={() => handleOpenModal(employee)} 
-		className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors" 
-		title="Edit Employee" 
+		onClick={(e) => {
+			e.stopPropagation()
+			setOpenDropdownId(openDropdownId === employee.id ? null : employee.id)
+		}}
+		className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors" 
+		title="Actions" 
 	> 
-		<Edit size={18} /> 
+		<MoreVertical size={18} /> 
 	</button> 
-	<button 
-		onClick={() => handleDelete(employee.id)} 
-		className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors" 
-		title="Delete Employee" 
-	> 
-		<Trash2 size={18} /> 
-	</button> 
-	<button 
-		onClick={() => openDocModal(employee)} 
-		className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors" 
-		title="View Documents" 
-	> 
-		<FileText size={18} /> 
-	</button> 
+	
+	{openDropdownId === employee.id && (
+		<div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					handleViewEmployee(employee)
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<Eye size={16} className="text-green-600" />
+				View Details
+			</button>
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					handleOpenModal(employee)
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<Edit size={16} className="text-blue-600" />
+				Edit
+			</button>
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					openDocModal(employee)
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+			>
+				<FileText size={16} className="text-blue-600" />
+				View Documents
+			</button>
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					handleDelete(employee.id)
+					setOpenDropdownId(null)
+				}}
+				className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+			>
+				<Trash2 size={16} />
+				Delete
+			</button>
+		</div>
+	)}
 </div> 
 </td> 
 </tr> 
