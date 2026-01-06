@@ -116,11 +116,11 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
             
-            // Authenticate user
+            // First attempt: authenticate as a system/user account (admin roles)
             if (userService.authenticate(email.trim(), password)) {
                 Optional<User> user = userService.findByEmail(email.trim());
                 if (user.isPresent() && user.get().getActive()) {
-                    // Generate JWT token
+                    // Generate JWT token for admin user
                     String token = jwtUtil.generateToken(
                         user.get().getEmail(),
                         user.get().getRole(),
@@ -164,6 +164,57 @@ public class AuthController {
                 }
             }
             
+            // Second attempt: authenticate as an employee
+            if (employeeService.authenticate(email.trim(), password)) {
+                Optional<Employee> employee = employeeService.findByEmail(email.trim());
+                if (employee.isPresent() && "Active".equals(employee.get().getStatus())) {
+                    // Generate JWT token for employee
+                    String token = jwtUtil.generateToken(
+                        employee.get().getEmail(),
+                        "EMPLOYEE",
+                        employee.get().getId(),
+                        "employee"
+                    );
+                    String refreshToken = jwtUtil.generateRefreshToken(
+                        employee.get().getEmail(),
+                        "EMPLOYEE",
+                        employee.get().getId(),
+                        "employee"
+                    );
+                    
+                    // Set HttpOnly cookies for secure token storage
+                    Cookie accessTokenCookie = new Cookie("accessToken", token);
+                    accessTokenCookie.setHttpOnly(true);
+                    accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
+                    accessTokenCookie.setPath("/");
+                    accessTokenCookie.setMaxAge(86400); // 24 hours in seconds
+                    accessTokenCookie.setAttribute("SameSite", "Lax");
+                    httpResponse.addCookie(accessTokenCookie);
+                    
+                    Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+                    refreshTokenCookie.setHttpOnly(true);
+                    refreshTokenCookie.setSecure(false); // Set to true in production with HTTPS
+                    refreshTokenCookie.setPath("/");
+                    refreshTokenCookie.setMaxAge(604800); // 7 days in seconds
+                    refreshTokenCookie.setAttribute("SameSite", "Lax");
+                    httpResponse.addCookie(refreshTokenCookie);
+                    
+                    response.put("success", true);
+                    response.put("message", "Login successful");
+                    // Don't return tokens in response body for security
+                    response.put("employee", Map.of(
+                        "id", employee.get().getId(),
+                        "email", employee.get().getEmail(),
+                        "name", employee.get().getName(),
+                        "department", employee.get().getDepartment(),
+                        "position", employee.get().getPosition(),
+                        "role", "EMPLOYEE"
+                    ));
+                    return ResponseEntity.ok(response);
+                }
+            }
+            
+            // If neither matched, return unauthorized
             response.put("success", false);
             response.put("message", "Invalid email or password");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
