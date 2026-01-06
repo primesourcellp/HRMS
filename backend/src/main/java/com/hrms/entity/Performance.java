@@ -62,6 +62,12 @@ public class Performance {
     @Column(name = "review_cycle_id")
     private Long reviewCycleId;
 
+    @Column(name = "manager_evaluation", columnDefinition = "TEXT")
+    private String managerEvaluation;
+
+    @Column(name = "self_evaluation", columnDefinition = "TEXT")
+    private String selfEvaluation;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
     @JsonIgnore
@@ -197,6 +203,22 @@ public class Performance {
 
     public void setReviewCycleId(Long reviewCycleId) {
         this.reviewCycleId = reviewCycleId;
+    }
+
+    public String getManagerEvaluation() {
+        return managerEvaluation;
+    }
+
+    public void setManagerEvaluation(String managerEvaluation) {
+        this.managerEvaluation = managerEvaluation;
+    }
+
+    public String getSelfEvaluation() {
+        return selfEvaluation;
+    }
+
+    public void setSelfEvaluation(String selfEvaluation) {
+        this.selfEvaluation = selfEvaluation;
     }
 
     public Employee getEmployee() {

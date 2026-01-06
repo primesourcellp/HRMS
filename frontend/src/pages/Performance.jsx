@@ -40,8 +40,23 @@ const Performance = () => {
     areasForImprovement: '',
     // KPI fields
     kpiConfigId: '',
-    kpiResults: '' // free text or JSON-like entries
+    kpiResults: '', // free text or JSON-like entries
+    // Evaluation fields
+    managerEvaluation: ''
   })
+
+  // Rating history and promotion history
+  const [ratingHistory, setRatingHistory] = useState([])
+  const [promotions, setPromotions] = useState([])
+  const [showPromotionModal, setShowPromotionModal] = useState(false)
+  const [editingPromotion, setEditingPromotion] = useState(null)
+  const [promotionFormData, setPromotionFormData] = useState({ employeeId: '', effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })
+
+  // Appraisal-linked compensation
+  const [compensations, setCompensations] = useState([])
+  const [showCompensationModal, setShowCompensationModal] = useState(false)
+  const [editingCompensation, setEditingCompensation] = useState(null)
+  const [compensationFormData, setCompensationFormData] = useState({ performanceId: '', employeeId: '', recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })
 
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
@@ -184,7 +199,9 @@ const Performance = () => {
         feedback: performance.feedback || '',
         areasForImprovement: performance.areasForImprovement || '',
         kpiConfigId: performance.kpiConfigId ? performance.kpiConfigId.toString() : '',
-        kpiResults: performance.kpiResults || ''
+        kpiResults: performance.kpiResults || '',
+        managerEvaluation: performance.managerEvaluation || '',
+        reviewCycleId: performance.reviewCycleId ? performance.reviewCycleId.toString() : ''
       })
     } else {
       setEditingPerformance(null)
@@ -198,7 +215,9 @@ const Performance = () => {
         feedback: '',
         areasForImprovement: '',
         kpiConfigId: '',
-        kpiResults: ''
+        kpiResults: '',
+        managerEvaluation: '',
+        reviewCycleId: ''
       })
     }
     setShowPerformanceModal(true)
@@ -387,9 +406,180 @@ const Performance = () => {
     }
   }
 
+  // Promotions
+  const handlePromotionSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const payload = {
+        ...promotionFormData,
+        employeeId: parseInt(promotionFormData.employeeId)
+      }
+      if (editingPromotion) {
+        await api.updatePromotion(editingPromotion.id, payload)
+        setSuccessMessage('Promotion updated')
+      } else {
+        await api.createPromotion(payload)
+        setSuccessMessage('Promotion added')
+      }
+      if (selectedPerformance && selectedPerformance.employeeId) {
+        await loadEmployeeHistory(selectedPerformance.employeeId)
+      } else {
+        await loadData()
+      }
+      setShowPromotionModal(false)
+      setEditingPromotion(null)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error saving promotion')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeletePromotion = async (id) => {
+    if (!window.confirm('Delete this promotion record?')) return
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      await api.deletePromotion(id)
+      if (selectedPerformance && selectedPerformance.employeeId) {
+        await loadEmployeeHistory(selectedPerformance.employeeId)
+      } else {
+        await loadData()
+      }
+      setSuccessMessage('Promotion deleted')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error deleting promotion')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Compensation handlers
+  const handleCompensationSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      const payload = {
+        ...compensationFormData,
+        performanceId: compensationFormData.performanceId || (selectedPerformance && selectedPerformance.id) || null,
+        employeeId: parseInt(compensationFormData.employeeId || (selectedPerformance && selectedPerformance.employeeId) || 0),
+        recommendedPercentage: compensationFormData.recommendedPercentage ? parseFloat(compensationFormData.recommendedPercentage) : null,
+        recommendedAmount: compensationFormData.recommendedAmount ? parseFloat(compensationFormData.recommendedAmount) : null
+      }
+
+      if (editingCompensation) {
+        await api.updateCompensation(editingCompensation.id, payload)
+        setSuccessMessage('Compensation updated')
+      } else {
+        await api.createCompensation(payload)
+        setSuccessMessage('Compensation added')
+      }
+
+      if (selectedPerformance && selectedPerformance.id) {
+        await loadCompensationsForPerformance(selectedPerformance.id)
+      } else if (payload.employeeId) {
+        await loadEmployeeHistory(payload.employeeId)
+      } else {
+        await loadData()
+      }
+
+      setShowCompensationModal(false)
+      setEditingCompensation(null)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error saving compensation')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteCompensation = async (id) => {
+    if (!window.confirm('Delete this compensation record?')) return
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      await api.deleteCompensation(id)
+      if (selectedPerformance && selectedPerformance.id) {
+        await loadCompensationsForPerformance(selectedPerformance.id)
+      } else {
+        await loadData()
+      }
+      setSuccessMessage('Compensation deleted')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error deleting compensation')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const openViewModal = (performance) => {
     setSelectedPerformance(performance)
+    // Load rating history, promotions and compensations for this employee
+    if (performance && performance.employeeId) {
+      loadEmployeeHistory(performance.employeeId)
+    }
+    if (performance && performance.id) {
+      loadCompensationsForPerformance(performance.id)
+    }
     setShowViewModal(true)
+  }
+
+  const loadEmployeeHistory = async (employeeId) => {
+    try {
+      // Rating history from existing performances
+      const history = allPerformances
+        .filter(p => p.employeeId === employeeId)
+        .sort((a, b) => new Date(b.reviewDate) - new Date(a.reviewDate))
+      setRatingHistory(history)
+
+      // Promotion history from API
+      try {
+        const promos = await api.getPromotionsByEmployee(employeeId)
+        setPromotions(Array.isArray(promos) ? promos : [])
+      } catch (err) {
+        console.warn('Could not load promotions:', err)
+        setPromotions([])
+      }
+
+      // Compensation history for employee
+      try {
+        const comps = await api.getCompensationsByEmployee(employeeId)
+        setCompensations(Array.isArray(comps) ? comps : [])
+      } catch (err) {
+        console.warn('Could not load compensations by employee:', err)
+        setCompensations([])
+      }
+    } catch (err) {
+      console.error('Error loading employee history:', err)
+      setRatingHistory([])
+      setPromotions([])
+      setCompensations([])
+    }
+  }
+
+  const loadCompensationsForPerformance = async (performanceId) => {
+    try {
+      const comps = await api.getCompensationsByPerformance(performanceId)
+      setCompensations(Array.isArray(comps) ? comps : [])
+    } catch (err) {
+      console.warn('Could not load compensations for performance:', err)
+      setCompensations([])
+    }
   }
 
   const getEmployeeName = (employeeId) => {
@@ -1263,6 +1453,8 @@ const Performance = () => {
                 })()}
               </div>
 
+
+
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-2">Achievements</label>
                 <p className="text-gray-800 bg-green-50 p-4 rounded-lg border border-green-200 whitespace-pre-wrap">
@@ -1274,6 +1466,214 @@ const Performance = () => {
                 <p className="text-gray-800 bg-blue-50 p-4 rounded-lg border border-blue-200 whitespace-pre-wrap">
                   {selectedPerformance.feedback || 'No feedback provided'}
                 </p>
+              </div>
+
+              {/* Manager evaluation (visible to admin/managers) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Manager Evaluation</label>
+                <p className="text-gray-800 bg-purple-50 p-4 rounded-lg border border-purple-200 whitespace-pre-wrap">
+                  {selectedPerformance.managerEvaluation || 'No manager evaluation recorded'}
+                </p>
+              </div>
+
+              {/* Rating History */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-600">Rating History</label>
+                  <span className="text-xs text-gray-500">{ratingHistory.length} records</span>
+                </div>
+                {ratingHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <ResponsiveContainer width="100%" height={150}>
+                        <RechartsLineChart data={ratingHistory.map(r => ({ date: r.period || formatDate(r.reviewDate), rating: r.rating || 0 }))}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis domain={[1, 5]} allowDecimals={false} />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="rating" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                        </RechartsLineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="space-y-1">
+                      {ratingHistory.map((r, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
+                          <div>
+                            <div className="font-medium text-gray-800">{r.period || formatDate(r.reviewDate)}</div>
+                            <div className="text-xs text-gray-500">{formatDate(r.reviewDate)}</div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex">{getRatingStars(r.rating || 0)}</div>
+                            <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${getRatingColor(r.rating || 0)}`}>{r.rating || 0}/5</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-200">No rating history available</p>
+                )}
+              </div>
+
+              {/* Promotion History */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-600">Promotion History</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">{promotions.length} records</span>
+                    {isAdmin && (
+                      <button onClick={() => {
+                        setEditingPromotion(null)
+                        setPromotionFormData({ employeeId: selectedPerformance.employeeId, effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })
+                        setShowPromotionModal(true)
+                      }} className="px-3 py-1 bg-green-600 text-white rounded-md text-sm">Add Promotion</button>
+                    )}
+                  </div>
+                </div>
+
+                {promotions.length > 0 ? (
+                  <div className="space-y-2">
+                    {promotions.map((p) => (
+                      <div key={p.id} className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-800">{p.toPosition} <span className="text-xs text-gray-500">({formatDate(p.effectiveDate)})</span></div>
+                          <div className="text-xs text-gray-500">From: {p.fromPosition || '—'}</div>
+                          {p.notes && <div className="text-xs text-gray-600 mt-1">{p.notes}</div>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isAdmin && (
+                            <>
+                              <button onClick={() => { setEditingPromotion(p); setPromotionFormData({ employeeId: p.employeeId, effectiveDate: p.effectiveDate ? format(parseISO(p.effectiveDate), 'yyyy-MM-dd') : '', fromPosition: p.fromPosition || '', toPosition: p.toPosition || '', notes: p.notes || '' }); setShowPromotionModal(true) }} className="px-3 py-1 bg-yellow-500 text-white rounded-md text-sm">Edit</button>
+                              <button onClick={() => handleDeletePromotion(p.id)} className="px-3 py-1 bg-red-600 text-white rounded-md text-sm">Delete</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-200">No promotion history recorded</p>
+                )}
+
+                {/* Promotion modal */}
+                {showPromotionModal && (
+                  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPromotionModal(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold">{editingPromotion ? 'Edit Promotion' : 'Add Promotion'}</h3>
+                        <button onClick={() => setShowPromotionModal(false)} className="text-gray-500"><X size={20} /></button>
+                      </div>
+                      <form onSubmit={handlePromotionSubmit} className="space-y-3">
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">Effective Date</label>
+                          <input type="date" value={promotionFormData.effectiveDate} onChange={(e) => setPromotionFormData({ ...promotionFormData, effectiveDate: e.target.value })} className="w-full px-3 py-2 border rounded" required />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">From Position</label>
+                            <input value={promotionFormData.fromPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, fromPosition: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">To Position</label>
+                            <input value={promotionFormData.toPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, toPosition: e.target.value })} className="w-full px-3 py-2 border rounded" required />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">Notes</label>
+                          <textarea value={promotionFormData.notes} onChange={(e) => setPromotionFormData({ ...promotionFormData, notes: e.target.value })} className="w-full px-3 py-2 border rounded" rows={4} />
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <button type="button" onClick={() => setShowPromotionModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">{editingPromotion ? 'Save' : 'Add'}</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Appraisal Compensation History */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-600">Compensation Recommendations</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">{compensations.length} records</span>
+                    {isAdmin && (
+                      <button onClick={() => { setEditingCompensation(null); setCompensationFormData({ performanceId: selectedPerformance.id, employeeId: selectedPerformance.employeeId, recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' }); setShowCompensationModal(true) }} className="px-3 py-1 bg-green-600 text-white rounded-md text-sm">Add Recommendation</button>
+                    )}
+                  </div>
+                </div>
+
+                {compensations.length > 0 ? (
+                  <div className="space-y-2">
+                    {compensations.map((c) => (
+                      <div key={c.id} className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-800">{c.status} <span className="text-xs text-gray-500">({formatDate(c.effectiveDate)})</span></div>
+                          <div className="text-xs text-gray-500">{c.recommendedPercentage ? `${c.recommendedPercentage}%` : '—'} • {c.recommendedAmount ? `₹${c.recommendedAmount}` : '—'}</div>
+                          {c.notes && <div className="text-xs text-gray-600 mt-1">{c.notes}</div>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isAdmin && (
+                            <>
+                              <button onClick={() => { setEditingCompensation(c); setCompensationFormData({ performanceId: c.performanceId, employeeId: c.employeeId, recommendedPercentage: c.recommendedPercentage || '', recommendedAmount: c.recommendedAmount || '', status: c.status || 'PENDING', effectiveDate: c.effectiveDate ? format(parseISO(c.effectiveDate), 'yyyy-MM-dd') : '', notes: c.notes || '' }); setShowCompensationModal(true) }} className="px-3 py-1 bg-yellow-500 text-white rounded-md text-sm">Edit</button>
+                              <button onClick={() => handleDeleteCompensation(c.id)} className="px-3 py-1 bg-red-600 text-white rounded-md text-sm">Delete</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-200">No compensation recommendations recorded</p>
+                )}
+
+                {/* Compensation modal */}
+                {showCompensationModal && (
+                  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowCompensationModal(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold">{editingCompensation ? 'Edit Recommendation' : 'Add Compensation Recommendation'}</h3>
+                        <button onClick={() => setShowCompensationModal(false)} className="text-gray-500"><X size={20} /></button>
+                      </div>
+                      <form onSubmit={handleCompensationSubmit} className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Recommended %</label>
+                            <input type="number" step="0.1" value={compensationFormData.recommendedPercentage} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedPercentage: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Recommended Amount</label>
+                            <input type="number" step="0.01" value={compensationFormData.recommendedAmount} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedAmount: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">Effective Date</label>
+                          <input type="date" value={compensationFormData.effectiveDate} onChange={(e) => setCompensationFormData({ ...compensationFormData, effectiveDate: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">Status</label>
+                          <select value={compensationFormData.status} onChange={(e) => setCompensationFormData({ ...compensationFormData, status: e.target.value })} className="w-full px-3 py-2 border rounded">
+                            <option value="PENDING">PENDING</option>
+                            <option value="APPROVED">APPROVED</option>
+                            <option value="REJECTED">REJECTED</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">Notes</label>
+                          <textarea value={compensationFormData.notes} onChange={(e) => setCompensationFormData({ ...compensationFormData, notes: e.target.value })} className="w-full px-3 py-2 border rounded" rows={3}></textarea>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <button type="button" onClick={() => setShowCompensationModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">{editingCompensation ? 'Save' : 'Add'}</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
               </div>
               {selectedPerformance.areasForImprovement && (
                 <div>
@@ -1446,6 +1846,8 @@ const Performance = () => {
                     rows="3"
                     placeholder="Enter KPI results, one per line:&#10;Response Time: 18h (75%)&#10;Sales: 120"
                   />
+
+
                 </div>
               </div>
               <div>
@@ -1466,6 +1868,18 @@ const Performance = () => {
                   className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows="3"
                   placeholder="Manager feedback and comments..."
+                />
+              </div>
+
+              {/* Manager evaluation (by manager/admin) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Manager Evaluation</label>
+                <textarea
+                  value={performanceFormData.managerEvaluation}
+                  onChange={(e) => setPerformanceFormData({ ...performanceFormData, managerEvaluation: e.target.value })}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  rows="3"
+                  placeholder="Manager evaluation and summary..."
                 />
               </div>
               <div>

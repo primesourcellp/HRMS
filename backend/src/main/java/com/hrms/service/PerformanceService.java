@@ -87,6 +87,14 @@ public class PerformanceService {
             performance.setReviewCycleId(performanceDetails.getReviewCycleId());
         }
 
+        // Self and Manager evaluations
+        if (performanceDetails.getSelfEvaluation() != null) {
+            performance.setSelfEvaluation(performanceDetails.getSelfEvaluation());
+        }
+        if (performanceDetails.getManagerEvaluation() != null) {
+            performance.setManagerEvaluation(performanceDetails.getManagerEvaluation());
+        }
+
         return performanceRepository.save(performance);
     }
 
