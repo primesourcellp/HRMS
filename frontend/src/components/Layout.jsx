@@ -78,7 +78,6 @@ const Layout = () => {
         { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'Team Attendance' : 'Attendance', permission: 'attendance' },
         { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : 'Leave Management', permission: 'leave' },
         { path: '/payroll', icon: DollarSign, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll' },
-        { path: '/ctc-templates', icon: FileText, label: 'CTC Templates', permission: 'payroll' },
         { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
         { path: '/shifts', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Shift' : 'Shifts', permission: 'shifts' },
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
