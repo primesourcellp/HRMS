@@ -531,19 +531,7 @@ const LeaveManagement = () => {
       return `Employee #${empId}`
     }
     
-    // Prioritize firstName + lastName (most reliable)
-    const firstName = (employee.firstName || '').trim()
-    const lastName = (employee.lastName || '').trim()
-    
-    if (firstName && lastName) {
-      return `${firstName} ${lastName}`.trim()
-    } else if (firstName) {
-      return firstName
-    } else if (lastName) {
-      return lastName
-    }
-    
-    // Fall back to name field if firstName/lastName not available
+    // Use name field
     if (employee.name && employee.name.trim() && employee.name.trim() !== '') {
       return employee.name.trim()
     }
@@ -879,9 +867,7 @@ const LeaveManagement = () => {
             >
               <option value="All">All Employees</option>
               {employees.map(emp => {
-                const employeeName = emp.firstName && emp.lastName 
-                  ? `${emp.firstName} ${emp.lastName}`.trim()
-                  : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                const employeeName = emp.name || `Employee ${emp.id}`
                 return (
                   <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
                 )
@@ -1464,9 +1450,7 @@ const LeaveManagement = () => {
                     >
                       <option value="">Select Employee</option>
                       {employees.map(emp => {
-                        const employeeName = emp.firstName && emp.lastName 
-                          ? `${emp.firstName} ${emp.lastName}`.trim()
-                          : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                        const employeeName = emp.name || `Employee ${emp.id}`
                         return (
                           <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
                         )
@@ -1714,9 +1698,7 @@ const LeaveManagement = () => {
                       required
                     >
                       {employees.map(emp => {
-                        const employeeName = emp.firstName && emp.lastName 
-                          ? `${emp.firstName} ${emp.lastName}`.trim()
-                          : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                        const employeeName = emp.name || `Employee ${emp.id}`
                         return (
                           <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
                         )
@@ -1965,9 +1947,7 @@ const LeaveManagement = () => {
                   >
                     <option value="">Select Employee</option>
                     {employees.map(emp => {
-                      const employeeName = emp.firstName && emp.lastName 
-                        ? `${emp.firstName} ${emp.lastName}`.trim()
-                        : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                      const employeeName = emp.name || `Employee ${emp.id}`
                       return (
                         <option key={emp.id} value={emp.id.toString()}>{employeeName} {emp.department ? `(${emp.department})` : ''}</option>
                       )

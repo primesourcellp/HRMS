@@ -66,7 +66,7 @@ public class Leave {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
     @JsonIgnore
-    private Employee employee;
+    private User employee;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "leave_type_id", insertable = false, updatable = false)
@@ -82,7 +82,7 @@ public class Leave {
                 LocalDate endDate, Double totalDays, String reason, String status, 
                 LocalDate appliedDate, Long approvedBy, LocalDate approvedDate, 
                 String rejectionReason, Boolean halfDay, String halfDayType, 
-                Employee employee, LeaveType leaveType) {
+                User employee, LeaveType leaveType) {
         this.id = id;
         this.employeeId = employeeId;
         this.leaveTypeId = leaveTypeId;
@@ -223,11 +223,11 @@ public class Leave {
         this.halfDayType = halfDayType;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 

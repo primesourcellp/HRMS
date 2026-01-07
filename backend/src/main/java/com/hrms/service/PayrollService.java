@@ -14,12 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hrms.dto.PayrollDTO;
 import com.hrms.entity.Attendance;
-import com.hrms.entity.Employee;
+import com.hrms.entity.User;
 import com.hrms.entity.Leave;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.SalaryStructure;
 import com.hrms.repository.AttendanceRepository;
-import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.UserRepository;
 import com.hrms.repository.LeaveRepository;
 import com.hrms.repository.PayrollRepository;
 import com.hrms.repository.SalaryStructureRepository;
@@ -30,7 +30,7 @@ public class PayrollService {
     private PayrollRepository payrollRepository;
 
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private UserRepository userRepository;
 
     @Autowired
     private SalaryStructureRepository salaryStructureRepository;
@@ -86,18 +86,18 @@ public class PayrollService {
      */
     @Transactional
     public List<Payroll> processPayrollForAllEmployees(LocalDate startDate, LocalDate endDate) {
-        List<Employee> employees = employeeRepository.findAll();
+        List<User> users = userRepository.findAll();
         String month = startDate.format(DateTimeFormatter.ofPattern("yyyy-MM"));
         Integer year = startDate.getYear();
 
-        return employees.stream()
-                .map(employee -> {
+        return users.stream()
+                .map(user -> {
                     try {
-                        return processEmployeePayroll(java.util.Objects.requireNonNull(employee.getId()), startDate, endDate, month, year);
+                        return processEmployeePayroll(java.util.Objects.requireNonNull(user.getId()), startDate, endDate, month, year);
                     } catch (Exception e) {
-                        // Log error but continue processing other employees
-                        System.err.println("Error processing payroll for employee " + employee.getName() + " (ID: " + employee.getId() + "): " + e.getMessage());
-                        // Return null for failed employees, will be filtered out
+                        // Log error but continue processing other users
+                        System.err.println("Error processing payroll for user " + user.getName() + " (ID: " + user.getId() + "): " + e.getMessage());
+                        // Return null for failed users, will be filtered out
                         return null;
                     }
                 })
@@ -123,14 +123,14 @@ public class PayrollService {
         }
 
         // Get employee and salary structure
-        Employee employee = employeeRepository.findById(java.util.Objects.requireNonNull(employeeId))
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
+        User user = userRepository.findById(java.util.Objects.requireNonNull(employeeId))
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
         Optional<SalaryStructure> salaryOpt = salaryStructureRepository.findByEmployeeIdAndActiveTrue(java.util.Objects.requireNonNull(employeeId));
         if (!salaryOpt.isPresent()) {
             // Instead of throwing exception, create a payroll entry with zero values
             // This allows the process to continue for other employees
-            System.err.println("Warning: Salary structure not found for employee: " + employee.getName() + " (ID: " + employeeId + "). Creating payroll with zero values.");
+            System.err.println("Warning: Salary structure not found for user: " + user.getName() + " (ID: " + employeeId + "). Creating payroll with zero values.");
             
             Payroll payroll = existing.orElse(new Payroll());
             payroll.setEmployeeId(employeeId);

@@ -7,8 +7,7 @@ import java.util.List;
 public class EmployeeDTO {
     private Long id;
     private String employeeId;
-    private String firstName;
-    private String lastName;
+    private String name;
     private String nickName;
     private String email;
     private String client;
@@ -65,11 +64,8 @@ public class EmployeeDTO {
     public String getEmployeeId() { return employeeId; }
     public void setEmployeeId(String employeeId) { this.employeeId = employeeId; }
 
-    public String getFirstName() { return firstName; }
-    public void setFirstName(String firstName) { this.firstName = firstName; }
-
-    public String getLastName() { return lastName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
     public String getNickName() { return nickName; }
     public void setNickName(String nickName) { this.nickName = nickName; }

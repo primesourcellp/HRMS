@@ -49,7 +49,7 @@ public class AppraisalCompensation {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
-    private Employee employee;
+    private User employee;
 
     public AppraisalCompensation() {}
 
@@ -84,6 +84,6 @@ public class AppraisalCompensation {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public Employee getEmployee() { return employee; }
-    public void setEmployee(Employee employee) { this.employee = employee; }
+    public User getEmployee() { return employee; }
+    public void setEmployee(User employee) { this.employee = employee; }
 }

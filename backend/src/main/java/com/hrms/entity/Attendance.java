@@ -80,7 +80,7 @@ public class Attendance {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
     @com.fasterxml.jackson.annotation.JsonIgnore
-    private Employee employee;
+    private User employee;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id", insertable = false, updatable = false)
@@ -97,7 +97,7 @@ public class Attendance {
                      Double checkInLongitude, Double checkOutLatitude, Double checkOutLongitude,
                      String checkInLocation, String checkOutLocation, String checkInIpAddress,
                      String checkOutIpAddress, String checkInMethod, String checkOutMethod, 
-                     Employee employee, Shift shift) {
+                     User employee, Shift shift) {
         this.id = id;
         this.employeeId = employeeId;
         this.date = date;
@@ -283,11 +283,11 @@ public class Attendance {
         this.checkOutIpAddress = checkOutIpAddress;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 

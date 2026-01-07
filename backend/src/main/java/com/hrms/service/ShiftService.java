@@ -9,9 +9,9 @@ import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.hrms.entity.Employee;
+import com.hrms.entity.User;
 import com.hrms.entity.Shift;
-import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.UserRepository;
 import com.hrms.repository.ShiftRepository;
 
 @Service
@@ -21,7 +21,7 @@ public class ShiftService {
     private ShiftRepository shiftRepository;
     
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private UserRepository userRepository;
 
     public List<Shift> getAllShifts() {
         return shiftRepository.findAll();
@@ -76,8 +76,8 @@ public class ShiftService {
         return shiftRepository.findById(java.util.Objects.requireNonNull(id));
     }
     
-    public List<Employee> getEmployeesByShiftId(@NonNull Long shiftId) {
-        return employeeRepository.findByShiftId(java.util.Objects.requireNonNull(shiftId));
+    public List<User> getEmployeesByShiftId(@NonNull Long shiftId) {
+        return userRepository.findByShiftId(java.util.Objects.requireNonNull(shiftId));
     }
     
     @Transactional
@@ -88,7 +88,7 @@ public class ShiftService {
     @Transactional
     public void assignEmployeeToShift(@NonNull Long employeeId, @NonNull Long shiftId, String startDate, String endDate) {
         // Verify employee exists
-        employeeRepository.findById(java.util.Objects.requireNonNull(employeeId))
+        userRepository.findById(java.util.Objects.requireNonNull(employeeId))
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         
         // Verify shift exists
@@ -133,16 +133,16 @@ public class ShiftService {
         
         // Update employee's shift_id with assignment dates
         if (start != null || end != null) {
-            employeeRepository.updateEmployeeShiftIdWithDates(employeeId, shiftId, start, end);
+            userRepository.updateEmployeeShiftIdWithDates(employeeId, shiftId, start, end);
         } else {
-            employeeRepository.updateEmployeeShiftId(employeeId, shiftId);
+            userRepository.updateEmployeeShiftId(employeeId, shiftId);
         }
     }
     
     @Transactional
     public void updateEmployeeAssignment(@NonNull Long employeeId, @NonNull Long shiftId, String startDate, String endDate) {
         // Verify employee exists
-        employeeRepository.findById(java.util.Objects.requireNonNull(employeeId))
+        userRepository.findById(java.util.Objects.requireNonNull(employeeId))
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         
         // Verify shift exists
@@ -187,26 +187,26 @@ public class ShiftService {
         
         // Update employee's shift assignment dates
         if (start != null || end != null) {
-            employeeRepository.updateEmployeeShiftIdWithDates(employeeId, shiftId, start, end);
+            userRepository.updateEmployeeShiftIdWithDates(employeeId, shiftId, start, end);
         } else {
-            employeeRepository.updateEmployeeShiftId(employeeId, shiftId);
+            userRepository.updateEmployeeShiftId(employeeId, shiftId);
         }
     }
     
     @Transactional
     public void unassignEmployeeFromShift(@NonNull Long employeeId) {
         // Verify employee exists
-        employeeRepository.findById(java.util.Objects.requireNonNull(employeeId))
+        userRepository.findById(java.util.Objects.requireNonNull(employeeId))
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         
         // Remove shift assignment using native query
-        employeeRepository.removeEmployeeShiftId(employeeId);
+        userRepository.removeEmployeeShiftId(employeeId);
     }
     
     public Optional<Shift> getShiftByEmployeeId(@NonNull Long employeeId) {
         try {
             // Get shift_id for employee using native query
-            Long shiftId = employeeRepository.getShiftIdByEmployeeId(java.util.Objects.requireNonNull(employeeId));
+            Long shiftId = userRepository.getShiftIdByEmployeeId(java.util.Objects.requireNonNull(employeeId));
             
             if (shiftId == null || shiftId == 0) {
                 return Optional.empty();
@@ -233,13 +233,13 @@ public class ShiftService {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         
         try {
-            // Get employee to retrieve assignment dates
-            Optional<Employee> employeeOpt = employeeRepository.findById(employeeId);
-            if (employeeOpt.isEmpty()) {
+            // Get user to retrieve assignment dates
+            Optional<User> userOpt = userRepository.findById(employeeId);
+            if (userOpt.isEmpty()) {
                 return result;
             }
             
-            Employee employee = employeeOpt.get();
+            User user = userOpt.get();
             
             // Get shift
             Optional<Shift> shiftOpt = getShiftByEmployeeId(employeeId);
@@ -260,8 +260,8 @@ public class ShiftService {
             result.put("active", shift.getActive());
             
             // Convert LocalDate to String for JSON serialization
-            java.time.LocalDate startDate = employee.getShiftAssignmentStartDate();
-            java.time.LocalDate endDate = employee.getShiftAssignmentEndDate();
+            java.time.LocalDate startDate = user.getShiftAssignmentStartDate();
+            java.time.LocalDate endDate = user.getShiftAssignmentEndDate();
             
             result.put("assignmentStartDate", startDate != null ? startDate.toString() : null);
             result.put("assignmentEndDate", endDate != null ? endDate.toString() : null);

@@ -71,7 +71,7 @@ public class Performance {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
     @JsonIgnore
-    private Employee employee;
+    private User employee;
 
     // Constructors
     public Performance() {
@@ -79,7 +79,7 @@ public class Performance {
 
     public Performance(Long id, Long employeeId, LocalDate reviewDate, String period, 
                       Integer rating, String goals, String achievements, String feedback, 
-                      String areasForImprovement, Employee employee) {
+                      String areasForImprovement, User employee) {
         this.id = id;
         this.employeeId = employeeId;
         this.reviewDate = reviewDate;
@@ -221,11 +221,11 @@ public class Performance {
         this.selfEvaluation = selfEvaluation;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 }

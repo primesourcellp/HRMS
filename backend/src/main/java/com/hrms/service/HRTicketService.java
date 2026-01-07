@@ -2,7 +2,7 @@ package com.hrms.service;
 
 import com.hrms.entity.HRTicket;
 import com.hrms.repository.HRTicketRepository;
-import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.lang.NonNull;
@@ -18,10 +18,10 @@ public class HRTicketService {
     private HRTicketRepository ticketRepository;
 
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private UserRepository userRepository;
 
     public HRTicket createTicket(HRTicket ticket) {
-        employeeRepository.findById(java.util.Objects.requireNonNull(ticket.getEmployeeId()))
+        userRepository.findById(java.util.Objects.requireNonNull(ticket.getEmployeeId()))
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         ticket.setCreatedAt(LocalDateTime.now());

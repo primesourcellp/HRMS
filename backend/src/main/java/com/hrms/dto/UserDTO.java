@@ -1,11 +1,19 @@
 package com.hrms.dto;
 
+import java.time.LocalDate;
+
 public class UserDTO {
     private Long id;
     private String email;
     private String role;
     private String name;
     private Boolean active;
+    private String client;
+    private LocalDate dateOfJoining;
+    private String department;
+    private String location;
+    private String designation;
+    private String employeeId;
 
     // Constructors
     public UserDTO() {
@@ -58,6 +66,54 @@ public class UserDTO {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public String getClient() {
+        return client;
+    }
+
+    public void setClient(String client) {
+        this.client = client;
+    }
+
+    public LocalDate getDateOfJoining() {
+        return dateOfJoining;
+    }
+
+    public void setDateOfJoining(LocalDate dateOfJoining) {
+        this.dateOfJoining = dateOfJoining;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
+    public String getDesignation() {
+        return designation;
+    }
+
+    public void setDesignation(String designation) {
+        this.designation = designation;
+    }
+
+    public String getEmployeeId() {
+        return employeeId;
+    }
+
+    public void setEmployeeId(String employeeId) {
+        this.employeeId = employeeId;
     }
 }
 

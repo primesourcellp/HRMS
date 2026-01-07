@@ -586,7 +586,7 @@ const Performance = () => {
     try {
       const employee = employees.find(emp => emp && emp.id === employeeId)
       if (employee) {
-        return employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'
+        return employee.name || 'Unknown'
       }
       return 'Unknown'
     } catch (err) {
@@ -817,9 +817,7 @@ const Performance = () => {
               >
                 <option value="All">All Employees</option>
                 {employees.map((emp) => {
-                  const employeeName = emp.firstName && emp.lastName 
-                    ? `${emp.firstName} ${emp.lastName}`.trim()
-                    : emp.firstName || emp.lastName || emp.name || `Employee ${emp.id}`
+                  const employeeName = emp.name || `Employee ${emp.id}`
                   return (
                     <option key={emp.id} value={emp.id.toString()}>
                       {employeeName}
@@ -1745,7 +1743,7 @@ const Performance = () => {
                   <option value="">Select Employee</option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.id.toString()}>
-                      {emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim()}
+                      {emp.name || `Employee ${emp.id}`}
                     </option>
                   ))}
                 </select>

@@ -448,12 +448,19 @@ const api = {
 
   getEmployee: async (id) => {
     try {
+      console.log('Fetching employee with ID:', id)
       const response = await fetchWithAuth(`${API_BASE_URL}/employees/${id}`)
       if (!response.ok) {
         const body = await readResponseBody(response)
+        console.error('Employee API error:', response.status, body)
         throw new Error(body?.message || body || `Failed to fetch employee (${response.status})`)
       }
-      return await response.json()
+      const data = await response.json()
+      console.log('Employee data received:', data)
+      console.log('Work experiences:', data.workExperiences)
+      console.log('Education details:', data.educationDetails)
+      console.log('Dependent details:', data.dependentDetails)
+      return data
     } catch (error) {
       console.error('Error fetching single employee:', error)
       throw error

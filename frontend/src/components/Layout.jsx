@@ -74,7 +74,7 @@ const Layout = () => {
     try {
       const allMenuItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
-        { path: '/employees', icon: Users, label: 'Employees', permission: 'employees' },
+        { path: '/employees', icon: Users, label: 'Users', permission: 'employees' },
         { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'Team Attendance' : 'Attendance', permission: 'attendance' },
         { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : 'Leave Management', permission: 'leave' },
         { path: '/payroll', icon: DollarSign, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll' },

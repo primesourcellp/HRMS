@@ -21,6 +21,12 @@ public class DTOMapper {
         dto.setRole(user.getRole());
         dto.setName(user.getName());
         dto.setActive(user.getActive());
+        dto.setClient(user.getClient());
+        dto.setDateOfJoining(user.getDateOfJoining());
+        dto.setDepartment(user.getDepartment());
+        dto.setLocation(user.getLocation());
+        dto.setDesignation(user.getDesignation());
+        dto.setEmployeeId(user.getEmployeeId());
         return dto;
     }
 
@@ -32,6 +38,7 @@ public class DTOMapper {
                 .map(DTOMapper::toUserDTO)
                 .collect(Collectors.toList());
     }
+
 
     // Payroll mapping methods
     public static PayrollDTO toPayrollDTO(Payroll payroll) {

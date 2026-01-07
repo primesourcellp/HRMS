@@ -62,7 +62,7 @@ public class SalaryStructure {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
-    private Employee employee;
+    private User employee;
 
     // Constructors
     public SalaryStructure() {
@@ -74,7 +74,7 @@ public class SalaryStructure {
                           Double otherAllowances, Double pf, Double esi, Double tds, Double professionalTax,
                           Double otherDeductions, Double grossSalary, Double netSalary,
                           java.time.LocalDate effectiveFrom, java.time.LocalDate effectiveTo, 
-                          Boolean active, Employee employee) {
+                          Boolean active, User employee) {
         this.id = id;
         this.employeeId = employeeId;
         this.basicSalary = basicSalary;
@@ -241,11 +241,11 @@ public class SalaryStructure {
         this.active = active;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 }

@@ -50,12 +50,12 @@ public class PeerReview {
     @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
     @JoinColumn(name = "reviewer_id", insertable = false, updatable = false)
     @JsonIgnore
-    private Employee reviewer;
+    private User reviewer;
 
     @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
     @JoinColumn(name = "reviewee_id", insertable = false, updatable = false)
     @JsonIgnore
-    private Employee reviewee;
+    private User reviewee;
 
     // Constructors
     public PeerReview() {
@@ -64,7 +64,7 @@ public class PeerReview {
     public PeerReview(Long id, Long reviewerId, Long revieweeId, Integer rating, 
                    String feedback, String strengths, String improvements, 
                    Boolean anonymous, LocalDateTime reviewDate, String reviewPeriod,
-                   Employee reviewer, Employee reviewee) {
+                   User reviewer, User reviewee) {
         this.id = id;
         this.reviewerId = reviewerId;
         this.revieweeId = revieweeId;
@@ -160,19 +160,19 @@ public class PeerReview {
         this.reviewPeriod = reviewPeriod;
     }
 
-    public Employee getReviewer() {
+    public User getReviewer() {
         return reviewer;
     }
 
-    public void setReviewer(Employee reviewer) {
+    public void setReviewer(User reviewer) {
         this.reviewer = reviewer;
     }
 
-    public Employee getReviewee() {
+    public User getReviewee() {
         return reviewee;
     }
 
-    public void setReviewee(Employee reviewee) {
+    public void setReviewee(User reviewee) {
         this.reviewee = reviewee;
     }
 }

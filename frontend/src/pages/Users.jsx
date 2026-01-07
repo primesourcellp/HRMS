@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit, Trash2, Shield, UserCheck } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Shield, UserCheck, Eye, MoreVertical, KeyRound } from 'lucide-react'
 import api from '../services/api'
 import { useRolePermissions } from '../hooks/useRolePermissions'
 
@@ -49,6 +49,10 @@ const Users = () => {
   const [users, setUsers] = useState([])
   const [employees, setEmployees] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [isEditingInView, setIsEditingInView] = useState(false)
+  const [viewFormData, setViewFormData] = useState({})
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [formData, setFormData] = useState({
@@ -62,8 +66,7 @@ const Users = () => {
   // Employee form state (only used when role is EMPLOYEE)
   const [employeeFormData, setEmployeeFormData] = useState({
     employeeId: '',
-    firstName: '',
-    lastName: '',
+    name: '',
     client: '',
     email: '',
     password: '',
@@ -113,7 +116,22 @@ const Users = () => {
   const [employmentTypes, setEmploymentTypes] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [openDropdownId, setOpenDropdownId] = useState(null)
   const currentUserRole = localStorage.getItem('userRole')
+  const canCreateAdmin = currentUserRole === 'SUPER_ADMIN'
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenDropdownId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openDropdownId])
 
   useEffect(() => {
     loadUsers()
@@ -124,7 +142,8 @@ const Users = () => {
   const loadUsers = async () => {
     try {
       const data = await api.getUsers()
-      setUsers(data)
+      // Include all users including SUPER_ADMIN (they will be sorted to top in display)
+      setUsers(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading users:', err)
     }
@@ -171,21 +190,56 @@ const Users = () => {
     }
   }
 
-  // Combine users and employees for display
-  const allRecords = [
-    ...users.map(u => ({ ...u, type: 'user' })),
-    ...employees.map(e => ({
-      id: e.id,
-      name: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.name || 'N/A',
-      email: e.email || '',
-      role: e.role || 'EMPLOYEE',
-      active: e.employeeStatus === 'Active' || e.status === 'Active',
-      type: 'employee',
-      employeeId: e.employeeId,
-      department: e.department,
-      designation: e.designation
-    }))
-  ]
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A'
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'N/A'
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    } catch (e) {
+      return 'N/A'
+    }
+  }
+
+  // Combine users and employees for display, removing duplicates by ID
+  // Create a map to track records by ID and avoid duplicates
+  const recordsMap = new Map()
+  
+  // First, add all users
+  users.forEach(u => {
+    if (u.id) {
+      recordsMap.set(u.id, { ...u, type: 'user' })
+    }
+  })
+  
+  // Then, add employees (this will overwrite users with same ID, prioritizing employee data)
+  employees.forEach(e => {
+    if (e.id) {
+      recordsMap.set(e.id, {
+        id: e.id,
+        name: e.name || 'N/A',
+        email: e.email || '',
+        role: e.role || 'EMPLOYEE',
+        active: e.employeeStatus === 'Active' || e.status === 'Active',
+        type: 'employee',
+        employeeId: e.employeeId,
+        department: e.department,
+        designation: e.designation,
+        client: e.client,
+        location: e.location,
+        dateOfJoining: e.dateOfJoining
+      })
+    }
+  })
+  
+  // Convert map to array and sort: SUPER_ADMIN first, then others
+  const allRecords = Array.from(recordsMap.values()).sort((a, b) => {
+    // Super Admin goes to top
+    if (a.role === 'SUPER_ADMIN' && b.role !== 'SUPER_ADMIN') return -1
+    if (a.role !== 'SUPER_ADMIN' && b.role === 'SUPER_ADMIN') return 1
+    // For same role or both non-Super Admin, maintain original order
+    return 0
+  })
 
   const filteredRecords = allRecords.filter(record =>
     record.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -196,15 +250,17 @@ const Users = () => {
 
   const handleOpenModal = (user = null) => {
     if (user) {
+      // Editing existing user - password change only
       setEditingUser(user)
       setFormData({
-        name: user.name,
-        email: user.email,
+        name: user.name || '',
+        email: user.email || '',
         password: '',
-        role: user.role,
-        active: user.active
+        role: user.role || 'HR_ADMIN',
+        active: user.active !== undefined ? user.active : true
       })
     } else {
+      // Adding new user - show detailed form
       setEditingUser(null)
       setFormData({
         name: '',
@@ -213,15 +269,14 @@ const Users = () => {
         role: 'HR_ADMIN',
         active: true
       })
-      // Reset employee form data
+      // Initialize detailed form data
       setEmployeeFormData({
         employeeId: '',
-        firstName: '',
-        lastName: '',
+        name: '',
         client: '',
         email: '',
         password: '',
-        role: 'EMPLOYEE',
+        role: 'HR_ADMIN',
         department: '',
         location: '',
         designation: '',
@@ -272,6 +327,25 @@ const Users = () => {
     setError('')
   }
 
+  const handleViewUser = async (record) => {
+    try {
+      setSelectedUser(record)
+      setViewFormData({
+        name: record.name || '',
+        email: record.email || '',
+        role: record.role || '',
+        active: record.active !== undefined ? record.active : true,
+        department: record.department || '',
+        designation: record.designation || '',
+        location: record.location || '',
+        dateOfJoining: formatDateForInput(record.dateOfJoining)
+      })
+    } finally {
+      setShowViewModal(true)
+      setIsEditingInView(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -279,7 +353,7 @@ const Users = () => {
 
     try {
       // If Employee role is selected, create employee instead of user
-      if (!editingUser && formData.role === 'EMPLOYEE') {
+      if (formData.role === 'EMPLOYEE') {
         // Build employee data from employeeFormData
         const employeeData = {
           ...employeeFormData,
@@ -299,18 +373,9 @@ const Users = () => {
         }
         employeeData.phone = fallbackPhone
 
-        // Build name field
+        // Ensure name field is set
         if (!employeeData.name || employeeData.name.trim() === '') {
-          if (employeeData.firstName && employeeData.firstName.trim() && 
-              employeeData.lastName && employeeData.lastName.trim()) {
-            employeeData.name = employeeData.firstName.trim() + ' ' + employeeData.lastName.trim()
-          } else if (employeeData.firstName && employeeData.firstName.trim()) {
-            employeeData.name = employeeData.firstName.trim()
-          } else if (employeeData.lastName && employeeData.lastName.trim()) {
-            employeeData.name = employeeData.lastName.trim()
-          } else {
-            employeeData.name = ''
-          }
+          employeeData.name = employeeFormData.name || ''
         }
 
         // Set status
@@ -322,7 +387,7 @@ const Users = () => {
           }
         }
 
-        // Create employee
+        // Create/update employee
         await api.createEmployee(employeeData, currentUserRole)
         await loadUsers()
         const employeesData = await api.getEmployees()
@@ -331,17 +396,64 @@ const Users = () => {
         loadDesignations(employeesList)
         handleCloseModal()
       } else {
-        // Regular user creation/update
+        // Build user data from detailed fields (employeeFormData) for HR_ADMIN, MANAGER, FINANCE
+        const userData = {
+          name: employeeFormData.name || formData.name || '',
+          email: employeeFormData.email || formData.email,
+          password: employeeFormData.password || formData.password || '',
+          role: formData.role,
+          active: employeeFormData.employeeStatus ? employeeFormData.employeeStatus === 'Active' : formData.active,
+          department: employeeFormData.department,
+          location: employeeFormData.location,
+          designation: employeeFormData.designation,
+          employmentType: employeeFormData.employmentType,
+          client: employeeFormData.client, // CRITICAL: Include client field
+          dateOfJoining: employeeFormData.dateOfJoining,
+          dateOfBirth: employeeFormData.dateOfBirth,
+          gender: employeeFormData.gender,
+          maritalStatus: employeeFormData.maritalStatus,
+          aboutMe: employeeFormData.aboutMe,
+          expertise: employeeFormData.expertise,
+          pan: employeeFormData.pan,
+          aadhaar: employeeFormData.aadhaar,
+          workPhoneNumber: employeeFormData.workPhoneNumber,
+          personalMobileNumber: employeeFormData.personalMobileNumber,
+          extension: employeeFormData.extension,
+          personalEmailAddress: employeeFormData.personalEmailAddress,
+          seatingLocation: employeeFormData.seatingLocation,
+          tags: employeeFormData.tags,
+          presentAddressLine1: employeeFormData.presentAddressLine1,
+          presentAddressLine2: employeeFormData.presentAddressLine2,
+          presentCity: employeeFormData.presentCity,
+          presentCountry: employeeFormData.presentCountry,
+          presentState: employeeFormData.presentState,
+          presentPostalCode: employeeFormData.presentPostalCode,
+          sameAsPresentAddress: employeeFormData.sameAsPresentAddress,
+          permanentAddressLine1: employeeFormData.permanentAddressLine1,
+          permanentAddressLine2: employeeFormData.permanentAddressLine2,
+          permanentCity: employeeFormData.permanentCity,
+          permanentCountry: employeeFormData.permanentCountry,
+          permanentState: employeeFormData.permanentState,
+          permanentPostalCode: employeeFormData.permanentPostalCode,
+          dateOfExit: employeeFormData.dateOfExit,
+          salary: employeeFormData.salary,
+          workExperiences,
+          educationDetails
+        }
+        
+        // Debug: Log the userData to verify client is included
+        console.log('DEBUG Users.jsx: Sending userData with client:', userData.client, 'Full userData:', userData)
+
         if (editingUser) {
-          const response = await api.updateUser(editingUser.id, formData, currentUserRole)
-          if (response.error) {
+          const response = await api.updateUser(editingUser.id, userData, currentUserRole)
+          if (response?.error) {
             setError(response.error)
             setLoading(false)
             return
           }
         } else {
-          const response = await api.createUser(formData, currentUserRole)
-          if (response.error) {
+          const response = await api.createUser(userData, currentUserRole)
+          if (response?.error) {
             setError(response.error)
             setLoading(false)
             return
@@ -384,12 +496,44 @@ const Users = () => {
     }
   }
 
-  const canCreateAdmin = currentUserRole === 'SUPER_ADMIN'
   const canDelete = currentUserRole === 'SUPER_ADMIN'
-  const isEmployeeForm = !editingUser && formData.role === 'EMPLOYEE'
+  
+  
+  // Password change handler
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
 
-  // If employee form, show as full-width inline form (like Edit/Detail View)
-  if (showModal && isEmployeeForm) {
+    try {
+      if (!formData.password || formData.password.trim() === '') {
+        setError('Password is required')
+        setLoading(false)
+        return
+      }
+
+      if (editingUser) {
+        // Use appropriate API based on record type
+        if (editingUser.type === 'employee') {
+          // For employees, use changeEmployeePassword
+          await api.changeEmployeePassword(editingUser.id, '', formData.password)
+        } else {
+          // For users, use changePassword (signature: id, currentPassword, newPassword)
+          await api.changePassword(editingUser.id, '', formData.password)
+        }
+        alert('Password changed successfully!')
+        handleCloseModal()
+        await loadUsers()
+      }
+    } catch (err) {
+      setError(err.error || err.message || 'Failed to change password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Detailed inline form for adding new users (HR_ADMIN, MANAGER, FINANCE, EMPLOYEE)
+  if (showModal && !editingUser) {
     return (
       <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
         <div className="w-full mx-auto">
@@ -397,7 +541,7 @@ const Users = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
                 <Plus size={28} className="text-blue-600" />
-                Add New Employee
+                Add New {formData.role === 'HR_ADMIN' ? 'HR Admin' : formData.role === 'MANAGER' ? 'Manager' : formData.role === 'FINANCE' ? 'Finance' : formData.role === 'EMPLOYEE' ? 'Employee' : 'User'}
               </h3>
               <button
                 onClick={handleCloseModal}
@@ -412,40 +556,28 @@ const Users = () => {
                   {error}
                 </div>
               )}
-              {/* Employee Form */}
+              {/* Detailed User Form */}
               <div className="space-y-5">
                 {/* Basic Information */}
                 <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
                   <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Employee ID</label>
                       <input
                         type="text"
                         value={employeeFormData.employeeId}
                         onChange={(e) => setEmployeeFormData({ ...employeeFormData, employeeId: e.target.value })}
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">First Name *</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
                       <input
                         type="text"
-                        value={employeeFormData.firstName}
-                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, firstName: e.target.value })}
-                        placeholder="Enter First Name"
-                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name *</label>
-                      <input
-                        type="text"
-                        value={employeeFormData.lastName}
-                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, lastName: e.target.value })}
-                        placeholder="Enter Last Name"
+                        value={employeeFormData.name}
+                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, name: e.target.value })}
+                        placeholder="Enter Full Name"
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
                       />
@@ -498,18 +630,18 @@ const Users = () => {
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
                       <select
                         value={employeeFormData.role}
-                        onChange={(e) => setEmployeeFormData({ ...employeeFormData, role: e.target.value })}
+                        onChange={(e) => {
+                          setEmployeeFormData({ ...employeeFormData, role: e.target.value })
+                          setFormData((prev) => ({ ...prev, role: e.target.value }))
+                        }}
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
                       >
                         <option value="">Select Role</option>
-                        {roles.length > 0 ? (
-                          roles.map((role) => (
-                            <option key={role} value={role}>{role}</option>
-                          ))
-                        ) : (
-                          <option value="EMPLOYEE">EMPLOYEE</option>
-                        )}
+                        <option value="HR_ADMIN">HR Admin</option>
+                        <option value="MANAGER">Manager</option>
+                        <option value="FINANCE">Finance</option>
+                        <option value="EMPLOYEE">Employee</option>
                       </select>
                     </div>
                     <div>
@@ -651,7 +783,7 @@ const Users = () => {
                   disabled={loading}
                   className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
                 >
-                  {loading ? 'Saving...' : 'Create Employee'}
+                  {loading ? 'Saving...' : 'Create User'}
                 </button>
               </div>
             </form>
@@ -661,15 +793,219 @@ const Users = () => {
     )
   }
 
+  // User Management page - password change modal
+  if (showModal && editingUser) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-800">
+                Change Password - {editingUser.name || editingUser.email}
+              </h3>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <form onSubmit={handlePasswordChange} className="p-6 space-y-4">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Enter new password"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoComplete="new-password"
+                  />
+                </div>
+                
+                <div className="text-sm text-gray-500">
+                  <p>User: {editingUser.name || editingUser.email}</p>
+                  <p>Role: {editingUser.role || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                >
+                  {loading ? 'Changing...' : 'Change Password'}
+                </button>
+              </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  // Inline detailed view for any non-superadmin record
+  if (showViewModal && selectedUser) {
+    return (
+      <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
+        <div className="w-full mx-auto">
+          <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
+                <Eye size={28} className="text-blue-600" />
+                User Details
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleOpenModal(selectedUser)
+                    setShowViewModal(false)
+                    setSelectedUser(null)
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Edit size={18} />
+                  Edit
+                </button>
+                <button
+                  onClick={() => {
+                    setShowViewModal(false)
+                    setSelectedUser(null)
+                    setIsEditingInView(false)
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="space-y-5">
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
+                    <input
+                      type="text"
+                      value={selectedUser.name || 'N/A'}
+                      readOnly
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                    <input
+                      type="text"
+                      value={selectedUser.email || 'N/A'}
+                      readOnly
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label>
+                    <input
+                      type="text"
+                      value={
+                        selectedUser.role === 'HR_ADMIN' ? 'HR Admin' :
+                        selectedUser.role === 'MANAGER' ? 'Manager' :
+                        selectedUser.role === 'FINANCE' ? 'Finance' :
+                        selectedUser.role === 'EMPLOYEE' ? 'Employee' :
+                        selectedUser.role || 'N/A'
+                      }
+                      readOnly
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                    <input
+                      type="text"
+                      value={selectedUser.active ? 'Active' : 'Inactive'}
+                      readOnly
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                    />
+                  </div>
+                  {selectedUser.department && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
+                      <input
+                        type="text"
+                        value={selectedUser.department || 'N/A'}
+                        readOnly
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                      />
+                    </div>
+                  )}
+                  {selectedUser.designation && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Designation</label>
+                      <input
+                        type="text"
+                        value={selectedUser.designation || 'N/A'}
+                        readOnly
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                      />
+                    </div>
+                  )}
+                  {selectedUser.dateOfJoining && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Offered Date</label>
+                      <input
+                        type="text"
+                        value={formatDate(selectedUser.dateOfJoining)}
+                        readOnly
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                      />
+                    </div>
+                  )}
+                  {selectedUser.location && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+                      <input
+                        type="text"
+                        value={selectedUser.location || 'N/A'}
+                        readOnly
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+
   return (
     <div className="space-y-4 md:space-y-6 bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
       {/* Search Bar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder="Search users and employees by name, email, role, or employee ID..."
+              placeholder="Search users by name, email, role, or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -677,10 +1013,11 @@ const Users = () => {
           </div>
           {canCreateAdmin && (
             <button
+              type="button"
               onClick={() => handleOpenModal()}
-              className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 text-sm md:text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-xl hover:bg-blue-700 text-sm md:text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
             >
-              <Plus size={20} />
+              <Plus size={18} />
               Add User
             </button>
           )}
@@ -709,7 +1046,12 @@ const Users = () => {
                         {record.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{record.name}</div>
+                        <div
+                          className="text-sm font-medium text-blue-700 underline cursor-pointer"
+                          onClick={() => handleViewUser(record)}
+                        >
+                          {record.name}
+                        </div>
                         <div className="text-sm text-gray-500">{record.email}</div>
                         {record.employeeId && (
                           <div className="text-xs text-gray-400">ID: {record.employeeId}</div>
@@ -755,41 +1097,67 @@ const Users = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      {currentUserRole === 'SUPER_ADMIN' && (
-                        <>
-                          {record.type === 'user' && (
-                            <>
+                    {currentUserRole === 'SUPER_ADMIN' && (
+                      <div className="relative dropdown-menu-container">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenDropdownId(openDropdownId === record.id ? null : record.id)
+                          }}
+                          className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                          title="Actions"
+                        >
+                          <MoreVertical size={18} />
+                        </button>
+
+                        {openDropdownId === record.id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                            {/* Change Password option for all users */}
+                            {(record.type === 'user' || record.type === 'employee') && (
                               <button
-                                onClick={() => handleOpenModal(record)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="Edit User"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenModal(record)
+                                  setOpenDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                               >
-                                <Edit size={18} />
+                                <KeyRound size={16} className="text-blue-600" />
+                                Change Password
                               </button>
-                              {canDelete && record.role !== 'SUPER_ADMIN' && (
-                                <button
-                                  onClick={() => handleDelete(record.id, 'user')}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Delete User"
-                                >
-                                  <Trash2 size={18} />
-                                </button>
-                              )}
-                            </>
-                          )}
-                          {record.type === 'employee' && canDelete && (
-                            <button
-                              onClick={() => handleDelete(record.id, 'employee')}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete Employee"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                            )}
+                            {/* Delete option for users */}
+                            {record.type === 'user' && canDelete && record.role !== 'SUPER_ADMIN' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(record.id, 'user')
+                                  setOpenDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <Trash2 size={16} />
+                                Delete
+                              </button>
+                            )}
+                            {/* Delete option for employees */}
+                            {record.type === 'employee' && canDelete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(record.id, 'employee')
+                                  setOpenDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <Trash2 size={16} />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -800,112 +1168,10 @@ const Users = () => {
 
       {filteredRecords.length === 0 && (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
-          <p className="text-gray-500">No users or employees found</p>
+          <p className="text-gray-500">No users found</p>
         </div>
       )}
 
-      {/* Modal - Only for regular users, not employees */}
-      {showModal && !isEmployeeForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-800">
-                {editingUser ? 'Edit User' : 'Add New User'}
-              </h3>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                  {error}
-                </div>
-              )}
-
-              {/* Regular User Form */}
-              <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      disabled={!!editingUser}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password {editingUser && '(leave empty to keep current)'}
-                    </label>
-                    <input
-                      type="password"
-                      required={!editingUser}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                    <select
-                      required
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      disabled={!canCreateAdmin || (editingUser && editingUser.role === 'SUPER_ADMIN')}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    >
-                      {canCreateAdmin && <option value="SUPER_ADMIN">Super Admin</option>}
-                      <option value="HR_ADMIN">HR Admin</option>
-                      <option value="MANAGER">Manager</option>
-                      <option value="FINANCE">Finance</option>
-                      <option value="EMPLOYEE">Employee</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                    <select
-                      required
-                      value={formData.active}
-                      onChange={(e) => setFormData({ ...formData, active: e.target.value === 'true' })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="true">Active</option>
-                      <option value="false">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-             
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
-                >
-                  {loading ? 'Saving...' : isEmployeeForm ? 'Create Employee' : editingUser ? 'Update' : 'Create'} User
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

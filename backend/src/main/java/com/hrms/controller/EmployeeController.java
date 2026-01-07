@@ -13,8 +13,8 @@ import org.springframework.lang.NonNull;
 import java.util.Objects;
 import jakarta.servlet.http.HttpServletRequest;
 
-import com.hrms.entity.Employee;
-import com.hrms.service.EmployeeService;
+import com.hrms.entity.User;
+import com.hrms.service.UserService;
 
 @RestController
 @RequestMapping("/api/employees")
@@ -22,7 +22,7 @@ import com.hrms.service.EmployeeService;
 public class EmployeeController {
 
     @Autowired
-    private EmployeeService employeeService;
+    private UserService userService;
 
     // -------------------------------------------------------
     // GET ALL (with search)
@@ -30,13 +30,13 @@ public class EmployeeController {
     @GetMapping
     public ResponseEntity<List<EmployeeDTO>> getAllEmployees(
             @RequestParam(required = false) String search) {
-        List<Employee> employees;
+        List<User> users;
         if (search != null && !search.isEmpty()) {
-            employees = employeeService.searchEmployees(search);
+            users = userService.searchEmployees(search);
         } else {
-            employees = employeeService.getAllEmployees();
+            users = userService.getAllEmployees();
         }
-        List<EmployeeDTO> dtos = EmployeeMapper.toDTOList(employees);
+        List<EmployeeDTO> dtos = EmployeeMapper.toDTOList(users);
         return ResponseEntity.ok(dtos);
     }
 
@@ -45,7 +45,7 @@ public class EmployeeController {
     // -------------------------------------------------------
     @GetMapping("/{id}")
     public ResponseEntity<EmployeeDTO> getEmployeeById(@PathVariable @NonNull Long id) {
-        return employeeService.getEmployeeById(Objects.requireNonNull(id))
+        return userService.getEmployeeById(Objects.requireNonNull(id))
                 .map(EmployeeMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -56,7 +56,7 @@ public class EmployeeController {
     // -------------------------------------------------------
     @PostMapping
     public ResponseEntity<?> createEmployee(
-            @RequestBody Employee employee,
+            @RequestBody User employee,
             @RequestParam(required = false) String userRole,
             HttpServletRequest httpRequest) {
 
@@ -76,7 +76,25 @@ public class EmployeeController {
                         .body(Map.of("success", false, "message", "Employee data is required"));
             }
             
-            Employee created = employeeService.createEmployee(employee);
+            // CRITICAL: Explicitly capture and preserve client field before saving
+            // Log the received client value for debugging
+            String clientValue = employee.getClient();
+            System.out.println("DEBUG: Received client value from request: '" + clientValue + "'");
+            
+            // Preserve client value - even if empty string, we want to know what was sent
+            if (clientValue != null) {
+                String trimmed = clientValue.trim();
+                // Only set if not empty after trimming
+                employee.setClient(trimmed.isEmpty() ? null : trimmed);
+                System.out.println("DEBUG: Setting client to: '" + employee.getClient() + "'");
+            } else {
+                System.out.println("DEBUG: Client was null, keeping as null");
+            }
+            
+            User created = userService.createEmployee(employee);
+            
+            // Verify client was saved
+            System.out.println("DEBUG: Client after save: '" + created.getClient() + "'");
             return ResponseEntity.status(HttpStatus.CREATED).body(created);
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             // Handle database constraint violations
@@ -132,7 +150,7 @@ public class EmployeeController {
     @PutMapping("/{id}")
     public ResponseEntity<?> updateEmployee(
             @PathVariable @NonNull Long id,
-            @RequestBody Employee employee,
+            @RequestBody User employee,
             @RequestParam(required = false) String userRole,
             HttpServletRequest httpRequest) {
 
@@ -177,7 +195,7 @@ public class EmployeeController {
         }
 
         try {
-            Employee updated = employeeService.updateEmployee(Objects.requireNonNull(id), Objects.requireNonNull(employee));
+            User updated = userService.updateEmployee(Objects.requireNonNull(id), Objects.requireNonNull(employee));
             return ResponseEntity.ok(updated);
         } catch (RuntimeException e) {
             // Log the exception for debugging
@@ -213,7 +231,7 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        employeeService.deleteEmployee(Objects.requireNonNull(id));
+        userService.deleteEmployee(Objects.requireNonNull(id));
         return ResponseEntity.noContent().build();
     }
 

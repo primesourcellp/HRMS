@@ -15,11 +15,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.hrms.entity.Employee;
 import com.hrms.entity.User;
 import com.hrms.repository.UserRepository;
 import com.hrms.service.EmailService;
-import com.hrms.service.EmployeeService;
 import com.hrms.service.OtpService;
 import com.hrms.service.UserService;
 import com.hrms.util.JwtUtil;
@@ -38,8 +36,6 @@ public class AuthController {
     @Autowired
     private UserRepository userRepository;
     
-    @Autowired
-    private EmployeeService employeeService;
     
     @Autowired
     private JwtUtil jwtUtil;
@@ -81,7 +77,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
             
-            // Create Super Admin user
+            // Create Super Admin as User
             User superAdmin = new User();
             superAdmin.setEmail(email);
             superAdmin.setPassword(password); // Will be hashed in service
@@ -124,22 +120,22 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
             
-            // First attempt: authenticate as a system/user account (admin roles)
+            // Authenticate as User (all roles are now in User table)
             if (userService.authenticate(email.trim(), password)) {
                 Optional<User> user = userService.findByEmail(email.trim());
                 if (user.isPresent() && user.get().getActive()) {
-                    // Generate JWT token for admin user
+                    // Generate JWT token
                     String token = jwtUtil.generateToken(
                         user.get().getEmail(),
                         user.get().getRole(),
                         user.get().getId(),
-                        "admin"
+                        "user"
                     );
                     String refreshToken = jwtUtil.generateRefreshToken(
                         user.get().getEmail(),
                         user.get().getRole(),
                         user.get().getId(),
-                        "admin"
+                        "user"
                     );
                     
                     // Set HttpOnly cookies for secure token storage
@@ -172,57 +168,7 @@ public class AuthController {
                 }
             }
             
-            // Second attempt: authenticate as an employee
-            if (employeeService.authenticate(email.trim(), password)) {
-                Optional<Employee> employee = employeeService.findByEmail(email.trim());
-                if (employee.isPresent() && "Active".equals(employee.get().getStatus())) {
-                    // Generate JWT token for employee
-                    String token = jwtUtil.generateToken(
-                        employee.get().getEmail(),
-                        "EMPLOYEE",
-                        employee.get().getId(),
-                        "employee"
-                    );
-                    String refreshToken = jwtUtil.generateRefreshToken(
-                        employee.get().getEmail(),
-                        "EMPLOYEE",
-                        employee.get().getId(),
-                        "employee"
-                    );
-                    
-                    // Set HttpOnly cookies for secure token storage
-                    Cookie accessTokenCookie = new Cookie("accessToken", token);
-                    accessTokenCookie.setHttpOnly(true);
-                    accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
-                    accessTokenCookie.setPath("/");
-                    accessTokenCookie.setMaxAge(86400); // 24 hours in seconds
-                    accessTokenCookie.setAttribute("SameSite", "Lax");
-                    httpResponse.addCookie(accessTokenCookie);
-                    
-                    Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
-                    refreshTokenCookie.setHttpOnly(true);
-                    refreshTokenCookie.setSecure(false); // Set to true in production with HTTPS
-                    refreshTokenCookie.setPath("/");
-                    refreshTokenCookie.setMaxAge(604800); // 7 days in seconds
-                    refreshTokenCookie.setAttribute("SameSite", "Lax");
-                    httpResponse.addCookie(refreshTokenCookie);
-                    
-                    response.put("success", true);
-                    response.put("message", "Login successful");
-                    // Don't return tokens in response body for security
-                    response.put("employee", Map.of(
-                        "id", employee.get().getId(),
-                        "email", employee.get().getEmail(),
-                        "name", employee.get().getName(),
-                        "department", employee.get().getDepartment(),
-                        "position", employee.get().getPosition(),
-                        "role", "EMPLOYEE"
-                    ));
-                    return ResponseEntity.ok(response);
-                }
-            }
-            
-            // If neither matched, return unauthorized
+            // If authentication failed, return unauthorized
             response.put("success", false);
             response.put("message", "Invalid email or password");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
@@ -314,56 +260,6 @@ public class AuthController {
                 response.put("success", false);
                 response.put("message", "Email and password are required");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-            }
-            
-            // Authenticate employee
-            if (employeeService.authenticate(email.trim(), password)) {
-                Optional<Employee> employee = employeeService.findByEmail(email.trim());
-                if (employee.isPresent() && "Active".equals(employee.get().getStatus())) {
-                    // Generate JWT token
-                    String token = jwtUtil.generateToken(
-                        employee.get().getEmail(),
-                        "EMPLOYEE",
-                        employee.get().getId(),
-                        "employee"
-                    );
-                    String refreshToken = jwtUtil.generateRefreshToken(
-                        employee.get().getEmail(),
-                        "EMPLOYEE",
-                        employee.get().getId(),
-                        "employee"
-                    );
-                    
-                    // Set HttpOnly cookies for secure token storage
-                    Cookie accessTokenCookie = new Cookie("accessToken", token);
-                    accessTokenCookie.setHttpOnly(true);
-                    accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
-                    accessTokenCookie.setPath("/");
-                    accessTokenCookie.setMaxAge(86400); // 24 hours in seconds
-                    accessTokenCookie.setAttribute("SameSite", "Lax");
-                    httpResponse.addCookie(accessTokenCookie);
-                    
-                    Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
-                    refreshTokenCookie.setHttpOnly(true);
-                    refreshTokenCookie.setSecure(false); // Set to true in production with HTTPS
-                    refreshTokenCookie.setPath("/");
-                    refreshTokenCookie.setMaxAge(604800); // 7 days in seconds
-                    refreshTokenCookie.setAttribute("SameSite", "Lax");
-                    httpResponse.addCookie(refreshTokenCookie);
-                    
-                    response.put("success", true);
-                    response.put("message", "Login successful");
-                    // Don't return tokens in response body for security
-                    response.put("employee", Map.of(
-                        "id", employee.get().getId(),
-                        "email", employee.get().getEmail(),
-                        "name", employee.get().getName(),
-                        "department", employee.get().getDepartment(),
-                        "position", employee.get().getPosition(),
-                        "role", "EMPLOYEE"
-                    ));
-                    return ResponseEntity.ok(response);
-                }
             }
             
             response.put("success", false);
@@ -477,22 +373,18 @@ public class AuthController {
             
             email = email.trim().toLowerCase();
             
-            // Check if user exists (either User or Employee)
+            // Check if employee exists
             Optional<User> user = userService.findByEmail(email);
-            Optional<Employee> employee = employeeService.findByEmail(email);
             
-            if (!user.isPresent() && !employee.isPresent()) {
+            if (!user.isPresent()) {
                 // Don't reveal if email exists or not (security best practice)
                 response.put("success", true);
                 response.put("message", "If the email exists, an OTP has been sent");
                 return ResponseEntity.ok(response);
             }
             
-            // Determine user type
-            String userType = user.isPresent() ? "user" : "employee";
-            
             // Generate and send OTP
-            String otp = otpService.generateOtp(email, userType);
+            String otp = otpService.generateOtp(email, "employee");
             emailService.sendOtpEmail(email, otp);
             
             response.put("success", true);
@@ -587,31 +479,15 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
             
-            // Reset password based on user type
-            if ("user".equals(userType)) {
-                Optional<User> user = userService.findByEmail(email);
-                if (user.isPresent()) {
-                    userService.resetPassword(user.get().getId(), newPassword);
-                    emailService.sendPasswordResetSuccessEmail(email, user.get().getName());
-                } else {
-                    response.put("success", false);
-                    response.put("message", "User not found");
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-                }
-            } else if ("employee".equals(userType)) {
-                Optional<Employee> employee = employeeService.findByEmail(email);
-                if (employee.isPresent()) {
-                    employeeService.resetPassword(employee.get().getId(), newPassword);
-                    emailService.sendPasswordResetSuccessEmail(email, employee.get().getName());
-                } else {
-                    response.put("success", false);
-                    response.put("message", "Employee not found");
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-                }
+            // Reset password (all users are now in User table)
+            Optional<User> user = userService.findByEmail(email);
+            if (user.isPresent()) {
+                userService.resetPassword(user.get().getId(), newPassword);
+                emailService.sendPasswordResetSuccessEmail(email, user.get().getName());
             } else {
                 response.put("success", false);
-                response.put("message", "Invalid user type");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                response.put("message", "User not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
             
             // Remove OTP after successful password reset

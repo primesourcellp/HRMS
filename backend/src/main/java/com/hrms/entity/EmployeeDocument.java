@@ -51,7 +51,7 @@ public class EmployeeDocument {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
     @JsonIgnore
-    private Employee employee;
+    private User employee;
 
     // Constructors
     public EmployeeDocument() {
@@ -60,7 +60,7 @@ public class EmployeeDocument {
 
     public EmployeeDocument(Long id, Long employeeId, String documentType, String fileName, 
                            String filePath, Long fileSize, String mimeType, String description, 
-                           LocalDateTime uploadedAt, Boolean verified, Employee employee) {
+                           LocalDateTime uploadedAt, Boolean verified, User employee) {
         this.id = id;
         this.employeeId = employeeId;
         this.documentType = documentType;
@@ -155,11 +155,11 @@ public class EmployeeDocument {
         this.verified = verified;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 }

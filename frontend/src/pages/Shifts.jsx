@@ -409,9 +409,6 @@ const Shifts = () => {
     // Handle both employee object and employee ID
     if (typeof employee === 'object' && employee !== null) {
       if (employee.name) return employee.name
-      if (employee.firstName && employee.lastName) return `${employee.firstName} ${employee.lastName}`
-      if (employee.firstName) return employee.firstName
-      if (employee.lastName) return employee.lastName
       if (employee.email) return employee.email.split('@')[0]
       return `Employee #${employee.id}`
     }
@@ -419,9 +416,6 @@ const Shifts = () => {
     const emp = employees.find(e => e.id === employee)
     if (emp) {
       if (emp.name) return emp.name
-      if (emp.firstName && emp.lastName) return `${emp.firstName} ${emp.lastName}`
-      if (emp.firstName) return emp.firstName
-      if (emp.lastName) return emp.lastName
       if (emp.email) return emp.email.split('@')[0]
     }
     return `Employee #${employee}`
