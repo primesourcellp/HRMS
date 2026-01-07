@@ -1,5 +1,5 @@
 import { useHRMS } from '../context/HRMSContext'
-import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon } from 'lucide-react'
+import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon, Ticket, AlertCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { useState, useEffect, useRef } from 'react'
@@ -20,6 +20,8 @@ const Dashboard = () => {
   const [checkInLoading, setCheckInLoading] = useState(false)
   const [checkInMessage, setCheckInMessage] = useState(null)
   const [checkInError, setCheckInError] = useState(null)
+  const [tickets, setTickets] = useState([])
+  const [loadingTickets, setLoadingTickets] = useState(false)
   const [widgetVisibility, setWidgetVisibility] = useState(() => {
     // Load from localStorage if available
     const saved = localStorage.getItem('dashboardWidgetVisibility')
@@ -83,7 +85,12 @@ const Dashboard = () => {
     if (!isEmployee && userType !== 'employee') {
       loadWeeklyAttendanceData()
     }
-  }, [employees, isEmployee, isExecutiveView, selectedMonth]) // Re-run when employees data is loaded or selectedMonth changes
+
+    // Load tickets for finance users
+    if (isFinance) {
+      loadTickets()
+    }
+  }, [employees, isEmployee, isExecutiveView, selectedMonth, isFinance]) // Re-run when employees data is loaded or selectedMonth changes
 
   const loadEmployeeShift = async (empId) => {
     try {
@@ -326,6 +333,30 @@ const Dashboard = () => {
       setWeeklyAttendanceData([])
     } finally {
       setLoadingWeeklyAttendance(false)
+    }
+  }
+
+  const loadTickets = async () => {
+    try {
+      setLoadingTickets(true)
+      const ticketsData = await api.getTickets()
+      // Filter to show only open/pending tickets for finance dashboard
+      const filteredTickets = Array.isArray(ticketsData) 
+        ? ticketsData.filter(t => t.status === 'OPEN' || t.status === 'PENDING' || t.status === 'IN_PROGRESS')
+        : []
+      // Sort by priority and date, show most urgent first
+      filteredTickets.sort((a, b) => {
+        const priorityOrder = { 'URGENT': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 }
+        const priorityDiff = (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
+        if (priorityDiff !== 0) return priorityDiff
+        return new Date(b.createdAt) - new Date(a.createdAt)
+      })
+      setTickets(filteredTickets.slice(0, 5)) // Show top 5 tickets
+    } catch (error) {
+      console.error('Error loading tickets:', error)
+      setTickets([])
+    } finally {
+      setLoadingTickets(false)
     }
   }
 
@@ -1155,6 +1186,100 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+
+      {/* HR Tickets Section - Only for Finance Users */}
+      {isFinance && (
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-blue-600 flex items-center gap-2">
+              <Ticket className="w-5 h-5" />
+              HR Tickets
+            </h3>
+            <button
+              onClick={() => navigate('/tickets')}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+            >
+              View All
+              <Eye className="w-4 h-4" />
+            </button>
+          </div>
+          {loadingTickets ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <p className="text-gray-600">Loading tickets...</p>
+              </div>
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-8">
+              <Ticket className="mx-auto text-gray-400 mb-2" size={32} />
+              <p className="text-gray-500">No pending tickets</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {tickets.map((ticket) => {
+                if (!ticket || !ticket.id) return null
+                const priorityColors = {
+                  'URGENT': 'bg-red-100 text-red-800 border-red-200',
+                  'HIGH': 'bg-orange-100 text-orange-800 border-orange-200',
+                  'MEDIUM': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                  'LOW': 'bg-blue-100 text-blue-800 border-blue-200'
+                }
+                const statusColors = {
+                  'OPEN': 'bg-blue-100 text-blue-800 border-blue-200',
+                  'IN_PROGRESS': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                  'PENDING': 'bg-gray-100 text-gray-800 border-gray-200',
+                  'RESOLVED': 'bg-green-100 text-green-800 border-green-200',
+                  'CLOSED': 'bg-gray-100 text-gray-800 border-gray-200'
+                }
+                const ticketTypeLabels = {
+                  'SALARY_ISSUE': 'Salary Issue',
+                  'LEAVE_CORRECTION': 'Leave Correction',
+                  'ATTENDANCE_CORRECTION': 'Attendance Correction',
+                  'SYSTEM_ACCESS': 'System Access',
+                  'HARDWARE_REQUEST': 'Hardware Request'
+                }
+                return (
+                  <div
+                    key={ticket.id}
+                    onClick={() => navigate('/tickets')}
+                    className="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-blue-300 cursor-pointer transition-all duration-200"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold text-gray-800">{ticket.subject || 'No Subject'}</h4>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${priorityColors[ticket.priority] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+                            {ticket.priority || 'MEDIUM'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[ticket.status] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+                            {ticket.status || 'OPEN'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                          {ticket.description || 'No description'}
+                        </p>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <AlertCircle size={12} />
+                            {ticketTypeLabels[ticket.ticketType] || ticket.ticketType || 'Unknown'}
+                          </span>
+                          {ticket.createdAt && (
+                            <span className="flex items-center gap-1">
+                              <Calendar size={12} />
+                              {format(new Date(ticket.createdAt), 'MMM dd, yyyy')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick Actions - Moved to Bottom */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { DollarSign, Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2, Settings, Info, AlertCircle, Building2 } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2, Settings, Info, AlertCircle, Building2, MoreVertical, Receipt, Gift } from 'lucide-react'
 import api from '../services/api'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -8,10 +8,14 @@ const Payroll = () => {
   const [salaryStructures, setSalaryStructures] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(false)
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
+  // For employees, default to empty (show all months), for admins default to current month
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const userType = localStorage.getItem('userType')
+    return userType === 'employee' ? '' : format(new Date(), 'yyyy-MM')
+  })
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeView, setActiveView] = useState('salaryDetails') // 'salaryDetails', 'processedPayrolls', or 'ctcTemplates'
+  const [activeView, setActiveView] = useState('salaryDetails') // 'salaryDetails', 'processedPayrolls', 'ctcTemplates', or 'gratuity'
   const [showPayrollModal, setShowPayrollModal] = useState(false)
   const [showSalaryModal, setShowSalaryModal] = useState(false)
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
@@ -24,6 +28,7 @@ const Payroll = () => {
   const [payslipDetails, setPayslipDetails] = useState(null)
   const [editingPayroll, setEditingPayroll] = useState(null)
   const [editingSalary, setEditingSalary] = useState(null)
+  const [openSalaryDropdownId, setOpenSalaryDropdownId] = useState(null)
   const [processingBulk, setProcessingBulk] = useState(false)
   const [bulkProcessData, setBulkProcessData] = useState({
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -89,6 +94,20 @@ const Payroll = () => {
     otherDeductionsPercentage: null,
     active: true
   })
+  // Gratuity Management State
+  const [gratuities, setGratuities] = useState([])
+  const [gratuitySearchTerm, setGratuitySearchTerm] = useState('')
+  const [gratuityStatusFilter, setGratuityStatusFilter] = useState('All')
+  const [showGratuityModal, setShowGratuityModal] = useState(false)
+  const [editingGratuity, setEditingGratuity] = useState(null)
+  const [gratuityFormData, setGratuityFormData] = useState({
+    employeeId: '',
+    exitDate: format(new Date(), 'yyyy-MM-dd'),
+    lastDrawnSalary: 0,
+    yearsOfService: 0,
+    notes: ''
+  })
+  const [calculatingGratuity, setCalculatingGratuity] = useState(false)
 
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
@@ -100,6 +119,21 @@ const Payroll = () => {
     loadData()
   }, [selectedMonth, statusFilter, activeView])
 
+  // Close dropdown when clicking outside (for Salary Details)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openSalaryDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenSalaryDropdownId(null)
+      }
+    }
+    if (openSalaryDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openSalaryDropdownId])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -108,17 +142,29 @@ const Payroll = () => {
           api.getEmployeePayrolls(parseInt(userId)),
           api.getEmployees()
         ])
-        setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
+        const payrollsArray = Array.isArray(payrollsData) ? payrollsData : []
+        setPayrolls(payrollsArray)
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
+        
+        // Debug: Log to help diagnose
+        console.log('Employee payroll data loaded:', {
+          userId,
+          payrollsCount: payrollsArray.length,
+          payrolls: payrollsArray,
+          selectedMonth,
+          statusFilter
+        })
         } else if (isAdmin) {
           // Load all templates if viewing CTC Templates tab, otherwise load only active ones
           const shouldLoadAllTemplates = activeView === 'ctcTemplates'
-          const [payrollsData, employeesData, salaryStructuresData, ctcTemplatesData, clientsData] = await Promise.all([
+          const shouldLoadGratuities = activeView === 'gratuity'
+          const [payrollsData, employeesData, salaryStructuresData, ctcTemplatesData, clientsData, gratuitiesData] = await Promise.all([
             api.getPayrolls(),
             api.getEmployees(),
             api.getSalaryStructures(),
             api.getCTCTemplates(null, !shouldLoadAllTemplates), // Get all templates if viewing CTC Templates tab, otherwise active only
-            api.getClients()
+            api.getClients(),
+            shouldLoadGratuities ? api.getGratuities() : Promise.resolve([])
           ])
           setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
           setEmployees(Array.isArray(employeesData) ? employeesData : [])
@@ -126,6 +172,16 @@ const Payroll = () => {
           const templates = Array.isArray(ctcTemplatesData) ? ctcTemplatesData : []
           setCtcTemplates(templates)
           setCtcTemplateClients(Array.isArray(clientsData) ? clientsData : [])
+          // Always set gratuities (empty array if not loading)
+          setGratuities(shouldLoadGratuities ? (Array.isArray(gratuitiesData) ? gratuitiesData : []) : [])
+          // Debug: Log to help diagnose
+          if (shouldLoadGratuities) {
+            console.log('Gratuity data loaded:', {
+              gratuitiesCount: gratuitiesData.length,
+              gratuities: gratuitiesData,
+              activeView
+            })
+          }
           // Debug: Log templates to help diagnose
           if (templates.length === 0) {
             console.warn('No CTC templates found. Please create templates first.')
@@ -284,7 +340,15 @@ const Payroll = () => {
         }
       }
       
-      setViewingESSPayslip(payroll)
+      // Map payroll fields to ESS payslip format
+      // Payroll uses baseSalary, but ESS view expects basicSalary
+      const essPayrollData = {
+        ...payroll,
+        basicSalary: payroll.baseSalary || salaryStructure?.basicSalary || 0,
+        hra: payroll.hra || salaryStructure?.hra || 0
+      }
+      
+      setViewingESSPayslip(essPayrollData)
       setPayslipDetails({
         employee,
         salaryStructure,
@@ -388,8 +452,31 @@ const Payroll = () => {
       setProcessingBulk(true)
       const result = await api.processPayrollForAll(bulkProcessData.startDate, bulkProcessData.endDate)
       if (result.success) {
-        alert(`Payroll processed successfully for ${result.count || 0} employees`)
+        // Extract month from start date for filtering
+        const startDateObj = new Date(bulkProcessData.startDate + 'T00:00:00') // Ensure correct timezone handling
+        const processedMonth = format(startDateObj, 'yyyy-MM')
+        
+        // Switch to Processed Payrolls view and set appropriate filters FIRST
+        setActiveView('processedPayrolls')
+        setSelectedMonth(processedMonth)
+        setStatusFilter('All') // Show all statuses to see the newly processed payrolls
+        setSearchTerm('') // Clear search to show all results
+        
+        // Small delay to ensure state updates before reloading
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Reload data to get the newly processed payrolls
         await loadData()
+        
+        // Debug: Log to help diagnose
+        console.log('Bulk process completed:', {
+          processedMonth,
+          resultCount: result.count,
+          payrollsCount: payrolls.length,
+          filteredCount: payrolls.filter(p => p.month === processedMonth).length
+        })
+        
+        alert(`Payroll processed successfully for ${result.count || 0} employees. Viewing Processed Payrolls for ${processedMonth}.`)
         setShowBulkProcessModal(false)
       } else {
         alert('Error processing payroll: ' + (result.message || 'Failed to process'))
@@ -426,15 +513,23 @@ const Payroll = () => {
 
   const handleDownloadPayslip = async (payrollId) => {
     try {
+      // Get employee ID for password protection
+      const payroll = payrolls.find(p => p.id === payrollId) || viewingESSPayslip
+      const employee = employees.find(emp => emp.id === payroll?.employeeId)
+      const employeeId = employee?.employeeId || employee?.id || userId || 'EMP001'
+      
       const blob = await api.downloadPayslip(payrollId)
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `payslip_${payrollId}.pdf`
+      link.download = `payslip_${payrollId}_${format(new Date(), 'yyyy-MM')}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      
+      // Show password information alert
+      alert(`Payslip downloaded successfully!\n\nPassword: ${employeeId}\n\nThe PDF is password-protected for your security. Use your Employee ID to open it.`)
     } catch (error) {
       alert('Error downloading payslip: ' + error.message)
     }
@@ -757,7 +852,9 @@ const Payroll = () => {
 
   const filteredPayrolls = payrolls.filter(payroll => {
     const matchesStatus = statusFilter === 'All' || payroll.status === statusFilter
-    const matchesMonth = !selectedMonth || payroll.month === selectedMonth
+    // Match month exactly (format: yyyy-MM)
+    // For employees, if no month is selected, show all payrolls
+    const matchesMonth = !selectedMonth || (payroll.month && payroll.month === selectedMonth)
     const matchesSearch = !searchTerm || 
       (isAdmin && (() => {
         const emp = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
@@ -771,6 +868,18 @@ const Payroll = () => {
       payroll.status?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesStatus && matchesMonth && matchesSearch
   })
+  
+  // Debug: Log filtered results for employees
+  if (isEmployee) {
+    console.log('Filtered payrolls for employee:', {
+      totalPayrolls: payrolls.length,
+      filteredCount: filteredPayrolls.length,
+      selectedMonth,
+      statusFilter,
+      searchTerm,
+      filteredPayrolls
+    })
+  }
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -783,10 +892,214 @@ const Payroll = () => {
       case 'REJECTED':
         return 'bg-red-100 text-red-800'
       case 'PENDING_APPROVAL':
+      case 'PENDING':
         return 'bg-yellow-100 text-yellow-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
+  }
+
+  // Gratuity Management Handlers
+  const handleOpenGratuityModal = (gratuity = null) => {
+    if (gratuity) {
+      setEditingGratuity(gratuity)
+      setGratuityFormData({
+        employeeId: gratuity.employeeId?.toString() || '',
+        exitDate: gratuity.exitDate || format(new Date(), 'yyyy-MM-dd'),
+        lastDrawnSalary: gratuity.lastDrawnSalary || 0,
+        yearsOfService: gratuity.yearsOfService || 0,
+        notes: gratuity.notes || ''
+      })
+    } else {
+      setEditingGratuity(null)
+      setGratuityFormData({
+        employeeId: '',
+        exitDate: format(new Date(), 'yyyy-MM-dd'),
+        lastDrawnSalary: 0,
+        yearsOfService: 0,
+        notes: ''
+      })
+    }
+    setShowGratuityModal(true)
+  }
+
+  const handleCalculateGratuity = async () => {
+    if (!gratuityFormData.employeeId || !gratuityFormData.exitDate) {
+      alert('Please select an employee and exit date')
+      return
+    }
+
+    try {
+      setCalculatingGratuity(true)
+      const result = await api.calculateGratuity(
+        parseInt(gratuityFormData.employeeId),
+        gratuityFormData.exitDate
+      )
+      if (result.success) {
+        const gratuity = result.gratuity
+        setGratuityFormData({
+          ...gratuityFormData,
+          lastDrawnSalary: gratuity.lastDrawnSalary || 0,
+          yearsOfService: gratuity.yearsOfService || 0
+        })
+        alert(`Gratuity calculated: ₹${gratuity.finalAmount?.toFixed(2) || 0} (Years of Service: ${gratuity.yearsOfService?.toFixed(2) || 0})`)
+      } else {
+        alert('Error calculating gratuity: ' + (result.message || 'Failed to calculate'))
+      }
+    } catch (error) {
+      alert('Error calculating gratuity: ' + error.message)
+    } finally {
+      setCalculatingGratuity(false)
+    }
+  }
+
+  const handleGratuitySubmit = async (e) => {
+    e.preventDefault()
+    
+    // Validate required fields
+    if (!gratuityFormData.employeeId || !gratuityFormData.exitDate || !gratuityFormData.yearsOfService || parseFloat(gratuityFormData.yearsOfService) <= 0) {
+      alert('Please fill in all required fields including Years of Service (must be greater than 0)')
+      return
+    }
+    
+    try {
+      setLoading(true)
+      
+      // Calculate gratuity amount based on manually entered years of service
+      const yearsOfService = parseFloat(gratuityFormData.yearsOfService) || 0
+      const lastDrawnSalary = parseFloat(gratuityFormData.lastDrawnSalary) || 0
+      const calculatedAmount = (lastDrawnSalary * 15.0 / 26.0) * yearsOfService
+      const finalAmount = Math.min(calculatedAmount, 2000000.0) // ₹20 lakhs cap
+      
+      const gratuityData = {
+        employeeId: parseInt(gratuityFormData.employeeId),
+        exitDate: gratuityFormData.exitDate,
+        lastDrawnSalary: lastDrawnSalary,
+        yearsOfService: yearsOfService,
+        calculatedAmount: calculatedAmount,
+        finalAmount: finalAmount,
+        notes: gratuityFormData.notes
+      }
+
+      let result
+      if (editingGratuity) {
+        result = await api.updateGratuity(editingGratuity.id, gratuityData)
+      } else {
+        result = await api.createGratuity(gratuityData)
+      }
+
+      if (result.success) {
+        alert(editingGratuity ? 'Gratuity updated successfully' : 'Gratuity created successfully')
+        await loadData()
+        setShowGratuityModal(false)
+        setEditingGratuity(null)
+      } else {
+        alert('Error saving gratuity: ' + (result.message || 'Failed to save'))
+      }
+    } catch (error) {
+      alert('Error saving gratuity: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteGratuity = async (gratuityId) => {
+    if (!window.confirm('Are you sure you want to delete this gratuity record?')) return
+    
+    try {
+      setLoading(true)
+      const result = await api.deleteGratuity(gratuityId)
+      if (result.success) {
+        alert('Gratuity deleted successfully')
+        await loadData()
+      } else {
+        alert('Error deleting gratuity: ' + (result.message || 'Failed to delete'))
+      }
+    } catch (error) {
+      alert('Error deleting gratuity: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApproveGratuity = async (gratuityId) => {
+    if (!window.confirm('Approve this gratuity?')) return
+    
+    try {
+      const userId = localStorage.getItem('userId')
+      const result = await api.approveGratuity(gratuityId, userId ? parseInt(userId) : null)
+      if (result.success) {
+        alert('Gratuity approved successfully')
+        await loadData()
+      } else {
+        alert('Error approving gratuity: ' + (result.message || 'Failed to approve'))
+      }
+    } catch (error) {
+      alert('Error approving gratuity: ' + error.message)
+    }
+  }
+
+  const handleMarkGratuityAsPaid = async (gratuityId) => {
+    const paymentDate = prompt('Enter payment date (YYYY-MM-DD) or leave empty for today:', format(new Date(), 'yyyy-MM-dd'))
+    if (paymentDate === null) return
+    
+    try {
+      const userId = localStorage.getItem('userId')
+      const result = await api.markGratuityAsPaid(gratuityId, paymentDate || undefined, userId ? parseInt(userId) : null)
+      if (result.success) {
+        alert('Gratuity marked as paid successfully')
+        await loadData()
+      } else {
+        alert('Error marking gratuity as paid: ' + (result.message || 'Failed to mark as paid'))
+      }
+    } catch (error) {
+      alert('Error marking gratuity as paid: ' + error.message)
+    }
+  }
+
+  const handleRejectGratuity = async (gratuityId) => {
+    const reason = prompt('Enter rejection reason:')
+    if (!reason) return
+    
+    try {
+      const result = await api.rejectGratuity(gratuityId, reason)
+      if (result.success) {
+        alert('Gratuity rejected successfully')
+        await loadData()
+      } else {
+        alert('Error rejecting gratuity: ' + (result.message || 'Failed to reject'))
+      }
+    } catch (error) {
+      alert('Error rejecting gratuity: ' + error.message)
+    }
+  }
+
+  // Filter gratuities
+  const filteredGratuities = gratuities.filter(gratuity => {
+    const matchesStatus = gratuityStatusFilter === 'All' || gratuity.status === gratuityStatusFilter
+    const matchesSearch = !gratuitySearchTerm || 
+      (() => {
+        const emp = employees.find(emp => emp.id === gratuity.employeeId || emp.id === parseInt(gratuity.employeeId))
+        if (!emp) return false
+        const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase()
+        return fullName.includes(gratuitySearchTerm.toLowerCase()) || 
+               emp.employeeId?.toLowerCase().includes(gratuitySearchTerm.toLowerCase()) ||
+               emp.email?.toLowerCase().includes(gratuitySearchTerm.toLowerCase())
+      })() ||
+      gratuity.status?.toLowerCase().includes(gratuitySearchTerm.toLowerCase())
+    return matchesStatus && matchesSearch
+  })
+  
+  // Debug: Log filtered results for gratuities
+  if (activeView === 'gratuity') {
+    console.log('Gratuity filtering:', {
+      totalGratuities: gratuities.length,
+      filteredCount: filteredGratuities.length,
+      statusFilter: gratuityStatusFilter,
+      searchTerm: gratuitySearchTerm,
+      gratuities: gratuities,
+      filteredGratuities: filteredGratuities
+    })
   }
 
   return (
@@ -803,7 +1116,7 @@ const Payroll = () => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <DollarSign size={20} />
+              <span className="text-lg font-bold">₹</span>
               Salary Details
             </button>
             <button
@@ -825,8 +1138,19 @@ const Payroll = () => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <Settings size={20} />
+              <Receipt size={20} />
               CTC Templates
+            </button>
+            <button
+              onClick={() => setActiveView('gratuity')}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+                activeView === 'gratuity'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Gift size={20} />
+              Gratuity
             </button>
           </div>
         </div>
@@ -841,7 +1165,7 @@ const Payroll = () => {
                 <div className="text-xs sm:text-sm text-gray-600">Total</div>
                 <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">{stats.total}</div>
               </div>
-              <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-600" />
+              <span className="text-blue-600 font-bold text-sm sm:text-base md:text-lg">₹</span>
             </div>
           </div>
           <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
@@ -941,7 +1265,7 @@ const Payroll = () => {
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
             <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gray-50">
               <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
-                <DollarSign size={24} className="text-blue-600" />
+                <span className="text-blue-600 font-bold text-xl">₹</span>
                 Salary Details ({salaryStructures.filter(s => {
                   if (!searchTerm) return true
                   const emp = employees.find(e => e.id === s.employeeId)
@@ -1008,28 +1332,55 @@ const Payroll = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="relative dropdown-menu-container">
                             <button
-                              onClick={() => handleViewSalary(salary)}
-                              className="text-indigo-600 hover:text-indigo-800 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
-                              title="View Details"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenSalaryDropdownId(openSalaryDropdownId === salary.id ? null : salary.id)
+                              }}
+                              className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                              title="Actions"
                             >
-                              <Eye size={18} />
+                              <MoreVertical size={18} />
                             </button>
-                            <button
-                              onClick={() => handleOpenSalaryModal(salary)}
-                              className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSalary(salary.id)}
-                              className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            
+                            {openSalaryDropdownId === salary.id && (
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleViewSalary(salary)
+                                    setOpenSalaryDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <Eye size={16} className="text-green-600" />
+                                  View Details
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOpenSalaryModal(salary)
+                                    setOpenSalaryDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <Edit size={16} className="text-blue-600" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteSalary(salary.id)
+                                    setOpenSalaryDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <Trash2 size={16} />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1065,16 +1416,18 @@ const Payroll = () => {
               </button>
             )}
           </div>
+          {/* Month filter - Show for both admin and employees */}
+          <div className="flex-1">
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="All Months"
+            />
+          </div>
           {isAdmin && (
             <>
-              <div className="flex-1">
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
               <div className="flex-1">
                 <select
                   value={statusFilter}
@@ -1123,7 +1476,7 @@ const Payroll = () => {
         <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
             <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
-              <DollarSign size={24} className="text-blue-600" />
+              <span className="text-blue-600 font-bold text-xl">₹</span>
               Payroll Records ({filteredPayrolls.length})
             </h3>
             {isAdmin && filteredPayrolls.length > 0 && (
@@ -1203,10 +1556,18 @@ const Payroll = () => {
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                          {/* View Payslip Button - Available for all users (ESS) */}
+                          <button
+                            onClick={() => handleViewESSPayslip(payroll.id)}
+                            className="text-indigo-600 hover:text-indigo-800 p-1 sm:p-2 rounded-lg hover:bg-indigo-50 transition-colors"
+                            title="View Payslip (UAN, PF Account, etc.)"
+                          >
+                            <Eye size={16} />
+                          </button>
                           <button
                             onClick={() => handleDownloadPayslip(payroll.id)}
                             className="text-blue-600 hover:text-blue-800 p-1 sm:p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="Download Payslip"
+                            title="Download Payslip PDF"
                           >
                             <Download size={16} />
                           </button>
@@ -1294,7 +1655,7 @@ const Payroll = () => {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
-                <DollarSign size={28} className="text-blue-600" />
+                <span className="text-blue-600 font-bold text-2xl">₹</span>
                 {editingSalary ? 'Edit Salary Details' : 'Add Salary Details'}
               </h3>
               <button
@@ -1350,7 +1711,7 @@ const Payroll = () => {
                         </>
                       ) : (
                         <>
-                          <DollarSign size={20} />
+                          <span className="font-bold">₹</span>
                           Convert CTC to Salary Structure
                         </>
                       )}
@@ -1363,7 +1724,7 @@ const Payroll = () => {
               {showCtcConverter && !editingSalary && (
                 <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow-sm p-5 border-2 border-purple-200">
                   <h4 className="text-xl font-bold text-purple-800 mb-4 flex items-center gap-2">
-                    <DollarSign size={24} className="text-purple-600" />
+                    <span className="text-purple-600 font-bold text-xl">₹</span>
                     CTC to Salary Structure Converter
                   </h4>
                   <p className="text-sm text-gray-600 mb-4">
@@ -1437,7 +1798,7 @@ const Payroll = () => {
                       </>
                     ) : (
                       <>
-                        <DollarSign size={20} />
+                        <span className="font-bold">₹</span>
                         Convert & Auto-Fill Salary Structure
                       </>
                     )}
@@ -1638,7 +1999,7 @@ const Payroll = () => {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-full border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
-                <DollarSign size={28} className="text-blue-600" />
+                <span className="text-blue-600 font-bold text-2xl">₹</span>
                 {editingPayroll ? 'Edit Payroll' : 'Create Payroll'}
               </h3>
               <button
@@ -1881,7 +2242,7 @@ const Payroll = () => {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
-                <DollarSign size={28} className="text-blue-600" />
+                <span className="text-blue-600 font-bold text-2xl">₹</span>
                 Payroll Details
               </h3>
               <button
@@ -1943,7 +2304,22 @@ const Payroll = () => {
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-gray-600 mb-1">Net Salary</label>
                     <p className="text-2xl font-bold text-blue-600">
-                      ₹{viewingPayroll.netSalary?.toFixed(2) || viewingPayroll.amount?.toFixed(2) || '0.00'}
+                      ₹{(() => {
+                        const baseSalary = parseFloat(viewingPayroll.baseSalary) || 0
+                        const allowances = parseFloat(viewingPayroll.allowances) || 0
+                        const bonus = parseFloat(viewingPayroll.bonus) || 0
+                        const deductions = parseFloat(viewingPayroll.deductions) || 0
+                        
+                        // Calculate net salary: baseSalary + allowances + bonus - deductions
+                        const calculatedNetSalary = baseSalary + allowances + bonus - deductions
+                        
+                        // Use stored netSalary if available, otherwise use calculated value
+                        const netSalary = viewingPayroll.netSalary != null 
+                          ? parseFloat(viewingPayroll.netSalary) 
+                          : (viewingPayroll.amount != null ? parseFloat(viewingPayroll.amount) : calculatedNetSalary)
+                        
+                        return isNaN(netSalary) ? calculatedNetSalary.toFixed(2) : Math.max(0, netSalary).toFixed(2)
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -2055,7 +2431,7 @@ const Payroll = () => {
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
             <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gray-50">
               <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
-                <Settings size={24} className="text-blue-600" />
+                <Receipt size={24} className="text-blue-600" />
                 CTC Templates ({filteredCtcTemplates.length})
               </h3>
             </div>
@@ -2145,13 +2521,304 @@ const Payroll = () => {
         </>
       )}
 
+      {/* Gratuity Management View */}
+      {isAdmin && activeView === 'gratuity' && (
+        <>
+          {/* Filters and Actions for Gratuity */}
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex-1 flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Search gratuities..."
+                    value={gratuitySearchTerm}
+                    onChange={(e) => setGratuitySearchTerm(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  {gratuitySearchTerm && (
+                    <button
+                      onClick={() => setGratuitySearchTerm('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <select
+                    value={gratuityStatusFilter}
+                    onChange={(e) => setGratuityStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="All">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="PAID">Paid</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                onClick={() => handleOpenGratuityModal()}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all font-semibold whitespace-nowrap"
+              >
+                <Plus size={20} />
+                Create Gratuity
+              </button>
+            </div>
+          </div>
+
+          {/* Gratuity Table */}
+          <div className="bg-white rounded-lg shadow-lg border-2 border-gray-200">
+            <div className="p-4 border-b-2 border-gray-200 bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-3">
+                <Gift size={24} className="text-blue-600" />
+                Gratuity Records ({filteredGratuities.length})
+              </h3>
+            </div>
+            {loading && filteredGratuities.length === 0 ? (
+              <div className="p-8 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                <p className="text-gray-600">Loading gratuities...</p>
+              </div>
+            ) : filteredGratuities.length === 0 ? (
+              <div className="p-8 text-center">
+                <Gift className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Gratuity Records Found</h3>
+                <p className="text-gray-500 mb-4">
+                  {gratuities.length === 0 
+                    ? 'Create your first gratuity record to get started'
+                    : 'No gratuities match your search criteria'}
+                </p>
+                {gratuities.length === 0 && (
+                  <button
+                    onClick={() => handleOpenGratuityModal()}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    Create Gratuity
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b-2 border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Employee</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Exit Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Years of Service</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Last Drawn Salary</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Calculated Amount</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Final Amount</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredGratuities.map(gratuity => {
+                      const employee = employees.find(emp => emp.id === gratuity.employeeId || emp.id === parseInt(gratuity.employeeId))
+                      const employeeName = employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : 'N/A'
+                      
+                      return (
+                        <tr key={gratuity.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{employeeName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {gratuity.exitDate ? format(parseISO(gratuity.exitDate), 'dd MMM yyyy') : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{gratuity.yearsOfService?.toFixed(2) || '0.00'} years</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">₹{gratuity.lastDrawnSalary?.toFixed(2) || '0.00'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">₹{gratuity.calculatedAmount?.toFixed(2) || '0.00'}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-gray-900">₹{gratuity.finalAmount?.toFixed(2) || '0.00'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(gratuity.status)}`}>
+                              {gratuity.status || 'PENDING'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {gratuity.status === 'PENDING' && (
+                                <>
+                                  <button
+                                    onClick={() => handleApproveGratuity(gratuity.id)}
+                                    className="text-green-600 hover:text-green-800 p-1 rounded-lg hover:bg-green-50 transition-colors"
+                                    title="Approve"
+                                  >
+                                    <CheckCircle size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectGratuity(gratuity.id)}
+                                    className="text-red-600 hover:text-red-800 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                                    title="Reject"
+                                  >
+                                    <XCircle size={18} />
+                                  </button>
+                                </>
+                              )}
+                              {gratuity.status === 'APPROVED' && (
+                                <button
+                                  onClick={() => handleMarkGratuityAsPaid(gratuity.id)}
+                                  className="text-purple-600 hover:text-purple-800 p-1 rounded-lg hover:bg-purple-50 transition-colors"
+                                  title="Mark as Paid"
+                                >
+                                  <CheckCircle size={18} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenGratuityModal(gratuity)}
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded-lg hover:bg-blue-50 transition-colors"
+                                title="Edit"
+                              >
+                                <Edit size={18} />
+                              </button>
+                              {gratuity.status !== 'PAID' && (
+                                <button
+                                  onClick={() => handleDeleteGratuity(gratuity.id)}
+                                  className="text-red-600 hover:text-red-800 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Gratuity Modal */}
+      {showGratuityModal && isAdmin && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Gift size={24} />
+                {editingGratuity ? 'Edit Gratuity' : 'Create Gratuity'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowGratuityModal(false)
+                  setEditingGratuity(null)
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleGratuitySubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee *</label>
+                <select
+                  value={gratuityFormData.employeeId}
+                  onChange={(e) => setGratuityFormData({ ...gratuityFormData, employeeId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Employee</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.firstName} {emp.lastName} ({emp.employeeId || emp.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Exit Date *</label>
+                <input
+                  type="date"
+                  value={gratuityFormData.exitDate}
+                  onChange={(e) => setGratuityFormData({ ...gratuityFormData, exitDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCalculateGratuity}
+                  disabled={calculatingGratuity || !gratuityFormData.employeeId || !gratuityFormData.exitDate}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold"
+                >
+                  {calculatingGratuity ? 'Calculating...' : 'Calculate Gratuity'}
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Drawn Salary (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={gratuityFormData.lastDrawnSalary}
+                  onChange={(e) => setGratuityFormData({ ...gratuityFormData, lastDrawnSalary: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Years of Service *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={gratuityFormData.yearsOfService}
+                  onChange={(e) => setGratuityFormData({ ...gratuityFormData, yearsOfService: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter years of service manually (e.g., 5.5 for 5 years and 6 months)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={gratuityFormData.notes}
+                  onChange={(e) => setGratuityFormData({ ...gratuityFormData, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows="3"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGratuityModal(false)
+                    setEditingGratuity(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  {loading ? 'Saving...' : editingGratuity ? 'Update Gratuity' : 'Create Gratuity'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* View Salary Details Modal */}
       {showViewSalaryModal && viewingSalary && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
-                <DollarSign size={28} className="text-blue-600" />
+                <span className="text-blue-600 font-bold text-2xl">₹</span>
                 Salary Details
               </h3>
               <button
@@ -2366,7 +3033,7 @@ const Payroll = () => {
             <div className="flex items-center justify-between mb-6 border-b-2 border-gray-200 pb-4">
               <div>
                 <h3 className="text-3xl font-bold text-blue-600 flex items-center gap-3">
-                  <DollarSign size={32} className="text-blue-600" />
+                  <span className="text-blue-600 font-bold text-3xl">₹</span>
                   PAYSLIP
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">Employee Self-Service Portal</p>
@@ -2463,14 +3130,6 @@ const Payroll = () => {
                         </p>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Pay Date</label>
-                        <p className="text-base text-gray-900">
-                          {viewingESSPayslip.payDate 
-                            ? format(parseISO(viewingESSPayslip.payDate), 'dd MMM yyyy')
-                            : format(new Date(), 'dd MMM yyyy')}
-                        </p>
-                      </div>
-                      <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Working Days</label>
                         <p className="text-base text-gray-900">
                           {payslipDetails.attendanceDays.workingDays} days
@@ -2503,31 +3162,52 @@ const Payroll = () => {
                 </div>
               </div>
 
-              {/* Account Information */}
-              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-                <h4 className="text-xl font-bold text-gray-800 mb-4">Account Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">UAN Number</label>
-                    <p className="text-base text-gray-900">
+              {/* Account Information - Enhanced for ESS Transparency */}
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl shadow-sm p-5 border-2 border-indigo-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <FileText size={24} className="text-indigo-600" />
+                  Statutory & Banking Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">UAN Number</label>
+                    <p className="text-base font-bold text-gray-900 font-mono">
                       {payslipDetails.employee?.uan || 'N/A'}
                     </p>
+                    <p className="text-xs text-gray-500 mt-1">Universal Account Number</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">PF Account Number</label>
-                    <p className="text-base text-gray-900">
+                  <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">PF Account Number</label>
+                    <p className="text-base font-bold text-gray-900 font-mono">
                       {payslipDetails.employee?.pfAccountNumber || payslipDetails.salaryStructure?.pfAccountNumber || 'N/A'}
                     </p>
+                    <p className="text-xs text-gray-500 mt-1">Provident Fund Account</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">Bank Account</label>
-                    <p className="text-base text-gray-900 font-mono">
+                  <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">Bank Account Number</label>
+                    <p className="text-base font-bold text-gray-900 font-mono">
                       {payslipDetails.employee?.bankAccountNumber 
                         ? maskBankAccount(payslipDetails.employee.bankAccountNumber)
                         : 'N/A'}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">Masked for security</p>
                   </div>
+                  {payslipDetails.employee?.bankName && (
+                    <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">Bank Name</label>
+                      <p className="text-base font-semibold text-gray-900">
+                        {payslipDetails.employee.bankName}
+                      </p>
+                    </div>
+                  )}
+                  {payslipDetails.employee?.ifscCode && (
+                    <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">IFSC Code</label>
+                      <p className="text-base font-bold text-gray-900 font-mono">
+                        {payslipDetails.employee.ifscCode}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2541,7 +3221,14 @@ const Payroll = () => {
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-sm font-semibold text-gray-700">Basic Salary</span>
                     <span className="text-base font-bold text-gray-900">
-                      ₹{viewingESSPayslip.basicSalary?.toFixed(2) || '0.00'}
+                      ₹{(() => {
+                        // Use basicSalary from mapped data, fallback to baseSalary, then salaryStructure, then 0
+                        const basicSalary = viewingESSPayslip.basicSalary || 
+                                          viewingESSPayslip.baseSalary || 
+                                          payslipDetails.salaryStructure?.basicSalary || 
+                                          0
+                        return parseFloat(basicSalary || 0).toFixed(2)
+                      })()}
                     </span>
                   </div>
                   {viewingESSPayslip.hra > 0 && (
@@ -2595,9 +3282,21 @@ const Payroll = () => {
                   <div className="flex justify-between items-center py-3 border-t-2 border-gray-300 mt-2">
                     <span className="text-lg font-bold text-gray-800">Total Earnings</span>
                     <span className="text-xl font-bold text-green-600">
-                      ₹{viewingESSPayslip.allowances 
-                        ? (viewingESSPayslip.basicSalary + viewingESSPayslip.allowances + (viewingESSPayslip.bonus || 0)).toFixed(2)
-                        : (viewingESSPayslip.basicSalary + (viewingESSPayslip.bonus || 0)).toFixed(2)}
+                      ₹{(() => {
+                        // Get basicSalary with fallbacks
+                        const basicSalary = parseFloat(viewingESSPayslip.basicSalary || viewingESSPayslip.baseSalary || payslipDetails.salaryStructure?.basicSalary || 0) || 0
+                        const hra = parseFloat(viewingESSPayslip.hra || payslipDetails.salaryStructure?.hra || 0) || 0
+                        const bonus = parseFloat(viewingESSPayslip.bonus) || 0
+                        const specialAllowance = parseFloat(payslipDetails.salaryStructure?.specialAllowance) || 0
+                        const transportAllowance = parseFloat(payslipDetails.salaryStructure?.transportAllowance) || 0
+                        const medicalAllowance = parseFloat(payslipDetails.salaryStructure?.medicalAllowance) || 0
+                        const otherAllowances = parseFloat(payslipDetails.salaryStructure?.otherAllowances) || 0
+                        const allowances = parseFloat(viewingESSPayslip.allowances) || 0
+                        
+                        // Calculate total earnings from all components
+                        const totalEarnings = basicSalary + hra + bonus + specialAllowance + transportAllowance + medicalAllowance + otherAllowances + allowances
+                        return isNaN(totalEarnings) ? '0.00' : totalEarnings.toFixed(2)
+                      })()}
                     </span>
                   </div>
                 </div>
@@ -2710,7 +3409,64 @@ const Payroll = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-4xl font-bold text-green-600">
-                      ₹{viewingESSPayslip.netSalary?.toFixed(2) || viewingESSPayslip.amount?.toFixed(2) || '0.00'}
+                      ₹{(() => {
+                        // Get basicSalary with fallbacks
+                        const basicSalary = parseFloat(viewingESSPayslip.basicSalary || viewingESSPayslip.baseSalary || payslipDetails.salaryStructure?.basicSalary || 0) || 0
+                        const hra = parseFloat(viewingESSPayslip.hra || payslipDetails.salaryStructure?.hra || 0) || 0
+                        const bonus = parseFloat(viewingESSPayslip.bonus || 0) || 0
+                        const allowances = parseFloat(viewingESSPayslip.allowances || 0) || 0
+                        const specialAllowance = parseFloat(payslipDetails.salaryStructure?.specialAllowance || 0) || 0
+                        const transportAllowance = parseFloat(payslipDetails.salaryStructure?.transportAllowance || 0) || 0
+                        const medicalAllowance = parseFloat(payslipDetails.salaryStructure?.medicalAllowance || 0) || 0
+                        const otherAllowances = parseFloat(payslipDetails.salaryStructure?.otherAllowances || 0) || 0
+                        
+                        // Calculate total earnings - sum all components
+                        const totalEarnings = basicSalary + hra + bonus + allowances + specialAllowance + transportAllowance + medicalAllowance + otherAllowances
+                        
+                        // Calculate total deductions - sum all individual deductions
+                        const pf = parseFloat(payslipDetails.salaryStructure?.pf || 0) || 0
+                        const esi = parseFloat(payslipDetails.salaryStructure?.esi || 0) || 0
+                        const professionalTax = parseFloat(payslipDetails.salaryStructure?.professionalTax || 0) || 0
+                        const tds = parseFloat(payslipDetails.salaryStructure?.tds || 0) || 0
+                        const otherDeductions = parseFloat(payslipDetails.salaryStructure?.otherDeductions || 0) || 0
+                        const payrollDeductions = parseFloat(viewingESSPayslip.deductions || 0) || 0
+                        
+                        // Use payroll deductions if it's greater than 0, otherwise sum individual deductions
+                        const totalDeductions = payrollDeductions > 0 
+                          ? payrollDeductions 
+                          : (pf + esi + professionalTax + tds + otherDeductions)
+                        
+                        // Calculate net salary: Total Earnings - Total Deductions
+                        const calculatedNetSalary = totalEarnings - totalDeductions
+                        
+                        // Use stored netSalary if available and greater than 0, otherwise use calculated value
+                        // If stored value is 0 but we have earnings, use calculated value instead
+                        const storedNetSalary = viewingESSPayslip.netSalary != null ? parseFloat(viewingESSPayslip.netSalary) : null
+                        const storedAmount = viewingESSPayslip.amount != null ? parseFloat(viewingESSPayslip.amount) : null
+                        
+                        let netSalary = calculatedNetSalary
+                        
+                        // Only use stored values if they're greater than 0 AND we have earnings
+                        // This handles cases where proration might have set netSalary to 0
+                        if (totalEarnings > 0) {
+                          if (storedNetSalary != null && storedNetSalary > 0) {
+                            // Use stored net salary (may be prorated)
+                            netSalary = storedNetSalary
+                          } else {
+                            // If stored netSalary is 0 or null, use calculated value
+                            // This ensures we show the correct net salary even if proration set it to 0
+                            netSalary = calculatedNetSalary
+                          }
+                        } else {
+                          // No earnings, use stored value or 0
+                          netSalary = (storedNetSalary != null && storedNetSalary > 0) ? storedNetSalary : 0
+                        }
+                        
+                        // Ensure net salary is never negative
+                        netSalary = Math.max(0, netSalary)
+                        
+                        return isNaN(netSalary) ? '0.00' : netSalary.toFixed(2)
+                      })()}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {viewingESSPayslip.status || 'DRAFT'}
@@ -2719,13 +3475,21 @@ const Payroll = () => {
                 </div>
               </div>
 
-              {/* Footer Note */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p className="text-xs text-gray-600 text-center">
-                  <strong>Note:</strong> This is a system-generated payslip. For any discrepancies, please contact HR.
-                  <br />
-                  This document is password-protected. Keep it confidential.
-                </p>
+              {/* Footer Note - Enhanced for ESS Transparency */}
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 border-2 border-gray-200">
+                <div className="flex items-start gap-3">
+                  <Info className="text-blue-600 mt-0.5 flex-shrink-0" size={20} />
+                  <div className="text-xs text-gray-700">
+                    <p className="font-semibold mb-1">Employee Self-Service Portal - Payroll Transparency</p>
+                    <ul className="list-disc list-inside space-y-1 text-gray-600">
+                      <li>This is a system-generated payslip. For any discrepancies, please contact HR.</li>
+                      <li>Downloaded PDF payslips are password-protected for your security.</li>
+                      <li>Password: Your Employee ID (e.g., {payslipDetails.employee?.employeeId || payslipDetails.employee?.id || 'EMP001'})</li>
+                      <li>Keep this document confidential and secure.</li>
+                      <li>All historical payslips are available in your payroll archive.</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2738,7 +3502,7 @@ const Payroll = () => {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
-                <Settings size={28} className="text-blue-600" />
+                <Receipt size={28} className="text-blue-600" />
                 {editingCtcTemplate ? 'Edit CTC Template' : 'Create CTC Template'}
               </h3>
               <button

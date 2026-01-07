@@ -3,7 +3,9 @@ package com.hrms.service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -53,6 +55,9 @@ public class PayrollService {
         // Calculate net amount
         double amount = payroll.getBaseSalary() + payroll.getAllowances() + payroll.getBonus() - payroll.getDeductions();
         payroll.setAmount(amount);
+        payroll.setNetSalary(amount);
+        payroll.setStatus("DRAFT");
+        payroll.setCreatedAt(java.time.LocalDateTime.now());
         return payrollRepository.save(payroll);
     }
 
@@ -110,12 +115,33 @@ public class PayrollService {
      */
     @Transactional
     public Payroll processEmployeePayroll(@NonNull Long employeeId, LocalDate startDate, LocalDate endDate, String month, Integer year) {
-        // Check if payroll already exists for this period
-        Optional<Payroll> existing = payrollRepository.findAll().stream()
-                .filter(p -> p.getEmployeeId().equals(employeeId) 
-                        && p.getMonth().equals(month) 
-                        && p.getYear().equals(year))
-                .findFirst();
+        // Check if payroll already exists for this period (find all duplicates)
+        List<Payroll> existingPayrolls = payrollRepository.findByEmployeeIdAndMonthAndYear(employeeId, month, year);
+        Optional<Payroll> existing = existingPayrolls.stream().findFirst();
+        
+        // If duplicates exist, remove them before processing (keep only the first one)
+        if (existingPayrolls.size() > 1) {
+            // Keep the one with the highest status priority or most recent
+            Payroll bestPayroll = existingPayrolls.stream()
+                    .max((p1, p2) -> {
+                        // Priority: FINALIZED > APPROVED > PENDING_APPROVAL > DRAFT
+                        int statusCompare = getStatusPriority(p1.getStatus()) - getStatusPriority(p2.getStatus());
+                        if (statusCompare != 0) return statusCompare;
+                        // If same status, prefer the one with higher net salary or more recent
+                        if (p1.getNetSalary() != null && p2.getNetSalary() != null) {
+                            return Double.compare(p1.getNetSalary(), p2.getNetSalary());
+                        }
+                        return 0;
+                    })
+                    .orElse(existingPayrolls.get(0));
+            
+            // Delete all duplicates except the best one
+            existingPayrolls.stream()
+                    .filter(p -> !p.getId().equals(bestPayroll.getId()))
+                    .forEach(p -> payrollRepository.delete(p));
+            
+            existing = Optional.of(bestPayroll);
+        }
 
         // Allow reprocessing if status is DRAFT or PENDING_APPROVAL (to fix incorrect values)
         if (existing.isPresent() && !"DRAFT".equals(existing.get().getStatus()) && !"PENDING_APPROVAL".equals(existing.get().getStatus())) {
@@ -220,6 +246,8 @@ public class PayrollService {
 
         // Create or update payroll
         Payroll payroll = existing.orElse(new Payroll());
+        boolean isNew = payroll.getId() == null;
+        
         payroll.setEmployeeId(employeeId);
         payroll.setMonth(month);
         payroll.setYear(year);
@@ -233,29 +261,54 @@ public class PayrollService {
         payroll.setAmount(grossSalary);
         // Net salary is prorated based on attendance/leaves
         payroll.setNetSalary(netSalary);
-        payroll.setStatus("PENDING_APPROVAL");
+        
+        // Set workflow timestamps
+        if (isNew) {
+            payroll.setCreatedAt(java.time.LocalDateTime.now());
+            payroll.setStatus("DRAFT");
+        } else if (payroll.canBeEdited()) {
+            // Only update if in editable status
+            payroll.setStatus("DRAFT");
+        }
 
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
     }
 
     /**
-     * Submit payroll for approval (moves from DRAFT to PENDING_APPROVAL)
+     * Submit payroll for approval (moves from DRAFT/REJECTED to PENDING_APPROVAL)
      */
     @Transactional
-    public Payroll submitPayrollForApproval(@NonNull Long payrollId) {
+    public Payroll submitPayrollForApproval(@NonNull Long payrollId, Long submittedByUserId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
-        if (!"DRAFT".equals(payroll.getStatus())) {
-            throw new RuntimeException("Payroll must be in DRAFT status to submit for approval");
+        if (!payroll.canBeSubmitted()) {
+            throw new RuntimeException("Payroll must be in DRAFT or REJECTED status to submit for approval. Current status: " + payroll.getStatus());
         }
 
         // Validate that payroll has valid amounts
         if (payroll.getNetSalary() == null || payroll.getNetSalary() <= 0) {
             throw new RuntimeException("Cannot submit payroll with zero or invalid net salary. Please edit the payroll first.");
         }
+        
+        // Validate required fields
+        if (payroll.getBaseSalary() == null || payroll.getBaseSalary() < 0) {
+            throw new RuntimeException("Base salary must be set and non-negative");
+        }
+        if (payroll.getAmount() == null || payroll.getAmount() < 0) {
+            throw new RuntimeException("Gross amount must be calculated and non-negative");
+        }
 
         payroll.setStatus("PENDING_APPROVAL");
+        payroll.setSubmittedAt(java.time.LocalDateTime.now());
+        payroll.setSubmittedBy(submittedByUserId);
+        // Clear rejection fields if resubmitting after rejection
+        if ("REJECTED".equals(payroll.getStatus())) {
+            payroll.setRejectedAt(null);
+            payroll.setRejectedBy(null);
+            payroll.setRejectionReason(null);
+        }
+        
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
     }
 
@@ -263,15 +316,40 @@ public class PayrollService {
      * Approve payroll (moves from PENDING_APPROVAL to APPROVED)
      */
     @Transactional
-    public Payroll approvePayroll(@NonNull Long payrollId) {
+    public Payroll approvePayroll(@NonNull Long payrollId, Long approvedByUserId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
-        if (!"PENDING_APPROVAL".equals(payroll.getStatus())) {
-            throw new RuntimeException("Payroll is not in PENDING_APPROVAL status");
+        if (!payroll.canBeApproved()) {
+            throw new RuntimeException("Payroll is not in PENDING_APPROVAL status. Current status: " + payroll.getStatus());
         }
 
         payroll.setStatus("APPROVED");
+        payroll.setApprovedAt(java.time.LocalDateTime.now());
+        payroll.setApprovedBy(approvedByUserId);
+        return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
+    }
+    
+    /**
+     * Reject payroll (moves from PENDING_APPROVAL to REJECTED)
+     */
+    @Transactional
+    public Payroll rejectPayroll(@NonNull Long payrollId, String rejectionReason, Long rejectedByUserId) {
+        Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
+                .orElseThrow(() -> new RuntimeException("Payroll not found"));
+
+        if (!payroll.canBeRejected()) {
+            throw new RuntimeException("Payroll is not in PENDING_APPROVAL status. Current status: " + payroll.getStatus());
+        }
+        
+        if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
+            throw new RuntimeException("Rejection reason is required");
+        }
+
+        payroll.setStatus("REJECTED");
+        payroll.setRejectedAt(java.time.LocalDateTime.now());
+        payroll.setRejectedBy(rejectedByUserId);
+        payroll.setRejectionReason(rejectionReason);
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
     }
 
@@ -279,15 +357,22 @@ public class PayrollService {
      * Finalize payroll (moves from APPROVED to FINALIZED and generates payslips)
      */
     @Transactional
-    public Payroll finalizePayroll(@NonNull Long payrollId) {
+    public Payroll finalizePayroll(@NonNull Long payrollId, Long finalizedByUserId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
-        if (!"APPROVED".equals(payroll.getStatus())) {
-            throw new RuntimeException("Payroll must be APPROVED before finalization");
+        if (!payroll.canBeFinalized()) {
+            throw new RuntimeException("Payroll must be APPROVED before finalization. Current status: " + payroll.getStatus());
+        }
+        
+        // Final validation before finalization
+        if (payroll.getNetSalary() == null || payroll.getNetSalary() <= 0) {
+            throw new RuntimeException("Cannot finalize payroll with zero or invalid net salary");
         }
 
         payroll.setStatus("FINALIZED");
+        payroll.setFinalizedAt(java.time.LocalDateTime.now());
+        payroll.setFinalizedBy(finalizedByUserId);
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
     }
 
@@ -295,14 +380,19 @@ public class PayrollService {
      * Finalize all approved payrolls for a period
      */
     @Transactional
-    public List<Payroll> finalizeAllApprovedPayrolls(String month, Integer year) {
+    public List<Payroll> finalizeAllApprovedPayrolls(String month, Integer year, Long finalizedByUserId) {
         List<Payroll> approvedPayrolls = payrollRepository.findAll().stream()
                 .filter(p -> "APPROVED".equals(p.getStatus())
                         && p.getMonth().equals(month)
                         && p.getYear().equals(year))
                 .collect(Collectors.toList());
 
-        approvedPayrolls.forEach(p -> p.setStatus("FINALIZED"));
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        approvedPayrolls.forEach(p -> {
+            p.setStatus("FINALIZED");
+            p.setFinalizedAt(now);
+            p.setFinalizedBy(finalizedByUserId);
+        });
         return payrollRepository.saveAll(approvedPayrolls);
     }
 
@@ -310,15 +400,17 @@ public class PayrollService {
      * Mark payroll as paid (moves from FINALIZED to PAID)
      */
     @Transactional
-    public Payroll markPayrollAsPaid(@NonNull Long payrollId) {
+    public Payroll markPayrollAsPaid(@NonNull Long payrollId, Long paidByUserId) {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
-        if (!"FINALIZED".equals(payroll.getStatus())) {
-            throw new RuntimeException("Payroll must be FINALIZED before marking as paid");
+        if (!payroll.canBePaid()) {
+            throw new RuntimeException("Payroll must be FINALIZED before marking as paid. Current status: " + payroll.getStatus());
         }
 
         payroll.setStatus("PAID");
+        payroll.setPaidAt(java.time.LocalDateTime.now());
+        payroll.setPaidBy(paidByUserId);
         return payrollRepository.save(java.util.Objects.requireNonNull(payroll));
     }
 
@@ -330,9 +422,9 @@ public class PayrollService {
         Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
-        // Only allow updates for DRAFT or PENDING_APPROVAL status
-        if (!"DRAFT".equals(payroll.getStatus()) && !"PENDING_APPROVAL".equals(payroll.getStatus())) {
-            throw new RuntimeException("Payroll can only be updated when status is DRAFT or PENDING_APPROVAL");
+        // Only allow updates for editable statuses
+        if (!payroll.canBeEdited()) {
+            throw new RuntimeException("Payroll can only be updated when status is DRAFT, PENDING_APPROVAL, or REJECTED. Current status: " + payroll.getStatus());
         }
 
         // Update allowed fields
@@ -365,11 +457,122 @@ public class PayrollService {
         Payroll payroll = payrollRepository.findById(payrollId)
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
-        // Only allow deletion for DRAFT or PENDING_APPROVAL status
-        if (!"DRAFT".equals(payroll.getStatus()) && !"PENDING_APPROVAL".equals(payroll.getStatus())) {
-            throw new RuntimeException("Payroll can only be deleted when status is DRAFT or PENDING_APPROVAL");
+        // Only allow deletion for deletable statuses
+        if (!payroll.canBeDeleted()) {
+            throw new RuntimeException("Payroll can only be deleted when status is DRAFT, PENDING_APPROVAL, or REJECTED. Current status: " + payroll.getStatus());
         }
 
         payrollRepository.delete(payroll);
+    }
+    
+    /**
+     * Remove duplicate payroll records for all employees
+     * Keeps the best payroll (highest status priority, highest net salary) for each employee-month-year combination
+     */
+    @Transactional
+    public int removeDuplicatePayrolls() {
+        List<Payroll> allPayrolls = payrollRepository.findAll();
+        Map<String, List<Payroll>> payrollGroups = new HashMap<>();
+        
+        // Group payrolls by employeeId-month-year
+        for (Payroll payroll : allPayrolls) {
+            String key = payroll.getEmployeeId() + "-" + payroll.getMonth() + "-" + payroll.getYear();
+            payrollGroups.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(payroll);
+        }
+        
+        int duplicatesRemoved = 0;
+        
+        // For each group, keep only the best payroll
+        for (Map.Entry<String, List<Payroll>> entry : payrollGroups.entrySet()) {
+            List<Payroll> group = entry.getValue();
+            if (group.size() > 1) {
+                // Find the best payroll (highest status priority, highest net salary)
+                Payroll bestPayroll = group.stream()
+                        .max((p1, p2) -> {
+                            int statusCompare = getStatusPriority(p1.getStatus()) - getStatusPriority(p2.getStatus());
+                            if (statusCompare != 0) return statusCompare;
+                            if (p1.getNetSalary() != null && p2.getNetSalary() != null) {
+                                return Double.compare(p1.getNetSalary(), p2.getNetSalary());
+                            }
+                            // If net salary is null, prefer the one with higher gross amount
+                            if (p1.getAmount() != null && p2.getAmount() != null) {
+                                return Double.compare(p1.getAmount(), p2.getAmount());
+                            }
+                            return 0;
+                        })
+                        .orElse(group.get(0));
+                
+                // Delete all duplicates except the best one
+                for (Payroll payroll : group) {
+                    if (!payroll.getId().equals(bestPayroll.getId())) {
+                        payrollRepository.delete(payroll);
+                        duplicatesRemoved++;
+                    }
+                }
+            }
+        }
+        
+        return duplicatesRemoved;
+    }
+    
+    /**
+     * Remove duplicate payroll records for a specific employee
+     */
+    @Transactional
+    public int removeDuplicatePayrollsForEmployee(@NonNull Long employeeId) {
+        List<Payroll> employeePayrolls = payrollRepository.findByEmployeeId(employeeId);
+        Map<String, List<Payroll>> payrollGroups = new HashMap<>();
+        
+        // Group payrolls by month-year
+        for (Payroll payroll : employeePayrolls) {
+            String key = payroll.getMonth() + "-" + payroll.getYear();
+            payrollGroups.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(payroll);
+        }
+        
+        int duplicatesRemoved = 0;
+        
+        // For each group, keep only the best payroll
+        for (Map.Entry<String, List<Payroll>> entry : payrollGroups.entrySet()) {
+            List<Payroll> group = entry.getValue();
+            if (group.size() > 1) {
+                Payroll bestPayroll = group.stream()
+                        .max((p1, p2) -> {
+                            int statusCompare = getStatusPriority(p1.getStatus()) - getStatusPriority(p2.getStatus());
+                            if (statusCompare != 0) return statusCompare;
+                            if (p1.getNetSalary() != null && p2.getNetSalary() != null) {
+                                return Double.compare(p1.getNetSalary(), p2.getNetSalary());
+                            }
+                            if (p1.getAmount() != null && p2.getAmount() != null) {
+                                return Double.compare(p1.getAmount(), p2.getAmount());
+                            }
+                            return 0;
+                        })
+                        .orElse(group.get(0));
+                
+                for (Payroll payroll : group) {
+                    if (!payroll.getId().equals(bestPayroll.getId())) {
+                        payrollRepository.delete(payroll);
+                        duplicatesRemoved++;
+                    }
+                }
+            }
+        }
+        
+        return duplicatesRemoved;
+    }
+    
+    /**
+     * Get status priority for sorting (higher number = higher priority)
+     */
+    private int getStatusPriority(String status) {
+        if (status == null) return 0;
+        switch (status.toUpperCase()) {
+            case "FINALIZED": return 4;
+            case "PAID": return 4;
+            case "APPROVED": return 3;
+            case "PENDING_APPROVAL": return 2;
+            case "DRAFT": return 1;
+            default: return 0;
+        }
     }
 }

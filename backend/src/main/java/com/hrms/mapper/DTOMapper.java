@@ -3,8 +3,10 @@ package com.hrms.mapper;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.hrms.dto.GratuityDTO;
 import com.hrms.dto.PayrollDTO;
 import com.hrms.dto.UserDTO;
+import com.hrms.entity.Gratuity;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.User;
 
@@ -62,6 +64,44 @@ public class DTOMapper {
         }
         return payrolls.stream()
                 .map(DTOMapper::toPayrollDTO)
+                .collect(Collectors.toList());
+    }
+
+    // Gratuity mapping methods
+    public static GratuityDTO toGratuityDTO(Gratuity gratuity) {
+        if (gratuity == null) {
+            return null;
+        }
+        GratuityDTO dto = new GratuityDTO();
+        dto.setId(gratuity.getId());
+        dto.setEmployeeId(gratuity.getEmployeeId());
+        if (gratuity.getEmployee() != null) {
+            dto.setEmployeeName(gratuity.getEmployee().getName());
+            dto.setEmployeeEmail(gratuity.getEmployee().getEmail());
+        }
+        dto.setLastDrawnSalary(gratuity.getLastDrawnSalary());
+        dto.setYearsOfService(gratuity.getYearsOfService());
+        dto.setCalculatedAmount(gratuity.getCalculatedAmount());
+        dto.setFinalAmount(gratuity.getFinalAmount());
+        dto.setExitDate(gratuity.getExitDate());
+        dto.setPaymentDate(gratuity.getPaymentDate());
+        dto.setStatus(gratuity.getStatus());
+        dto.setNotes(gratuity.getNotes());
+        dto.setCreatedAt(gratuity.getCreatedAt());
+        dto.setApprovedAt(gratuity.getApprovedAt());
+        dto.setPaidAt(gratuity.getPaidAt());
+        dto.setCreatedBy(gratuity.getCreatedBy());
+        dto.setApprovedBy(gratuity.getApprovedBy());
+        dto.setPaidBy(gratuity.getPaidBy());
+        return dto;
+    }
+
+    public static List<GratuityDTO> toGratuityDTOList(List<Gratuity> gratuities) {
+        if (gratuities == null) {
+            return List.of();
+        }
+        return gratuities.stream()
+                .map(DTOMapper::toGratuityDTO)
                 .collect(Collectors.toList());
     }
 }
