@@ -99,7 +99,7 @@ public class Payroll {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
-    private Employee employee;
+    private User employee;
 
     // Constructors
     public Payroll() {
@@ -107,7 +107,7 @@ public class Payroll {
 
     public Payroll(Long id, Long employeeId, String month, Integer year, LocalDate startDate, LocalDate endDate,
                   Double baseSalary, Double allowances, Double deductions, Double bonus, Double amount, 
-                  Double netSalary, String status, String notes, Employee employee) {
+                  Double netSalary, String status, String notes, User employee) {
         this.id = id;
         this.employeeId = employeeId;
         this.month = month;
@@ -222,11 +222,11 @@ public class Payroll {
         this.notes = notes;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 

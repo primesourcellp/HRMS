@@ -812,7 +812,7 @@ const Payroll = () => {
   const handleExportCSV = () => {
     const csvData = filteredPayrolls.map(p => {
       const employee = employees.find(emp => emp.id === p.employeeId || emp.id === parseInt(p.employeeId))
-      const employeeName = employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : 'N/A'
+      const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
       return {
         Employee: employeeName,
         'Month/Year': p.month && p.year ? `${p.month}/${p.year}` : p.month || 'N/A',
@@ -859,7 +859,7 @@ const Payroll = () => {
       (isAdmin && (() => {
         const emp = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
         if (!emp) return false
-        const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase()
+        const fullName = (emp.name || '').toLowerCase()
         return fullName.includes(searchTerm.toLowerCase()) || 
                emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                emp.email?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1270,7 +1270,7 @@ const Payroll = () => {
                   if (!searchTerm) return true
                   const emp = employees.find(e => e.id === s.employeeId)
                   if (!emp) return false
-                  const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase()
+                  const fullName = (emp.name || '').toLowerCase()
                   return fullName.includes(searchTerm.toLowerCase()) || 
                          emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase())
                 }).length})
@@ -1298,12 +1298,12 @@ const Payroll = () => {
                     if (!searchTerm) return true
                     const emp = employees.find(e => e.id === s.employeeId)
                     if (!emp) return false
-                    const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase()
+                    const fullName = (emp.name || '').toLowerCase()
                     return fullName.includes(searchTerm.toLowerCase()) || 
                            emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase())
                   }).map((salary, index) => {
                     const employee = employees.find(emp => emp.id === salary.employeeId)
-                    const employeeName = employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : `Employee ${salary.employeeId}`
+                    const employeeName = employee ? (employee.name || `Employee ${salary.employeeId}`) : `Employee ${salary.employeeId}`
                     const totalAllowances = (salary.transportAllowance || 0) + (salary.medicalAllowance || 0) + (salary.specialAllowance || 0) + (salary.otherAllowances || 0)
                     const totalDeductions = (salary.pf || 0) + (salary.esi || 0) + (salary.tds || 0) + (salary.professionalTax || 0) + (salary.otherDeductions || 0)
                     return (
@@ -1519,7 +1519,7 @@ const Payroll = () => {
               ) : (
                 filteredPayrolls.map((payroll) => {
                   const employee = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
-                  const employeeName = employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : 'N/A'
+                  const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
                   const netSalary = (payroll.netSalary || payroll.amount || 0).toFixed(2)
                   
                   return (
@@ -1681,7 +1681,7 @@ const Payroll = () => {
                       <option value="">Select Employee</option>
                       {employees.map(emp => (
                         <option key={emp.id} value={emp.id}>
-                          {emp.firstName} {emp.lastName} {emp.employeeId ? `(${emp.employeeId})` : ''} {emp.client ? `- ${emp.client}` : ''}
+                          {emp.name || `Employee ${emp.id}`} {emp.employeeId ? `(${emp.employeeId})` : ''} {emp.client ? `- ${emp.client}` : ''}
                         </option>
                       ))}
                     </select>
@@ -2025,7 +2025,7 @@ const Payroll = () => {
                     >
                       <option value="">Select Employee</option>
                       {employees.map((emp) => {
-                        const employeeName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unnamed Employee'
+                        const employeeName = emp.name || 'Unnamed Employee'
                         return (
                           <option key={emp.id} value={emp.id}>
                             {employeeName} {emp.employeeId ? `(${emp.employeeId})` : `(ID: ${emp.id})`}
@@ -2265,8 +2265,6 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-600 mb-1">Employee</label>
                     <p className="text-base text-gray-900">
                       {employees.find(e => e.id === viewingPayroll.employeeId)?.name || 
-                       employees.find(e => e.id === viewingPayroll.employeeId)?.firstName + ' ' + 
-                       employees.find(e => e.id === viewingPayroll.employeeId)?.lastName || 
                        `Employee ID: ${viewingPayroll.employeeId}`}
                     </p>
                   </div>
@@ -2841,8 +2839,6 @@ const Payroll = () => {
                     <label className="block text-sm font-semibold text-gray-600 mb-1">Employee</label>
                     <p className="text-base text-gray-900">
                       {employees.find(e => e.id === viewingSalary.employeeId)?.name || 
-                       (employees.find(e => e.id === viewingSalary.employeeId)?.firstName + ' ' + 
-                        employees.find(e => e.id === viewingSalary.employeeId)?.lastName) || 
                        `Employee ID: ${viewingSalary.employeeId}`}
                     </p>
                     {employees.find(e => e.id === viewingSalary.employeeId)?.employeeId && (
@@ -3070,9 +3066,7 @@ const Payroll = () => {
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Employee Name</label>
                         <p className="text-base font-bold text-gray-900">
-                          {payslipDetails.employee?.name || 
-                           `${payslipDetails.employee?.firstName || ''} ${payslipDetails.employee?.lastName || ''}`.trim() || 
-                           'N/A'}
+                          {payslipDetails.employee?.name || 'N/A'}
                         </p>
                       </div>
                       <div>

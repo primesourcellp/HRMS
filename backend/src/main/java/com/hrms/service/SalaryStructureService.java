@@ -2,7 +2,7 @@ package com.hrms.service;
 
 import com.hrms.entity.SalaryStructure;
 import com.hrms.repository.SalaryStructureRepository;
-import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.lang.NonNull;
@@ -18,10 +18,10 @@ public class SalaryStructureService {
     private SalaryStructureRepository salaryStructureRepository;
 
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private UserRepository userRepository;
 
     public SalaryStructure createSalaryStructure(SalaryStructure salaryStructure) {
-        employeeRepository.findById(java.util.Objects.requireNonNull(salaryStructure.getEmployeeId()))
+        userRepository.findById(java.util.Objects.requireNonNull(salaryStructure.getEmployeeId()))
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         // Deactivate previous salary structures

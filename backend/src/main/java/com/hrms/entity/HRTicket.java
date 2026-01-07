@@ -45,7 +45,7 @@ public class HRTicket {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
-    private Employee employee;
+    private User employee;
 
     // Constructors
     public HRTicket() {
@@ -54,7 +54,7 @@ public class HRTicket {
 
     public HRTicket(Long id, Long employeeId, String ticketType, String subject, String description,
                    String status, String priority, Long assignedTo, LocalDateTime createdAt,
-                   LocalDateTime updatedAt, LocalDateTime resolvedAt, String resolution, Employee employee) {
+                   LocalDateTime updatedAt, LocalDateTime resolvedAt, String resolution, User employee) {
         this.id = id;
         this.employeeId = employeeId;
         this.ticketType = ticketType;
@@ -167,11 +167,11 @@ public class HRTicket {
         this.resolution = resolution;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 }

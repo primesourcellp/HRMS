@@ -251,7 +251,7 @@ const HRTickets = () => {
     try {
       const employee = employees.find(emp => emp && emp.id === employeeId)
       if (employee) {
-        return employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'
+        return employee.name || 'Unknown'
       }
       return 'Unknown'
     } catch (err) {

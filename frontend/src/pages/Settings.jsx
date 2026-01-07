@@ -220,7 +220,7 @@ const Settings = () => {
         if (employee) {
           const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
           setProfileData({
-            name: employee.name || employee.firstName + ' ' + (employee.lastName || '') || '',
+            name: employee.name || '',
             email: employee.email || '',
             phone: employee.phone || employee.personalMobileNumber || '',
             department: employee.department || '',
@@ -279,8 +279,7 @@ const Settings = () => {
         
         if (employee) {
           await api.updateEmployee(employee.id, {
-            firstName: profileData.name.split(' ')[0] || profileData.name,
-            lastName: profileData.name.split(' ').slice(1).join(' ') || '',
+            name: profileData.name || '',
             email: profileData.email,
             phone: profileData.phone,
             personalMobileNumber: profileData.phone,

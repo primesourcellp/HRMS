@@ -36,8 +36,7 @@ useEffect(() => {
         // Pre-fill form with user data
         setFormData(prev => ({
           ...prev,
-          firstName: userData.name?.split(' ')[0] || '',
-          lastName: userData.name?.split(' ').slice(1).join(' ') || '',
+          name: userData.name || '',
           email: userData.email || '',
           password: userData.password || '',
           role: 'EMPLOYEE'
@@ -56,10 +55,13 @@ if (!canManageEmployees || isEmployee) {
 return null // Will redirect via useEffect 
 } 
 const [employees, setEmployees] = useState([]) 
+const [users, setUsers] = useState([]) 
 const [documents, setDocuments] = useState({}) 
-const [searchTerm, setSearchTerm] = useState('') 
+const [nameSearchTerm, setNameSearchTerm] = useState('')
+const [emailSearchTerm, setEmailSearchTerm] = useState('') 
 const [statusFilter, setStatusFilter] = useState('All') 
-const [clientFilter, setClientFilter] = useState('All') 
+const [clientFilter, setClientFilter] = useState('All')
+const [roleFilter, setRoleFilter] = useState('All') 
 const [clients, setClients] = useState([]) 
 const [showModal, setShowModal] = useState(false) 
 const [showDocModal, setShowDocModal] = useState(false) 
@@ -73,8 +75,7 @@ const [error, setError] = useState(null)
 const [openMenuId, setOpenMenuId] = useState(null) 
 const [formData, setFormData] = useState({ 
 employeeId: '', 
-firstName: '', 
-lastName: '',
+name: '',
 client: '', 
 email: '', 
 password: '', 
@@ -145,6 +146,21 @@ useEffect(() => {
 
 useEffect(() => { 
   loadEmployees() 
+  // Also load non-employee users so we can show them in the list
+  ;(async () => {
+    try {
+      const list = await api.getUsers()
+      // Include all users except SUPER_ADMIN (HR_ADMIN, MANAGER, FINANCE, EMPLOYEE are all included)
+      const filtered = Array.isArray(list) ? list.filter(u => {
+        const role = (u.role || '').toUpperCase()
+        return role !== 'SUPER_ADMIN'
+      }) : []
+      setUsers(filtered)
+    } catch (e) {
+      console.error('Error loading users:', e)
+      setUsers([])
+    }
+  })()
 }, [])
 
 const loadDesignations = (employeesList) => {
@@ -227,8 +243,7 @@ const formattedJoinDate = formatDateForInput(editingEmployee.dateOfJoining)
 const formattedDateOfBirth = formatDateForInput(editingEmployee.dateOfBirth) 
 setFormData({ 
 employeeId: editingEmployee.employeeId || '', 
-firstName: editingEmployee.firstName || '', 
-lastName: editingEmployee.lastName || '',
+name: editingEmployee.name || '',
 client: editingEmployee.client || '', 
 email: editingEmployee.email || '', 
 password: '',  // Never show password when editing
@@ -277,8 +292,7 @@ setEducationDetails(editingEmployee.educationDetails || [])
 // Ensure form is completely empty when adding new employee - DO NOT show admin email/password
 setFormData({ 
 employeeId: '', 
-firstName: '', 
-lastName: '',
+name: '',
 client: '', 
 email: '',  // MUST be empty - never show admin email
 password: '',  // MUST be empty - never show admin password
@@ -350,12 +364,12 @@ const loadEmployees = async () => {
 			} else { 
 				console.error('Invalid data format:', data) 
 				setEmployees([]) 
-				const message = data && data.error ? data.error : 'Failed to load employees. Invalid data format received.'
+				const message = data && data.error ? data.error : 'Failed to load users. Invalid data format received.'
 				setError(message) 
 			} 
 } catch (error) { 
-console.error('Error loading employees:', error) 
-setError('Failed to load employees: ' + (error.message || 'Unknown error')) 
+console.error('Error loading users:', error) 
+setError('Failed to load users: ' + (error.message || 'Unknown error')) 
 setEmployees([]) 
 } finally { 
 setLoading(false) 
@@ -374,16 +388,76 @@ alert('Error loading documents: ' + (error.message || 'Unknown error'))
 setDocuments(prev => ({ ...prev, [employeeId]: [] })) 
 } 
 } 
-const filteredEmployees = (Array.isArray(employees) ? employees : []).filter(emp => { 
-  const matchesSearch = 
-    emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    emp.department?.toLowerCase().includes(searchTerm.toLowerCase());
+// Combine employees and (non-superadmin) users into a single list
+// Include all employees
+const employeeRecords = Array.isArray(employees) ? employees.map(e => ({ ...e, type: 'employee' })) : []
+
+// Include all users except SUPER_ADMIN (explicitly include HR_ADMIN, MANAGER, FINANCE, EMPLOYEE)
+const userRecords = Array.isArray(users) ? users
+  .filter(u => {
+    const role = (u.role || '').toUpperCase()
+    // Exclude only SUPER_ADMIN, include all other roles (HR_ADMIN, MANAGER, FINANCE, EMPLOYEE)
+    return role !== 'SUPER_ADMIN'
+  })
+  .map(u => {
+    return {
+      id: u.id,
+      type: 'user',
+      employeeId: u.employeeId || String(u.id),
+      name: u.name || '',
+      email: u.email || '',
+      role: u.role || '',
+      designation: u.role || '',
+      department: u.department || '',
+      client: u.client || '',
+      dateOfJoining: u.dateOfJoining || '',
+      employeeStatus: u.active ? 'Active' : 'Inactive',
+      location: u.location || ''
+    }
+  }) : []
+
+// Combine both lists and remove duplicates by ID
+// Prioritize user records (especially MANAGER, FINANCE, HR_ADMIN) over employee records when IDs match
+
+// First, create a map of user records by ID (they take priority)
+const userRecordsMap = new Map()
+userRecords.forEach(record => {
+  if (record.id) {
+    userRecordsMap.set(record.id, record)
+  }
+})
+
+// Then process employee records, but skip if a user record with the same ID exists
+const combinedRecords = [
+  ...employeeRecords.filter(emp => {
+    // Skip employee if there's a user record with the same ID
+    if (emp.id && userRecordsMap.has(emp.id)) {
+      return false
+    }
+    return true
+  }),
+  ...userRecords // Add all user records
+]
+
+// Extract unique roles from combinedRecords
+const uniqueRoles = [...new Set(
+  combinedRecords
+    .map(emp => emp.role || emp.designation)
+    .filter(role => role && role.trim() !== '')
+    .map(role => role.toUpperCase())
+)].sort()
+
+const filteredEmployees = combinedRecords.filter(emp => { 
+  const matchesName = 
+    !nameSearchTerm || 
+    (emp.name && emp.name.toLowerCase().includes(nameSearchTerm.toLowerCase()));
+  const matchesEmail = 
+    !emailSearchTerm || 
+    (emp.email && emp.email.toLowerCase().includes(emailSearchTerm.toLowerCase()));
   const matchesStatus = statusFilter === 'All' || emp.employeeStatus === statusFilter;
   const matchesClient = clientFilter === 'All' || (clientFilter === 'Unassigned' ? !emp.client : emp.client === clientFilter);
-  return matchesSearch && matchesStatus && matchesClient;
+  const matchesRole = roleFilter === 'All' || (emp.role || emp.designation || '').toUpperCase() === roleFilter.toUpperCase();
+  return matchesName && matchesEmail && matchesStatus && matchesClient && matchesRole;
 })
 // Format date to DD/MM/YYYY
 const formatDate = (dateString) => {
@@ -422,19 +496,73 @@ const formatDateForInput = (dateString) => {
 } 
 } 
 const handleOpenModal = async (employee = null) => { 
+// If this is a non-employee user, open the detailed form with mapped fields
+if (employee && employee.type === 'user') {
+  setEditingEmployee({ ...employee, type: 'user' })
+  const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
+  const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
+  setFormData({
+    employeeId: employee.employeeId || '',
+    name: employee.name || '',
+    email: employee.email || '',
+    role: employee.designation || employee.role || '',
+    department: employee.department || '',
+    location: employee.location || '',
+    designation: employee.designation || '',
+    employmentType: employee.employmentType || '',
+    employeeStatus: employee.employeeStatus || 'Active',
+    sourceOfHire: employee.sourceOfHire || '',
+    dateOfJoining: formattedJoinDate,
+    dateOfBirth: formattedDateOfBirth,
+    age: calculateAge(formattedDateOfBirth),
+    gender: employee.gender || '',
+    maritalStatus: employee.maritalStatus || '',
+    aboutMe: employee.aboutMe || '',
+    expertise: employee.expertise || '',
+
+    pan: employee.pan || '',
+    aadhaar: employee.aadhaar || '',
+    workPhoneNumber: employee.workPhoneNumber || '',
+    personalMobileNumber: employee.personalMobileNumber || '',
+    extension: employee.extension || '',
+    personalEmailAddress: employee.personalEmailAddress || '',
+    seatingLocation: employee.seatingLocation || '',
+    tags: employee.tags || '',
+    presentAddressLine1: employee.presentAddressLine1 || '',
+    presentAddressLine2: employee.presentAddressLine2 || '',
+    presentCity: employee.presentCity || '',
+    presentCountry: employee.presentCountry || '',
+    presentState: employee.presentState || '',
+    presentPostalCode: employee.presentPostalCode || '',
+    sameAsPresentAddress: employee.sameAsPresentAddress || false,
+    permanentAddressLine1: employee.permanentAddressLine1 || '',
+    permanentAddressLine2: employee.permanentAddressLine2 || '',
+    permanentCity: employee.permanentCity || '',
+    permanentCountry: employee.permanentCountry || '',
+    permanentState: employee.permanentState || '',
+    permanentPostalCode: employee.permanentPostalCode || '',
+    dateOfExit: formatDateForInput(employee.dateOfExit),
+    salary: employee.salary || '',
+  })
+  setWorkExperiences(employee.workExperiences || [])
+  setEducationDetails(employee.educationDetails || [])
+  setShowModal(true)
+  return
+}
+
 if (employee) { 
 // Fetch full employee details to ensure we have all fields 
 try { 
+console.log('Fetching employee details for ID:', employee.id)
 const fullEmployee = await api.getEmployee(employee.id) 
+console.log('Fetched employee data:', fullEmployee)
 if (fullEmployee) { 
 setEditingEmployee(fullEmployee) 
 const formattedJoinDate = formatDateForInput(fullEmployee.dateOfJoining) 
 const formattedDateOfBirth = formatDateForInput(fullEmployee.dateOfBirth) 
 setFormData({ 
 employeeId: fullEmployee.employeeId || '', 
-firstName: fullEmployee.firstName || '', 
-lastName: fullEmployee.lastName || '', 
- 
+name: fullEmployee.name || '', 
 email: fullEmployee.email || '', 
 role: fullEmployee.role || '', 
 department: fullEmployee.department || '', 
@@ -476,8 +604,15 @@ dateOfExit: formatDateForInput(fullEmployee.dateOfExit),
 salary: fullEmployee.salary || '', 
 
 }) 
-setWorkExperiences(fullEmployee.workExperiences || []) 
-setEducationDetails(fullEmployee.educationDetails || []) 
+console.log('Setting work experiences:', fullEmployee.workExperiences)
+console.log('Setting education details:', fullEmployee.educationDetails)
+console.log('Setting dependent details:', fullEmployee.dependentDetails)
+setWorkExperiences(Array.isArray(fullEmployee.workExperiences) ? fullEmployee.workExperiences : []) 
+setEducationDetails(Array.isArray(fullEmployee.educationDetails) ? fullEmployee.educationDetails : [])
+// Also set dependent details if the state exists
+if (typeof setDependentDetails === 'function') {
+  setDependentDetails(Array.isArray(fullEmployee.dependentDetails) ? fullEmployee.dependentDetails : [])
+} 
 } else { 
 // Fallback to the employee object passed 
 setEditingEmployee(employee) 
@@ -485,9 +620,7 @@ const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
 const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth) 
 setFormData({ 
 employeeId: employee.employeeId || '', 
-firstName: employee.firstName || '', 
-lastName: employee.lastName || '', 
-
+name: employee.name || '', 
 email: employee.email || '', 
 role: employee.role || '', 
 department: employee.department || '', 
@@ -541,9 +674,7 @@ const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
 const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth) 
 setFormData({ 
 employeeId: employee.employeeId || '', 
-firstName: employee.firstName || '', 
-lastName: employee.lastName || '', 
- 
+name: employee.name || '', 
 email: employee.email || '', 
 role: employee.role || '', 
 department: employee.department || '', 
@@ -596,8 +727,7 @@ setEditingEmployee(null)
 // Explicitly reset formData to ensure no values persist
 setFormData({ 
 employeeId: '', 
-firstName: '', 
-lastName: '',
+name: '',
 client: '', 
 email: '',  // MUST be empty - never use admin email from localStorage
 password: '',  // MUST be empty - never use admin password
@@ -648,6 +778,41 @@ setShowModal(true)
 } 
 // Fetch and show full employee details in view modal (module-level)
 const handleViewEmployee = async (employee) => {
+	// If the record is a non-employee user, initialize view directly
+	if (employee?.type === 'user') {
+		try {
+			setSelectedEmployee(employee)
+			const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
+			const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
+			setViewFormData({
+				employeeId: employee.employeeId || '',
+				name: employee.name || '',
+				client: employee.client || '',
+				email: employee.email || '',
+				password: '',
+				role: employee.designation || employee.role || '',
+				department: employee.department || '',
+				location: employee.location || '',
+				designation: employee.designation || '',
+				employmentType: employee.employmentType || '',
+				employeeStatus: employee.employeeStatus || 'Active',
+				sourceOfHire: employee.sourceOfHire || '',
+				dateOfJoining: formattedJoinDate,
+				dateOfBirth: formattedDateOfBirth,
+				age: calculateAge(formattedDateOfBirth),
+				gender: employee.gender || '',
+				maritalStatus: employee.maritalStatus || '',
+				aboutMe: employee.aboutMe || '',
+				workPhoneNumber: employee.workPhoneNumber || '',
+				personalMobileNumber: employee.personalMobileNumber || '',
+				salary: employee.salary || ''
+			})
+		} finally {
+			setShowViewModal(true)
+			setIsEditingInView(false)
+		}
+		return
+	}
 	try {
 		const full = await api.getEmployee(employee.id)
 		setSelectedEmployee(full || employee)
@@ -658,8 +823,7 @@ const handleViewEmployee = async (employee) => {
 		const formattedDateOfBirth = formatDateForInput(full?.dateOfBirth || employee.dateOfBirth)
 		setViewFormData({
 			employeeId: (full || employee).employeeId || '',
-			firstName: (full || employee).firstName || '',
-			lastName: (full || employee).lastName || '',
+			name: (full || employee).name || '',
 			client: (full || employee).client || '',
 			email: (full || employee).email || '',
 			password: '',
@@ -690,8 +854,7 @@ const handleViewEmployee = async (employee) => {
 		const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
 		setViewFormData({
 			employeeId: employee.employeeId || '',
-			firstName: employee.firstName || '',
-			lastName: employee.lastName || '',
+			name: employee.name || '',
 			client: employee.client || '',
 			email: employee.email || '',
 			password: '',
@@ -723,9 +886,40 @@ const handleSaveViewEmployee = async () => {
 	
 	try {
 		setLoading(true)
+		// If this is a user record, update via user API
+		if (selectedEmployee.type === 'user') {
+			const userData = {
+				name: viewFormData.name || '',
+				email: viewFormData.email,
+				role: viewFormData.role,
+				department: viewFormData.department,
+				designation: viewFormData.designation,
+				client: viewFormData.client,
+				location: viewFormData.location,
+				employmentType: viewFormData.employmentType,
+				active: viewFormData.employeeStatus ? viewFormData.employeeStatus === 'Active' : true,
+				sourceOfHire: viewFormData.sourceOfHire,
+				dateOfJoining: viewFormData.dateOfJoining,
+				dateOfBirth: viewFormData.dateOfBirth,
+				gender: viewFormData.gender,
+				maritalStatus: viewFormData.maritalStatus,
+				aboutMe: viewFormData.aboutMe,
+				salary: viewFormData.salary
+			}
+			await api.updateUser(selectedEmployee.id, userData, userRole)
+			// refresh lists
+			const u = await api.getUsers()
+			setUsers(Array.isArray(u) ? u.filter(u => {
+				const role = (u.role || '').toUpperCase()
+				return role !== 'SUPER_ADMIN'
+			}) : [])
+			setIsEditingInView(false)
+			alert('User updated successfully!')
+			return
+		}
+
 		const employeeData = {
-			firstName: viewFormData.firstName,
-			lastName: viewFormData.lastName,
+			name: viewFormData.name || '',
 			email: viewFormData.email,
 			phone: viewFormData.personalMobileNumber || viewFormData.workPhoneNumber,
 			personalMobileNumber: viewFormData.personalMobileNumber,
@@ -753,9 +947,9 @@ const handleSaveViewEmployee = async () => {
 		await api.updateEmployee(selectedEmployee.id, employeeData, userRole)
 		await handleViewEmployee(selectedEmployee) // Reload employee data
 		setIsEditingInView(false)
-		alert('Employee updated successfully!')
+		alert('User updated successfully!')
 	} catch (error) {
-		alert('Error updating employee: ' + error.message)
+		alert('Error updating user: ' + error.message)
 	} finally {
 		setLoading(false)
 	}
@@ -792,18 +986,9 @@ if (!fallbackPhone) {
 // Use fallbackPhone for the required `phone` property
 employeeData.phone = fallbackPhone
 
-// Build name field from firstName and lastName if not explicitly set
+// Ensure name field is set
 if (!employeeData.name || employeeData.name.trim() === '') {
-	if (employeeData.firstName && employeeData.firstName.trim() && 
-		employeeData.lastName && employeeData.lastName.trim()) {
-		employeeData.name = employeeData.firstName.trim() + ' ' + employeeData.lastName.trim()
-	} else if (employeeData.firstName && employeeData.firstName.trim()) {
-		employeeData.name = employeeData.firstName.trim()
-	} else if (employeeData.lastName && employeeData.lastName.trim()) {
-		employeeData.name = employeeData.lastName.trim()
-	} else {
-		employeeData.name = '' // Ensure it's not null
-	}
+	employeeData.name = formData.name || ''
 }
 
 // Set status field from employeeStatus if not explicitly set
@@ -816,6 +1001,11 @@ if (!employeeData.status || employeeData.status.trim() === '') {
 }
 
 // Password field has been removed
+
+// Debug: Log the employeeData to see if client is included
+console.log('DEBUG: Sending employeeData with client:', employeeData.client)
+console.log('DEBUG: Full formData.client value:', formData.client)
+console.log('DEBUG: Full employeeData object:', JSON.stringify(employeeData, null, 2))
 
 try { 
 if (editingEmployee) { 
@@ -835,8 +1025,7 @@ if (isNewEmployeePage) {
 setEditingEmployee(null) 
 setFormData({ 
 employeeId: '', 
-firstName: '', 
-lastName: '',
+name: '',
 client: '', 
 
 email: '', 
@@ -884,19 +1073,29 @@ salary: '',
 setWorkExperiences([])
 setEducationDetails([])
 } catch (error) { 
-alert('Error saving employee: ' + error.message) 
+alert('Error saving user: ' + error.message) 
 } finally { 
 setLoading(false) 
 } 
 } 
-const handleDelete = async (id) => { 
-if (!window.confirm('Are you sure you want to delete this employee?')) return 
-try { 
-await api.deleteEmployee(id, userRole) 
-await loadEmployees() 
-} catch (error) { 
-alert('Error deleting employee: ' + error.message) 
-} 
+const handleDelete = async (record) => { 
+  const isUser = record?.type === 'user'
+  if (!window.confirm(`Are you sure you want to delete this ${isUser ? 'user' : 'employee'}?`)) return 
+  try { 
+    if (isUser) {
+      await api.deleteUser(record.id, userRole)
+      const list = await api.getUsers()
+      setUsers(Array.isArray(list) ? list.filter(u => {
+        const role = (u.role || '').toUpperCase()
+        return role !== 'SUPER_ADMIN'
+      }) : [])
+    } else {
+      await api.deleteEmployee(record.id, userRole) 
+      await loadEmployees() 
+    }
+  } catch (error) { 
+    alert('Error deleting record: ' + error.message) 
+  } 
 } 
 const handleUploadDocument = async (e) => { 
 e.preventDefault() 
@@ -1056,7 +1255,7 @@ return (
 <div className={styles.loadingWrap}> 
   <div className={styles.loadingCard}> 
     <span className={styles.spinner}></span> 
-    <p className={styles.loadingText}>Loading employees...</p> 
+    <p className={styles.loadingText}>Loading users...</p> 
   </div> 
 </div> 
 ); 
@@ -1071,7 +1270,12 @@ if (showViewModal && selectedEmployee) {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
               <Eye size={28} className="text-blue-600" />
-              Employee Details
+              {selectedEmployee.type === 'user'
+                ? `${(selectedEmployee.role === 'HR_ADMIN' || selectedEmployee.designation === 'HR_ADMIN') ? 'HR Admin'
+                    : (selectedEmployee.role === 'MANAGER' || selectedEmployee.designation === 'MANAGER') ? 'Manager'
+                    : (selectedEmployee.role === 'FINANCE' || selectedEmployee.designation === 'FINANCE') ? 'Finance'
+                    : 'User'} Details`
+                : 'User Details'}
             </h3>
             <div className="flex items-center gap-2">
               <button
@@ -1112,19 +1316,10 @@ if (showViewModal && selectedEmployee) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">First Name</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
                   <input
                     type="text"
-                    value={selectedEmployee.firstName || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name</label>
-                  <input
-                    type="text"
-                    value={selectedEmployee.lastName || 'N/A'}
+                    value={selectedEmployee.name || 'N/A'}
                     readOnly
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
                   />
@@ -1454,7 +1649,9 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
               <Plus size={28} className="text-blue-600" />
-              {editingEmployee ? 'Edit' : 'Add'} Employee
+              {editingEmployee?.type === 'user'
+                ? `${editingEmployee.role === 'HR_ADMIN' ? 'Edit HR Admin' : editingEmployee.role === 'MANAGER' ? 'Edit Manager' : editingEmployee.role === 'FINANCE' ? 'Edit Finance' : 'Edit User'}`
+                : `${editingEmployee ? 'Edit User' : 'Add User'}`}
             </h3>
             <button
               onClick={() => {
@@ -1465,8 +1662,7 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                 setEditingEmployee(null)
                 setFormData({
                   employeeId: '',
-                  firstName: '',
-                  lastName: '',
+                  name: '',
                   client: '',
                   email: '',
                   password: '',
@@ -1535,23 +1731,12 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">First Name *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
                   <input
                     type="text"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    placeholder="Enter First Name"
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name *</label>
-                  <input
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    placeholder="Enter Last Name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter Full Name"
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
@@ -1786,8 +1971,7 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                   setEditingEmployee(null)
                   setFormData({
                     employeeId: '',
-                    firstName: '',
-                    lastName: '',
+                    name: '',
                     client: '',
                     email: '',
                     password: '',
@@ -1841,7 +2025,7 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                 disabled={loading}
                 className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
               >
-                {loading ? 'Saving...' : 'Save Employee'}
+                {loading ? 'Saving...' : 'Save User'}
               </button>
             </div>
           </form>
@@ -1859,9 +2043,18 @@ return (
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder="Search employees..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name..."
+              value={nameSearchTerm}
+              onChange={(e) => setNameSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
+            />
+          </div>
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Search by email..."
+              value={emailSearchTerm}
+              onChange={(e) => setEmailSearchTerm(e.target.value)}
               className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 hover:bg-white transition-colors"
             />
           </div>
@@ -1884,10 +2077,21 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
   {clients.map((c) => (
     <option key={c} value={c}>{c}</option>
   ))}
+</select>
+<select 
+  value={roleFilter} 
+  onChange={(e) => setRoleFilter(e.target.value)} 
+  className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium"
+> 
+  <option value="All">All Roles</option>
+  
+  {uniqueRoles.map((role) => (
+    <option key={role} value={role}>{role}</option>
+  ))}
 </select> 
 </div> 
 </div> 
-{/* Employees Table - Modern Design */}
+{/* Users Table - Modern Design */}
 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md">
   <div className="overflow-x-auto">
     <table className="w-full">
@@ -1910,21 +2114,30 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 	<div className="text-sm font-medium text-gray-900">{index + 1}</div> 
 </td> 
 <td className="px-6 py-4 whitespace-nowrap"> 
-	<div className="flex items-center"> 
+		<div className="flex items-center"> 
 		{/* <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold mr-3 shadow-md"> 
-			{employee.firstName?.charAt(0) || 'E'} 
+			{employee.name?.charAt(0) || 'E'} 
 		</div>  */}
 		<div> 
-			<div className="text-sm font-bold text-gray-900 underline  cursor-pointer" 	onClick={() => handleViewEmployee(employee)} >{employee.firstName} {employee.lastName}</div> 
+			<div className="text-sm font-bold text-gray-900 underline  cursor-pointer" 	onClick={() => handleViewEmployee(employee)} >{employee.name || 'N/A'}</div> 
 			<div className="text-xs text-gray-500">ID: {employee.id}</div> 
 		</div> 
-	</div> 
+	</div>
 </td> 
 <td className="px-6 py-4 whitespace-nowrap"> 
 	<span className="text-sm text-gray-700">{employee.dateOfJoining ? formatDate(employee.dateOfJoining) : 'N/A'}</span> 
 </td> 
-<td className="px-6 py-4 whitespace-nowrap"> 
-	<span className="text-sm text-gray-700">{employee.designation || 'N/A'}</span> 
+<td className="px-6 py-4 whitespace-nowrap">
+	<span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
+		(employee.role || employee.designation || '').toUpperCase() === 'EMPLOYEE' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+		(employee.role || employee.designation || '').toUpperCase() === 'MANAGER' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+		(employee.role || employee.designation || '').toUpperCase() === 'HR_ADMIN' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
+		(employee.role || employee.designation || '').toUpperCase() === 'FINANCE' ? 'bg-green-100 text-green-800 border border-green-200' :
+		(employee.role || employee.designation || '').toUpperCase() === 'SUPER_ADMIN' ? 'bg-red-100 text-red-800 border border-red-200' :
+		'bg-gray-100 text-gray-800 border border-gray-200'
+	}`}>
+		{employee.role || employee.designation || 'N/A'}
+	</span>
 </td>
 <td className="px-6 py-4 whitespace-nowrap"> 
 	<span className="text-sm text-gray-700">{employee.client || 'N/A'}</span> 
@@ -1998,7 +2211,7 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 			<button
 				onClick={(e) => {
 					e.stopPropagation()
-					handleDelete(employee.id)
+					handleDelete(employee)
 					setOpenDropdownId(null)
 				}}
 				className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -2027,16 +2240,16 @@ className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 tr
 Retry 
 </button> 
 </div> 
-) : searchTerm || statusFilter !== 'All' ? ( 
-<p className="text-gray-500">No employees match your search criteria</p> 
+) : nameSearchTerm || emailSearchTerm || statusFilter !== 'All' || clientFilter !== 'All' || roleFilter !== 'All' ? ( 
+<p className="text-gray-500">No users match your search criteria</p> 
 ) : ( 
 <div> 
-<p className="text-gray-500 mb-4">No employees found</p> 
+<p className="text-gray-500 mb-4">No users found</p> 
 <button 
 onClick={() => handleOpenModal()} 
 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors" 
 > 
-Add First Employee 
+Add First User 
 </button> 
 </div> 
 )} 
@@ -2050,7 +2263,7 @@ Add First Employee
 <div className="flex items-center justify-between mb-6"> 
 <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3"> 
 <FileText size={24} className="text-blue-600" /> 
-Documents - {(selectedEmployee.firstName || '') + ' ' + (selectedEmployee.lastName || '')} 
+Documents - {selectedEmployee.name || 'N/A'} 
 </h3> 
 <button onClick={() => setShowDocModal(false)} className="text-gray-500 hover:text-gray-700"> 
 <span className="text-2xl">×</span> 

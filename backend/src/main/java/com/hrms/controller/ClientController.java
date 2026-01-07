@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.hrms.entity.Employee;
-import com.hrms.service.EmployeeService;
+import com.hrms.entity.User;
+import com.hrms.service.UserService;
 
 /**
  * Client Controller
@@ -23,7 +23,7 @@ import com.hrms.service.EmployeeService;
 public class ClientController {
 
     @Autowired
-    private EmployeeService employeeService;
+    private UserService userService;
 
     /**
      * Get all unique client names from employees
@@ -32,9 +32,9 @@ public class ClientController {
     @GetMapping
     public ResponseEntity<List<String>> getClients() {
         try {
-            List<Employee> employees = employeeService.getAllEmployees();
-            List<String> clients = employees.stream()
-                    .map(Employee::getClient)
+            List<User> users = userService.getAllEmployees();
+            List<String> clients = users.stream()
+                    .map(User::getClient)
                     .filter(client -> client != null && !client.trim().isEmpty())
                     .distinct()
                     .sorted()

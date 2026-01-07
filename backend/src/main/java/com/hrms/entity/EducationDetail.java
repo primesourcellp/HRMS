@@ -19,7 +19,7 @@ public class EducationDetail {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id")
     @JsonIgnore
-    private Employee employee;
+    private User employee;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -36,6 +36,6 @@ public class EducationDetail {
     public LocalDate getToDate() { return toDate; }
     public void setToDate(LocalDate toDate) { this.toDate = toDate; }
 
-    public Employee getEmployee() { return employee; }
-    public void setEmployee(Employee employee) { this.employee = employee; }
+    public User getEmployee() { return employee; }
+    public void setEmployee(User employee) { this.employee = employee; }
 }

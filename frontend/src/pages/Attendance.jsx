@@ -259,7 +259,7 @@ const Attendance = () => {
         const employee = employees.find(emp => emp.id === record.employeeId)
         return {
           Date: record.date,
-          Employee: employee?.name || employee?.firstName + ' ' + employee?.lastName || 'Unknown',
+          Employee: employee?.name || 'Unknown',
           Department: employee?.department || 'N/A',
           'Check In': record.checkIn || '-',
           'Check Out': record.checkOut || '-',
@@ -299,8 +299,6 @@ const Attendance = () => {
   const filteredEmployees = employees.filter(emp => {
     const matchesSearch = searchTerm === '' || 
       (emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
        emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
        emp.department?.toLowerCase().includes(searchTerm.toLowerCase()))
     
@@ -505,7 +503,7 @@ const Attendance = () => {
               ) : (
                 filteredEmployees.map((employee) => {
                   const record = getAttendanceStatus(employee.id)
-                  const employeeName = employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'
+                  const employeeName = employee.name || 'Unknown'
                   
                   return (
                     <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
@@ -640,11 +638,7 @@ const Attendance = () => {
                         .filter(emp => emp && (emp.id || emp.employeeId)) // Filter out invalid employees
                         .map(emp => {
                           const empId = emp.id || emp.employeeId
-                          const empName = emp.name || 
-                                         (emp.firstName && emp.lastName ? `${emp.firstName} ${emp.lastName}`.trim() : '') ||
-                                         emp.firstName || 
-                                         emp.lastName || 
-                                         `Employee ${empId}`
+                          const empName = emp.name || `Employee ${empId}`
                           return (
                             <option key={empId} value={empId}>
                               {empName} {emp.employeeId ? `(${emp.employeeId})` : ''}

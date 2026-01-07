@@ -21,7 +21,7 @@ public class WorkExperience {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id")
     @JsonIgnore
-    private Employee employee;
+    private User employee;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -44,6 +44,6 @@ public class WorkExperience {
     public boolean isRelevant() { return relevant; }
     public void setRelevant(boolean relevant) { this.relevant = relevant; }
 
-    public Employee getEmployee() { return employee; }
-    public void setEmployee(Employee employee) { this.employee = employee; }
+    public User getEmployee() { return employee; }
+    public void setEmployee(User employee) { this.employee = employee; }
 }

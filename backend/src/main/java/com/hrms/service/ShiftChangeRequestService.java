@@ -1,8 +1,8 @@
 package com.hrms.service;
 
-import com.hrms.entity.Employee;
+import com.hrms.entity.User;
 import com.hrms.entity.ShiftChangeRequest;
-import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.UserRepository;
 import com.hrms.repository.ShiftChangeRequestRepository;
 import com.hrms.repository.ShiftRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +21,7 @@ public class ShiftChangeRequestService {
     private ShiftChangeRequestRepository requestRepository;
     
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private UserRepository userRepository;
     
     @Autowired
     private ShiftRepository shiftRepository;
@@ -31,7 +31,7 @@ public class ShiftChangeRequestService {
 
     public ShiftChangeRequest createRequest(@NonNull Long employeeId, @NonNull Long requestedShiftId, String reason) {
         // Get current shift ID
-        Long currentShiftId = employeeRepository.getShiftIdByEmployeeId(employeeId);
+        Long currentShiftId = userRepository.getShiftIdByEmployeeId(employeeId);
         if (currentShiftId == null || currentShiftId == 0) {
             throw new RuntimeException("Employee is not assigned to any shift");
         }
@@ -92,20 +92,20 @@ public class ShiftChangeRequestService {
         request.setReviewedBy(reviewedBy);
         requestRepository.save(request);
         
-        // Automatically update employee's shift assignment
+        // Automatically update user's shift assignment
         // Get current assignment dates if they exist
-        Employee employee = employeeRepository.findById(request.getEmployeeId())
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
+        User user = userRepository.findById(request.getEmployeeId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
         
-        java.time.LocalDate startDate = employee.getShiftAssignmentStartDate();
-        java.time.LocalDate endDate = employee.getShiftAssignmentEndDate();
+        java.time.LocalDate startDate = user.getShiftAssignmentStartDate();
+        java.time.LocalDate endDate = user.getShiftAssignmentEndDate();
         
         // If no start date, use today
         if (startDate == null) {
             startDate = java.time.LocalDate.now();
         }
         
-        // Assign employee to new shift with existing dates
+        // Assign user to new shift with existing dates
         shiftService.updateEmployeeAssignment(
             request.getEmployeeId(), 
             request.getRequestedShiftId(), 

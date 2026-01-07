@@ -1,6 +1,7 @@
 package com.hrms.controller;
 
 import com.hrms.entity.Shift;
+import com.hrms.entity.User;
 import com.hrms.service.ShiftService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -84,7 +85,7 @@ public class ShiftController {
     }
     
     @GetMapping("/{id}/employees")
-    public ResponseEntity<List<com.hrms.entity.Employee>> getEmployeesByShift(@PathVariable Long id) {
+    public ResponseEntity<List<User>> getEmployeesByShift(@PathVariable Long id) {
         try {
             return ResponseEntity.ok(shiftService.getEmployeesByShiftId(id));
         } catch (Exception e) {

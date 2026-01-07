@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.entity.Attendance;
-import com.hrms.entity.Employee;
+import com.hrms.entity.User;
 import com.hrms.entity.Payroll;
 import com.hrms.repository.AttendanceRepository;
-import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.UserRepository;
 import com.hrms.repository.LeaveRepository;
 import com.hrms.repository.PayrollRepository;
 
@@ -50,7 +50,7 @@ import com.hrms.repository.PayrollRepository;
 public class DashboardController {
     
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private UserRepository userRepository;
     
     @Autowired
     private AttendanceRepository attendanceRepository;
@@ -75,13 +75,13 @@ public class DashboardController {
         try {
             // If employeeId is provided, show only that employee's data
             if (employeeId != null) {
-                Optional<Employee> employeeOpt = employeeRepository.findById(employeeId);
-                if (employeeOpt.isEmpty()) {
-                    stats.put("error", "Employee not found");
+                Optional<User> userOpt = userRepository.findById(employeeId);
+                if (userOpt.isEmpty()) {
+                    stats.put("error", "User not found");
                     return ResponseEntity.status(404).body(stats);
                 }
                 
-                Employee employee = employeeOpt.get();
+                User user = userOpt.get();
                 
                 // Employee's attendance today
                 Optional<Attendance> todayAttendance = attendanceRepository.findByEmployeeIdAndDate(employeeId, date);
@@ -119,9 +119,9 @@ public class DashboardController {
                         .sum();
                 stats.put("monthlyPayroll", monthlyPayroll);
                 
-                // Employee's department (for display)
-                stats.put("department", employee.getDepartment());
-                stats.put("employeeName", employee.getName());
+                // User's department (for display)
+                stats.put("department", user.getDepartment());
+                stats.put("employeeName", user.getName());
                 
                 // Employee's attendance history (last 7 days for chart)
                 LocalDate weekStart = date.minusDays(6);
@@ -145,7 +145,7 @@ public class DashboardController {
             } else {
                 // Admin/All employees view
                 // Total employees
-                long totalEmployees = employeeRepository.count();
+                long totalEmployees = userRepository.count();
                 stats.put("totalEmployees", totalEmployees);
                 
                 // Present today
@@ -186,30 +186,30 @@ public class DashboardController {
                 stats.put("monthlyPayroll", monthlyPayroll);
                 
                 // Department distribution
-                List<Employee> employees = employeeRepository.findAll();
-                Map<String, Long> departmentCount = employees.stream()
-                        .filter(emp -> emp != null && emp.getDepartment() != null)
+                List<User> users = userRepository.findAll();
+                Map<String, Long> departmentCount = users.stream()
+                        .filter(user -> user != null && user.getDepartment() != null)
                         .collect(Collectors.groupingBy(
-                                Employee::getDepartment,
+                                User::getDepartment,
                                 Collectors.counting()
                         ));
                 stats.put("departmentDistribution", departmentCount);
                 
                 // Active vs Inactive employees
-                long activeEmployees = employees.stream()
-                        .filter(emp -> emp != null && "Active".equals(emp.getStatus()))
+                long activeEmployees = users.stream()
+                        .filter(user -> user != null && "Active".equals(user.getStatus()))
                         .count();
                 long inactiveEmployees = totalEmployees - activeEmployees;
                 stats.put("activeEmployees", activeEmployees);
                 stats.put("inactiveEmployees", inactiveEmployees);
                 
                 // Recent employees (last 5)
-                List<Employee> recentEmployees = employees.stream()
-                        .filter(emp -> emp != null && emp.getJoinDate() != null)
-                        .sorted((a, b) -> b.getJoinDate().compareTo(a.getJoinDate()))
+                List<User> recentUsers = users.stream()
+                        .filter(user -> user != null && user.getDateOfJoining() != null)
+                        .sorted((a, b) -> b.getDateOfJoining().compareTo(a.getDateOfJoining()))
                         .limit(5)
                         .collect(Collectors.toList());
-                stats.put("recentEmployees", recentEmployees);
+                stats.put("recentEmployees", recentUsers);
                 
                 // Attendance rate
                 double attendanceRate = totalEmployees > 0 
@@ -247,24 +247,24 @@ public class DashboardController {
         try {
             LocalDate today = LocalDate.now();
             
-            List<Employee> allEmployees = employeeRepository.findAll();
+            List<User> allUsers = userRepository.findAll();
             
             // ========== REAL-TIME KPIs ==========
             
             // 1. Headcount (Total Active Employees)
-            long totalHeadcount = allEmployees.stream()
-                    .filter(emp -> emp != null && 
-                            (emp.getEmployeeStatus() == null || 
-                             "Active".equalsIgnoreCase(emp.getEmployeeStatus())))
+            long totalHeadcount = allUsers.stream()
+                    .filter(user -> user != null && 
+                            (user.getEmployeeStatus() == null || 
+                             "Active".equalsIgnoreCase(user.getEmployeeStatus())))
                     .count();
             dashboard.put("headcount", totalHeadcount);
             
             // 2. Attrition Rate (Employees who exited in last 12 months)
             LocalDate twelveMonthsAgo = today.minusMonths(12);
-            long exitedEmployees = allEmployees.stream()
-                    .filter(emp -> emp != null && emp.getDateOfExit() != null &&
-                            emp.getDateOfExit().isAfter(twelveMonthsAgo) &&
-                            emp.getDateOfExit().isBefore(today.plusDays(1)))
+            long exitedEmployees = allUsers.stream()
+                    .filter(user -> user != null && user.getDateOfExit() != null &&
+                            user.getDateOfExit().isAfter(twelveMonthsAgo) &&
+                            user.getDateOfExit().isBefore(today.plusDays(1)))
                     .count();
             
             // Calculate average headcount over the period
@@ -460,12 +460,12 @@ public class DashboardController {
             
             // ========== DEPARTMENT-WISE ANALYTICS ==========
             Map<String, Map<String, Object>> departmentAnalytics = new HashMap<>();
-            Map<String, Long> deptHeadcount = allEmployees.stream()
-                    .filter(emp -> emp != null && emp.getDepartment() != null &&
-                            (emp.getEmployeeStatus() == null || 
-                             "Active".equalsIgnoreCase(emp.getEmployeeStatus())))
+            Map<String, Long> deptHeadcount = allUsers.stream()
+                    .filter(user -> user != null && user.getDepartment() != null &&
+                            (user.getEmployeeStatus() == null || 
+                             "Active".equalsIgnoreCase(user.getEmployeeStatus())))
                     .collect(Collectors.groupingBy(
-                            Employee::getDepartment,
+                            User::getDepartment,
                             Collectors.counting()
                     ));
             
@@ -476,11 +476,11 @@ public class DashboardController {
                 // Department attendance
                 long deptPresent = monthAttendance.stream()
                         .filter(a -> {
-                            Optional<Employee> emp = allEmployees.stream()
+                            Optional<User> user = allUsers.stream()
                                     .filter(e -> e != null && e.getId() != null && 
                                             e.getId().equals(a.getEmployeeId()))
                                     .findFirst();
-                            return emp.isPresent() && dept.equals(emp.get().getDepartment());
+                            return user.isPresent() && dept.equals(user.get().getDepartment());
                         })
                         .filter(a -> "Present".equalsIgnoreCase(a.getStatus()))
                         .count();
@@ -492,11 +492,11 @@ public class DashboardController {
                 // Department payroll
                 double deptPayroll = currentMonthPayrolls.stream()
                         .filter(p -> {
-                            Optional<Employee> emp = allEmployees.stream()
+                            Optional<User> user = allUsers.stream()
                                     .filter(e -> e != null && e.getId() != null && 
                                             e.getId().equals(p.getEmployeeId()))
                                     .findFirst();
-                            return emp.isPresent() && dept.equals(emp.get().getDepartment());
+                            return user.isPresent() && dept.equals(user.get().getDepartment());
                         })
                         .filter(p -> p.getAmount() != null)
                         .mapToDouble(Payroll::getAmount)
@@ -512,12 +512,12 @@ public class DashboardController {
             
             // ========== LOCATION-WISE ANALYTICS ==========
             Map<String, Map<String, Object>> locationAnalytics = new HashMap<>();
-            Map<String, Long> locationHeadcount = allEmployees.stream()
-                    .filter(emp -> emp != null && emp.getLocation() != null &&
-                            (emp.getEmployeeStatus() == null || 
-                             "Active".equalsIgnoreCase(emp.getEmployeeStatus())))
+            Map<String, Long> locationHeadcount = allUsers.stream()
+                    .filter(user -> user != null && user.getLocation() != null &&
+                            (user.getEmployeeStatus() == null || 
+                             "Active".equalsIgnoreCase(user.getEmployeeStatus())))
                     .collect(Collectors.groupingBy(
-                            Employee::getLocation,
+                            User::getLocation,
                             Collectors.counting()
                     ));
             
@@ -528,11 +528,11 @@ public class DashboardController {
                 // Location attendance
                 long locPresent = monthAttendance.stream()
                         .filter(a -> {
-                            Optional<Employee> emp = allEmployees.stream()
+                            Optional<User> user = allUsers.stream()
                                     .filter(e -> e != null && e.getId() != null && 
                                             e.getId().equals(a.getEmployeeId()))
                                     .findFirst();
-                            return emp.isPresent() && location.equals(emp.get().getLocation());
+                            return user.isPresent() && location.equals(user.get().getLocation());
                         })
                         .filter(a -> "Present".equalsIgnoreCase(a.getStatus()))
                         .count();
@@ -544,11 +544,11 @@ public class DashboardController {
                 // Location payroll
                 double locPayroll = currentMonthPayrolls.stream()
                         .filter(p -> {
-                            Optional<Employee> emp = allEmployees.stream()
+                            Optional<User> user = allUsers.stream()
                                     .filter(e -> e != null && e.getId() != null && 
                                             e.getId().equals(p.getEmployeeId()))
                                     .findFirst();
-                            return emp.isPresent() && location.equals(emp.get().getLocation());
+                            return user.isPresent() && location.equals(user.get().getLocation());
                         })
                         .filter(p -> p.getAmount() != null)
                         .mapToDouble(Payroll::getAmount)
