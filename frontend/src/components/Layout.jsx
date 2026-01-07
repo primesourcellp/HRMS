@@ -5,7 +5,6 @@ import {
   Users, 
   Clock,
   Calendar, 
-  DollarSign, 
   TrendingUp, 
   Settings, 
   LogOut,
@@ -77,7 +76,7 @@ const Layout = () => {
         { path: '/employees', icon: Users, label: 'Users', permission: 'employees' },
         { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'Team Attendance' : 'Attendance', permission: 'attendance' },
         { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : 'Leave Management', permission: 'leave' },
-        { path: '/payroll', icon: DollarSign, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll' },
+        { path: '/payroll', icon: null, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll', customIcon: '₹' },
         { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
         { path: '/shifts', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Shift' : 'Shifts', permission: 'shifts' },
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
@@ -187,7 +186,11 @@ const Layout = () => {
                       : 'text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <Icon size={18} />
+                  {item.customIcon ? (
+                    <span className={`text-base font-bold ${isActive ? 'text-primary-600' : 'text-gray-700'}`}>{item.customIcon}</span>
+                  ) : (
+                    Icon && <Icon size={18} />
+                  )}
                   {sidebarOpen && <span className="text-sm">{item.label}</span>}
                 </button>
                 {/* Tooltip - Show when sidebar is closed or on hover */}

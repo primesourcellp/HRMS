@@ -19,5 +19,8 @@ public interface PayrollRepository extends JpaRepository<Payroll, Long> {
     @Transactional
     @Query("DELETE FROM Payroll p WHERE p.employeeId = :employeeId")
     void deleteByEmployeeId(@Param("employeeId") Long employeeId);
+    
+    // Find payrolls by employee, month, and year (for duplicate detection)
+    List<Payroll> findByEmployeeIdAndMonthAndYear(Long employeeId, String month, Integer year);
 }
 
