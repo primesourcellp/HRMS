@@ -212,5 +212,24 @@ public class GratuityController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
+    
+    /**
+     * Remove duplicate gratuity records
+     */
+    @PostMapping("/remove-duplicates")
+    public ResponseEntity<Map<String, Object>> removeDuplicateGratuities() {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            int removed = gratuityService.removeDuplicateGratuities();
+            response.put("success", true);
+            response.put("message", "Removed " + removed + " duplicate gratuity record(s)");
+            response.put("removedCount", removed);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error removing duplicates: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
 }
 

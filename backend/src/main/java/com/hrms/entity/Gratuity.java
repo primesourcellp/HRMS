@@ -57,7 +57,7 @@ public class Gratuity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
-    private Employee employee;
+    private User employee;
 
     // Constructors
     public Gratuity() {
@@ -193,11 +193,11 @@ public class Gratuity {
         this.paidBy = paidBy;
     }
 
-    public Employee getEmployee() {
+    public User getEmployee() {
         return employee;
     }
 
-    public void setEmployee(Employee employee) {
+    public void setEmployee(User employee) {
         this.employee = employee;
     }
 }

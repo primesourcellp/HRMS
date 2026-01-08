@@ -15,7 +15,11 @@ const Payroll = () => {
   })
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeView, setActiveView] = useState('salaryDetails') // 'salaryDetails', 'processedPayrolls', 'ctcTemplates', or 'gratuity'
+  // Set default view based on user type
+  const [activeView, setActiveView] = useState(() => {
+    const userType = localStorage.getItem('userType')
+    return userType === 'employee' ? 'processedPayrolls' : 'salaryDetails'
+  }) // 'salaryDetails', 'processedPayrolls', 'ctcTemplates', or 'gratuity'
   const [showPayrollModal, setShowPayrollModal] = useState(false)
   const [showSalaryModal, setShowSalaryModal] = useState(false)
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
@@ -29,6 +33,7 @@ const Payroll = () => {
   const [editingPayroll, setEditingPayroll] = useState(null)
   const [editingSalary, setEditingSalary] = useState(null)
   const [openSalaryDropdownId, setOpenSalaryDropdownId] = useState(null)
+  const [openPayrollDropdownId, setOpenPayrollDropdownId] = useState(null)
   const [processingBulk, setProcessingBulk] = useState(false)
   const [bulkProcessData, setBulkProcessData] = useState({
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -113,7 +118,8 @@ const Payroll = () => {
   const userId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'MANAGER' || userRole === 'FINANCE'
-  const isEmployee = userType === 'employee'
+  // Check if employee: userType === 'employee' OR userRole === 'EMPLOYEE' OR not admin
+  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && userType !== 'admin')
 
   useEffect(() => {
     loadData()
@@ -134,26 +140,57 @@ const Payroll = () => {
     }
   }, [openSalaryDropdownId])
 
+  // Close dropdown when clicking outside (for Processed Payrolls)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openPayrollDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenPayrollDropdownId(null)
+      }
+    }
+    if (openPayrollDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openPayrollDropdownId])
+
   const loadData = async () => {
     try {
       setLoading(true)
       if (isEmployee && userId) {
-        const [payrollsData, employeesData] = await Promise.all([
-          api.getEmployeePayrolls(parseInt(userId)),
-          api.getEmployees()
-        ])
-        const payrollsArray = Array.isArray(payrollsData) ? payrollsData : []
-        setPayrolls(payrollsArray)
-        setEmployees(Array.isArray(employeesData) ? employeesData : [])
-        
-        // Debug: Log to help diagnose
-        console.log('Employee payroll data loaded:', {
-          userId,
-          payrollsCount: payrollsArray.length,
-          payrolls: payrollsArray,
-          selectedMonth,
-          statusFilter
-        })
+        console.log('Loading employee payroll data for userId:', userId)
+        try {
+          const [payrollsData, employeesData] = await Promise.all([
+            api.getEmployeePayrolls(parseInt(userId)),
+            api.getEmployees()
+          ])
+          const payrollsArray = Array.isArray(payrollsData) ? payrollsData : []
+          setPayrolls(payrollsArray)
+          setEmployees(Array.isArray(employeesData) ? employeesData : [])
+          
+          // Debug: Log to help diagnose
+          console.log('Employee payroll data loaded:', {
+            userId,
+            payrollsCount: payrollsArray.length,
+            payrolls: payrollsArray,
+            selectedMonth,
+            statusFilter,
+            isEmployee,
+            activeView
+          })
+          
+          if (payrollsArray.length === 0) {
+            console.warn('No payroll records found for employee. This could mean:')
+            console.warn('1. No payroll records exist for this employee')
+            console.warn('2. Payroll records exist but are filtered out')
+            console.warn('3. API endpoint returned empty array')
+          }
+        } catch (apiError) {
+          console.error('Error fetching employee payroll data:', apiError)
+          setPayrolls([])
+          setEmployees([])
+        }
         } else if (isAdmin) {
           // Load all templates if viewing CTC Templates tab, otherwise load only active ones
           const shouldLoadAllTemplates = activeView === 'ctcTemplates'
@@ -871,13 +908,15 @@ const Payroll = () => {
   
   // Debug: Log filtered results for employees
   if (isEmployee) {
-    console.log('Filtered payrolls for employee:', {
+    console.log('Employee payroll filtering:', {
       totalPayrolls: payrolls.length,
       filteredCount: filteredPayrolls.length,
       selectedMonth,
       statusFilter,
       searchTerm,
-      filteredPayrolls
+      activeView,
+      payrolls: payrolls,
+      filteredPayrolls: filteredPayrolls
     })
   }
 
@@ -907,7 +946,7 @@ const Payroll = () => {
         employeeId: gratuity.employeeId?.toString() || '',
         exitDate: gratuity.exitDate || format(new Date(), 'yyyy-MM-dd'),
         lastDrawnSalary: gratuity.lastDrawnSalary || 0,
-        yearsOfService: gratuity.yearsOfService || 0,
+        yearsOfService: gratuity.yearsOfService ? parseFloat(parseFloat(gratuity.yearsOfService).toFixed(1)) : 0,
         notes: gratuity.notes || ''
       })
     } else {
@@ -940,7 +979,7 @@ const Payroll = () => {
         setGratuityFormData({
           ...gratuityFormData,
           lastDrawnSalary: gratuity.lastDrawnSalary || 0,
-          yearsOfService: gratuity.yearsOfService || 0
+          yearsOfService: gratuity.yearsOfService ? parseFloat(parseFloat(gratuity.yearsOfService).toFixed(1)) : 0
         })
         alert(`Gratuity calculated: ₹${gratuity.finalAmount?.toFixed(2) || 0} (Years of Service: ${gratuity.yearsOfService?.toFixed(2) || 0})`)
       } else {
@@ -1081,7 +1120,7 @@ const Payroll = () => {
       (() => {
         const emp = employees.find(emp => emp.id === gratuity.employeeId || emp.id === parseInt(gratuity.employeeId))
         if (!emp) return false
-        const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase()
+        const fullName = (emp.name || `Employee ${emp.id}`).toLowerCase()
         return fullName.includes(gratuitySearchTerm.toLowerCase()) || 
                emp.employeeId?.toLowerCase().includes(gratuitySearchTerm.toLowerCase()) ||
                emp.email?.toLowerCase().includes(gratuitySearchTerm.toLowerCase())
@@ -1396,6 +1435,15 @@ const Payroll = () => {
       {/* Processed Payrolls View - For both Admin and Employees */}
       {(activeView === 'processedPayrolls' || isEmployee) && (
         <>
+      {/* Page Title for Employees */}
+      {isEmployee && (
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <span className="text-blue-600 font-bold text-2xl">₹</span>
+            My Payroll
+          </h1>
+        </div>
+      )}
       {/* Filters and Actions */}
       <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200">
         <div className="flex flex-col md:flex-row gap-4">
@@ -1512,15 +1560,36 @@ const Payroll = () => {
                 </tr>
               ) : filteredPayrolls.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
-                    No payroll records found
+                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-gray-500 font-medium">No payroll records found</p>
+                      {isEmployee && payrolls.length > 0 && (
+                        <p className="text-sm text-gray-400">
+                          {payrolls.length} record(s) exist but are filtered out. Try clearing filters.
+                        </p>
+                      )}
+                      {isEmployee && payrolls.length === 0 && (
+                        <div className="text-sm text-gray-400 space-y-1">
+                          <p>No payroll records exist for your account.</p>
+                          <p>Please contact HR to process your payroll.</p>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
                 filteredPayrolls.map((payroll) => {
                   const employee = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
                   const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
-                  const netSalary = (payroll.netSalary || payroll.amount || 0).toFixed(2)
+                  // Calculate net salary correctly: baseSalary + allowances + bonus - deductions
+                  const baseSalary = parseFloat(payroll.baseSalary) || 0
+                  const allowances = parseFloat(payroll.allowances) || 0
+                  const bonus = parseFloat(payroll.bonus) || 0
+                  const deductions = parseFloat(payroll.deductions) || 0
+                  const calculatedNetSalary = baseSalary + allowances + bonus - deductions
+                  // Use stored netSalary if available and correct, otherwise use calculated value
+                  const storedNetSalary = payroll.netSalary != null ? parseFloat(payroll.netSalary) : null
+                  const netSalary = (storedNetSalary != null && storedNetSalary > 0 ? storedNetSalary : calculatedNetSalary).toFixed(2)
                   
                   return (
                     <tr key={payroll.id} className="hover:bg-gray-50 transition-colors">
@@ -1554,87 +1623,138 @@ const Payroll = () => {
                           {payroll.status || 'DRAFT'}
                         </span>
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-                          {/* View Payslip Button - Available for all users (ESS) */}
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
+                        <div className="relative dropdown-menu-container">
                           <button
-                            onClick={() => handleViewESSPayslip(payroll.id)}
-                            className="text-indigo-600 hover:text-indigo-800 p-1 sm:p-2 rounded-lg hover:bg-indigo-50 transition-colors"
-                            title="View Payslip (UAN, PF Account, etc.)"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenPayrollDropdownId(openPayrollDropdownId === payroll.id ? null : payroll.id)
+                            }}
+                            className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                            title="Actions"
                           >
-                            <Eye size={16} />
+                            <MoreVertical size={18} />
                           </button>
-                          <button
-                            onClick={() => handleDownloadPayslip(payroll.id)}
-                            className="text-blue-600 hover:text-blue-800 p-1 sm:p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="Download Payslip PDF"
-                          >
-                            <Download size={16} />
-                          </button>
-                          {isAdmin && (
-                            <>
+                          
+                          {openPayrollDropdownId === payroll.id && (
+                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                              {/* View Payslip Button - Available for all users (ESS) */}
                               <button
-                                onClick={() => handleViewPayroll(payroll.id)}
-                                className="text-indigo-600 hover:text-indigo-800 p-1 sm:p-2 rounded-lg hover:bg-indigo-50 transition-colors"
-                                title="View Details"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleViewESSPayslip(payroll.id)
+                                  setOpenPayrollDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                               >
-                                <Eye size={16} />
+                                <Eye size={16} className="text-indigo-600" />
+                                View Payslip (ESS)
                               </button>
-                              {(payroll.status === 'DRAFT' || payroll.status === 'PENDING_APPROVAL') && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDownloadPayslip(payroll.id)
+                                  setOpenPayrollDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <Download size={16} className="text-blue-600" />
+                                Download PDF
+                              </button>
+                              {isAdmin && (
                                 <>
                                   <button
-                                    onClick={() => handleOpenPayrollModal(payroll)}
-                                    className="text-green-600 hover:text-green-800 p-1 sm:p-2 rounded-lg hover:bg-green-50 transition-colors"
-                                    title="Edit"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleViewPayroll(payroll.id)
+                                      setOpenPayrollDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                                   >
-                                    <Edit size={16} />
+                                    <Eye size={16} className="text-green-600" />
+                                    View Details
                                   </button>
-                                  {payroll.status === 'DRAFT' && (
+                                  {(payroll.status === 'DRAFT' || payroll.status === 'PENDING_APPROVAL') && (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleOpenPayrollModal(payroll)
+                                          setOpenPayrollDropdownId(null)
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                      >
+                                        <Edit size={16} className="text-green-600" />
+                                        Edit
+                                      </button>
+                                      {payroll.status === 'DRAFT' && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleSubmitForApproval(payroll.id)
+                                            setOpenPayrollDropdownId(null)
+                                          }}
+                                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                        >
+                                          <Send size={16} className="text-yellow-600" />
+                                          Submit for Approval
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleDeletePayroll(payroll.id)
+                                          setOpenPayrollDropdownId(null)
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                      >
+                                        <Trash2 size={16} />
+                                        Delete
+                                      </button>
+                                    </>
+                                  )}
+                                  {payroll.status === 'PENDING_APPROVAL' && (
                                     <button
-                                      onClick={() => handleSubmitForApproval(payroll.id)}
-                                      className="text-yellow-600 hover:text-yellow-800 p-1 sm:p-2 rounded-lg hover:bg-yellow-50 transition-colors"
-                                      title="Submit for Approval"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleApprovePayroll(payroll.id)
+                                        setOpenPayrollDropdownId(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                                     >
-                                      <Send size={16} />
+                                      <CheckCircle size={16} className="text-green-600" />
+                                      Approve
                                     </button>
                                   )}
-                                  <button
-                                    onClick={() => handleDeletePayroll(payroll.id)}
-                                    className="text-red-600 hover:text-red-800 p-1 sm:p-2 rounded-lg hover:bg-red-50 transition-colors"
-                                    title="Delete"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
+                                  {payroll.status === 'APPROVED' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleFinalizePayroll(payroll.id)
+                                        setOpenPayrollDropdownId(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                    >
+                                      <FileText size={16} className="text-blue-600" />
+                                      Finalize
+                                    </button>
+                                  )}
+                                  {payroll.status === 'FINALIZED' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleMarkAsPaid(payroll.id)
+                                        setOpenPayrollDropdownId(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                    >
+                                      <CheckCircle size={16} className="text-purple-600" />
+                                      Mark as Paid
+                                    </button>
+                                  )}
                                 </>
                               )}
-                              {payroll.status === 'PENDING_APPROVAL' && (
-                                <button
-                                  onClick={() => handleApprovePayroll(payroll.id)}
-                                  className="text-green-600 hover:text-green-800 p-1 sm:p-2 rounded-lg hover:bg-green-50 transition-colors"
-                                  title="Approve"
-                                >
-                                  <CheckCircle size={16} />
-                                </button>
-                              )}
-                              {payroll.status === 'APPROVED' && (
-                                <button
-                                  onClick={() => handleFinalizePayroll(payroll.id)}
-                                  className="text-blue-600 hover:text-blue-800 p-1 sm:p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                                  title="Finalize"
-                                >
-                                  <FileText size={16} />
-                                </button>
-                              )}
-                              {payroll.status === 'FINALIZED' && (
-                                <button
-                                  onClick={() => handleMarkAsPaid(payroll.id)}
-                                  className="text-purple-600 hover:text-purple-800 p-1 sm:p-2 rounded-lg hover:bg-purple-50 transition-colors"
-                                  title="Mark as Paid"
-                                >
-                                  <CheckCircle size={16} />
-                                </button>
-                              )}
-                            </>
+                            </div>
                           )}
                         </div>
                       </td>
@@ -2616,7 +2736,7 @@ const Payroll = () => {
                   <tbody className="divide-y divide-gray-200">
                     {filteredGratuities.map(gratuity => {
                       const employee = employees.find(emp => emp.id === gratuity.employeeId || emp.id === parseInt(gratuity.employeeId))
-                      const employeeName = employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : 'N/A'
+                      const employeeName = employee ? (employee.name || `Employee ${gratuity.employeeId}`) : 'N/A'
                       
                       return (
                         <tr key={gratuity.id} className="hover:bg-gray-50">
@@ -2624,7 +2744,7 @@ const Payroll = () => {
                           <td className="px-4 py-3 text-sm text-gray-600">
                             {gratuity.exitDate ? format(parseISO(gratuity.exitDate), 'dd MMM yyyy') : 'N/A'}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{gratuity.yearsOfService?.toFixed(2) || '0.00'} years</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{gratuity.yearsOfService ? parseFloat(gratuity.yearsOfService.toFixed(1)) : 0} years</td>
                           <td className="px-4 py-3 text-sm text-gray-600">₹{gratuity.lastDrawnSalary?.toFixed(2) || '0.00'}</td>
                           <td className="px-4 py-3 text-sm text-gray-600">₹{gratuity.calculatedAmount?.toFixed(2) || '0.00'}</td>
                           <td className="px-4 py-3 text-sm font-bold text-gray-900">₹{gratuity.finalAmount?.toFixed(2) || '0.00'}</td>
@@ -2721,11 +2841,14 @@ const Payroll = () => {
                   required
                 >
                   <option value="">Select Employee</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.firstName} {emp.lastName} ({emp.employeeId || emp.id})
-                    </option>
-                  ))}
+                  {employees.map(emp => {
+                    const employeeName = emp.name || `Employee ${emp.id}`
+                    return (
+                      <option key={emp.id} value={emp.id}>
+                        {employeeName} {emp.employeeId ? `(${emp.employeeId})` : `(ID: ${emp.id})`}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
@@ -2766,10 +2889,23 @@ const Payroll = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Years of Service *</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.1"
                   min="0"
-                  value={gratuityFormData.yearsOfService}
-                  onChange={(e) => setGratuityFormData({ ...gratuityFormData, yearsOfService: e.target.value })}
+                  value={gratuityFormData.yearsOfService 
+                    ? (() => {
+                        const num = typeof gratuityFormData.yearsOfService === 'number' 
+                          ? gratuityFormData.yearsOfService 
+                          : parseFloat(gratuityFormData.yearsOfService) || 0
+                        // Round to 1 decimal place and remove trailing zeros
+                        return parseFloat(num.toFixed(1))
+                      })()
+                    : ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0
+                    // Round to 1 decimal place
+                    const rounded = Math.round(val * 10) / 10
+                    setGratuityFormData({ ...gratuityFormData, yearsOfService: rounded })
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   required
                 />
@@ -3078,7 +3214,7 @@ const Payroll = () => {
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Designation</label>
                         <p className="text-base text-gray-900">
-                          {payslipDetails.employee?.designation || 'N/A'}
+                          {payslipDetails.employee?.designation || payslipDetails.employee?.position || 'N/A'}
                         </p>
                       </div>
                       <div>

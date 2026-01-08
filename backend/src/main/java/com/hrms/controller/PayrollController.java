@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.dto.PayrollDTO;
-import com.hrms.entity.Employee;
+import com.hrms.entity.User;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.SalaryStructure;
 import com.hrms.mapper.DTOMapper;
@@ -339,7 +339,7 @@ public class PayrollController {
             
             // Add employee statutory and banking information
             if (payroll.getEmployee() != null) {
-                Employee employee = payroll.getEmployee();
+                User employee = payroll.getEmployee();
                 // Try to get statutory and banking fields using reflection (in case methods exist)
                 payslipData.put("uan", getEmployeeField(employee, "uan"));
                 payslipData.put("pfAccountNumber", getEmployeeField(employee, "pfAccountNumber"));
@@ -425,8 +425,9 @@ public class PayrollController {
             // Add bonus from payroll
             payslipData.put("bonus", payroll.getBonus() != null ? payroll.getBonus() : 0.0);
             
-            // Calculate net salary: Gross Salary - Total Deductions
+            // Calculate net salary: (Gross Salary + Bonus) - Total Deductions
             Double grossSalaryValue = null;
+            Double bonusValue = null;
             Double totalDeductionsValue = null;
             
             // Extract gross salary
@@ -443,6 +444,20 @@ public class PayrollController {
                 grossSalaryValue = payroll.getAmount() != null ? payroll.getAmount() : 0.0;
             }
             
+            // Extract bonus
+            Object bonusObj = payslipData.get("bonus");
+            if (bonusObj instanceof Number) {
+                bonusValue = ((Number) bonusObj).doubleValue();
+            } else if (bonusObj != null) {
+                try {
+                    bonusValue = Double.parseDouble(bonusObj.toString());
+                } catch (NumberFormatException e) {
+                    bonusValue = payroll.getBonus() != null ? payroll.getBonus() : 0.0;
+                }
+            } else {
+                bonusValue = payroll.getBonus() != null ? payroll.getBonus() : 0.0;
+            }
+            
             // Extract total deductions
             Object deductionsObj = payslipData.get("totalDeductions");
             if (deductionsObj instanceof Number) {
@@ -457,13 +472,23 @@ public class PayrollController {
                 totalDeductionsValue = payroll.getDeductions() != null ? payroll.getDeductions() : 0.0;
             }
             
-            // Calculate net salary
-            Double netSalary = payroll.getNetSalary() != null ? payroll.getNetSalary() : 
-                             (grossSalaryValue - totalDeductionsValue);
+            // Calculate net salary: (Gross Salary + Bonus) - Total Deductions
+            // Use stored netSalary if available and correct, otherwise calculate
+            Double storedNetSalary = payroll.getNetSalary();
+            Double calculatedNetSalary = (grossSalaryValue + bonusValue) - totalDeductionsValue;
             
-            // Ensure net salary is never null or negative
+            // Use stored netSalary only if it matches the calculated value (within small tolerance)
+            Double netSalary;
+            if (storedNetSalary != null && Math.abs(storedNetSalary - calculatedNetSalary) < 0.01) {
+                netSalary = storedNetSalary;
+            } else {
+                // Use calculated value
+                netSalary = calculatedNetSalary;
+            }
+            
+            // Ensure net salary is never negative
             if (netSalary == null || netSalary < 0) {
-                netSalary = Math.max(0.0, grossSalaryValue - totalDeductionsValue);
+                netSalary = Math.max(0.0, calculatedNetSalary);
             }
             
             payslipData.put("netSalary", netSalary);
@@ -553,7 +578,7 @@ public class PayrollController {
     }
     
     // Helper method to get employee field using reflection
-    private Object getEmployeeField(Employee employee, String fieldName) {
+    private Object getEmployeeField(User employee, String fieldName) {
         try {
             String methodName = "get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
             java.lang.reflect.Method method = employee.getClass().getMethod(methodName);
@@ -597,6 +622,25 @@ public class PayrollController {
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "Error removing duplicates: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Recalculate net salary for all payrolls (fixes incorrect calculations)
+     */
+    @PostMapping("/recalculate-net-salaries")
+    public ResponseEntity<Map<String, Object>> recalculateAllNetSalaries() {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            int updatedCount = payrollService.recalculateAllNetSalaries();
+            response.put("success", true);
+            response.put("message", "Recalculated net salary for " + updatedCount + " payroll record(s)");
+            response.put("updatedCount", updatedCount);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error recalculating net salaries: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }

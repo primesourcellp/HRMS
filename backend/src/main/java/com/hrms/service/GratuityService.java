@@ -2,7 +2,9 @@ package com.hrms.service;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,10 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hrms.dto.GratuityDTO;
-import com.hrms.entity.Employee;
+import com.hrms.entity.User;
 import com.hrms.entity.Gratuity;
 import com.hrms.entity.SalaryStructure;
-import com.hrms.repository.EmployeeRepository;
+import com.hrms.repository.UserRepository;
 import com.hrms.repository.GratuityRepository;
 import com.hrms.repository.SalaryStructureRepository;
 
@@ -27,7 +29,7 @@ public class GratuityService {
     private GratuityRepository gratuityRepository;
     
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private UserRepository userRepository;
     
     @Autowired
     private SalaryStructureRepository salaryStructureRepository;
@@ -36,9 +38,10 @@ public class GratuityService {
      * Calculate gratuity for an employee
      * Formula: (Last drawn salary × 15/26) × Years of service
      * Maximum cap: ₹20 lakhs
+     * Note: This method only calculates and returns the values, it does NOT save to database
      */
     public Gratuity calculateGratuity(@NonNull Long employeeId, @NonNull LocalDate exitDate) {
-        Employee employee = employeeRepository.findById(java.util.Objects.requireNonNull(employeeId))
+        User employee = userRepository.findById(java.util.Objects.requireNonNull(employeeId))
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         
         LocalDate dateOfJoining = employee.getDateOfJoining();
@@ -79,7 +82,7 @@ public class GratuityService {
         // Apply maximum cap of ₹20 lakhs
         double finalAmount = Math.min(calculatedAmount, MAX_GRATUITY_AMOUNT);
         
-        // Create gratuity record
+        // Create gratuity object (NOT saved to database - just for calculation)
         Gratuity gratuity = new Gratuity();
         gratuity.setEmployeeId(employeeId);
         gratuity.setLastDrawnSalary(lastDrawnSalary);
@@ -90,7 +93,8 @@ public class GratuityService {
         gratuity.setStatus("PENDING");
         gratuity.setCreatedAt(java.time.LocalDateTime.now());
         
-        return gratuityRepository.save(gratuity);
+        // DO NOT save - this is just for calculation
+        return gratuity;
     }
     
     /**
@@ -105,9 +109,25 @@ public class GratuityService {
             gratuity = gratuityRepository.findById(gratuityDTO.getId())
                     .orElseThrow(() -> new RuntimeException("Gratuity not found"));
         } else {
-            // Create new
-            gratuity = new Gratuity();
-            gratuity.setCreatedAt(java.time.LocalDateTime.now());
+            // Check for duplicate before creating new (same employee + exit date)
+            if (gratuityDTO.getEmployeeId() != null && gratuityDTO.getExitDate() != null) {
+                Optional<Gratuity> existing = gratuityRepository.findByEmployeeIdAndExitDate(
+                    gratuityDTO.getEmployeeId(), 
+                    gratuityDTO.getExitDate()
+                );
+                if (existing.isPresent()) {
+                    // Update existing instead of creating duplicate
+                    gratuity = existing.get();
+                } else {
+                    // Create new
+                    gratuity = new Gratuity();
+                    gratuity.setCreatedAt(java.time.LocalDateTime.now());
+                }
+            } else {
+                // Create new
+                gratuity = new Gratuity();
+                gratuity.setCreatedAt(java.time.LocalDateTime.now());
+            }
         }
         
         // Update fields
@@ -260,6 +280,45 @@ public class GratuityService {
         }
         
         gratuityRepository.delete(gratuity);
+    }
+    
+    /**
+     * Remove duplicate gratuity records
+     * Keeps the most recent record for each employee-exitDate combination
+     */
+    @Transactional
+    public int removeDuplicateGratuities() {
+        List<Gratuity> allGratuities = gratuityRepository.findAll();
+        Map<String, List<Gratuity>> gratuityGroups = new HashMap<>();
+        
+        // Group gratuities by employeeId-exitDate
+        for (Gratuity gratuity : allGratuities) {
+            String key = gratuity.getEmployeeId() + "-" + gratuity.getExitDate();
+            gratuityGroups.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(gratuity);
+        }
+        
+        int removedCount = 0;
+        
+        // For each group, keep the most recent one and delete others
+        for (List<Gratuity> group : gratuityGroups.values()) {
+            if (group.size() > 1) {
+                // Sort by created date (most recent first)
+                group.sort((g1, g2) -> {
+                    if (g1.getCreatedAt() == null && g2.getCreatedAt() == null) return 0;
+                    if (g1.getCreatedAt() == null) return 1;
+                    if (g2.getCreatedAt() == null) return -1;
+                    return g2.getCreatedAt().compareTo(g1.getCreatedAt());
+                });
+                
+                // Keep the first (most recent), delete the rest
+                for (int i = 1; i < group.size(); i++) {
+                    gratuityRepository.delete(group.get(i));
+                    removedCount++;
+                }
+            }
+        }
+        
+        return removedCount;
     }
 }
 
