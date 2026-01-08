@@ -1,9 +1,16 @@
 package com.hrms.mapper;
 
-import com.hrms.dto.*;
-import com.hrms.entity.*;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import com.hrms.dto.DependentDetailDTO;
+import com.hrms.dto.EducationDetailDTO;
+import com.hrms.dto.EmployeeDTO;
+import com.hrms.dto.WorkExperienceDTO;
+import com.hrms.entity.DependentDetail;
+import com.hrms.entity.EducationDetail;
+import com.hrms.entity.User;
+import com.hrms.entity.WorkExperience;
 
 public class EmployeeMapper {
     public static EmployeeDTO toDTO(User e) {
@@ -14,6 +21,7 @@ public class EmployeeMapper {
         dto.setName(e.getName());
         dto.setEmail(e.getEmail());
         dto.setRole(e.getRole());
+        dto.setClient(e.getClient());
         dto.setDepartment(e.getDepartment());
         dto.setLocation(e.getLocation());
         dto.setDesignation(e.getDesignation());
@@ -27,8 +35,7 @@ public class EmployeeMapper {
         dto.setMaritalStatus(e.getMaritalStatus());
         dto.setAboutMe(e.getAboutMe());
         dto.setExpertise(e.getExpertise());
-        // Note: uan field doesn't exist in Employee entity yet, setting to null
-        dto.setUan(null);
+        dto.setUan(e.getUan());
         dto.setPan(e.getPan());
         dto.setAadhaar(e.getAadhaar());
         dto.setBankAccountNumber(e.getBankAccountNumber());
