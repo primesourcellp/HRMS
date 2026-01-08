@@ -98,7 +98,7 @@ export const PERMISSIONS = {
     payroll: true, // Payroll validation
     performance: false,
     shifts: false,
-    tickets: false,
+    tickets: true, // HR Tickets access
     analytics: true, // Cost analytics
     users: false,
     settings: true,

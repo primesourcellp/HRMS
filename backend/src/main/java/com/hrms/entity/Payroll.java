@@ -53,10 +53,49 @@ public class Payroll {
     private Double netSalary; // Net salary after all deductions
 
     @Column(nullable = false)
-    private String status = "DRAFT"; // DRAFT, PENDING_APPROVAL, APPROVED, FINALIZED, PAID
+    private String status = "DRAFT"; // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, FINALIZED, PAID
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+    
+    // Workflow audit fields
+    @Column(name = "created_at")
+    private java.time.LocalDateTime createdAt;
+    
+    @Column(name = "submitted_at")
+    private java.time.LocalDateTime submittedAt;
+    
+    @Column(name = "approved_at")
+    private java.time.LocalDateTime approvedAt;
+    
+    @Column(name = "rejected_at")
+    private java.time.LocalDateTime rejectedAt;
+    
+    @Column(name = "finalized_at")
+    private java.time.LocalDateTime finalizedAt;
+    
+    @Column(name = "paid_at")
+    private java.time.LocalDateTime paidAt;
+    
+    @Column(name = "submitted_by")
+    private Long submittedBy; // User ID who submitted
+    
+    @Column(name = "approved_by")
+    private Long approvedBy; // User ID who approved
+    
+    @Column(name = "rejected_by")
+    private Long rejectedBy; // User ID who rejected
+    
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+    
+    @Column(name = "finalized_by")
+    private Long finalizedBy; // User ID who finalized
+    
+    @Column(name = "paid_by")
+    private Long paidBy; // User ID who marked as paid
+
+    
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", insertable = false, updatable = false)
@@ -205,5 +244,139 @@ public class Payroll {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+    
+    // Workflow audit getters and setters
+    public java.time.LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    
+    public void setCreatedAt(java.time.LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+    
+    public java.time.LocalDateTime getSubmittedAt() {
+        return submittedAt;
+    }
+    
+    public void setSubmittedAt(java.time.LocalDateTime submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+    
+    public java.time.LocalDateTime getApprovedAt() {
+        return approvedAt;
+    }
+    
+    public void setApprovedAt(java.time.LocalDateTime approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+    
+    public java.time.LocalDateTime getRejectedAt() {
+        return rejectedAt;
+    }
+    
+    public void setRejectedAt(java.time.LocalDateTime rejectedAt) {
+        this.rejectedAt = rejectedAt;
+    }
+    
+    public java.time.LocalDateTime getFinalizedAt() {
+        return finalizedAt;
+    }
+    
+    public void setFinalizedAt(java.time.LocalDateTime finalizedAt) {
+        this.finalizedAt = finalizedAt;
+    }
+    
+    public java.time.LocalDateTime getPaidAt() {
+        return paidAt;
+    }
+    
+    public void setPaidAt(java.time.LocalDateTime paidAt) {
+        this.paidAt = paidAt;
+    }
+    
+    public Long getSubmittedBy() {
+        return submittedBy;
+    }
+    
+    public void setSubmittedBy(Long submittedBy) {
+        this.submittedBy = submittedBy;
+    }
+    
+    public Long getApprovedBy() {
+        return approvedBy;
+    }
+    
+    public void setApprovedBy(Long approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+    
+    public Long getRejectedBy() {
+        return rejectedBy;
+    }
+    
+    public void setRejectedBy(Long rejectedBy) {
+        this.rejectedBy = rejectedBy;
+    }
+    
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+    
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
+    
+    public Long getFinalizedBy() {
+        return finalizedBy;
+    }
+    
+    public void setFinalizedBy(Long finalizedBy) {
+        this.finalizedBy = finalizedBy;
+    }
+    
+    public Long getPaidBy() {
+        return paidBy;
+    }
+    
+    public void setPaidBy(Long paidBy) {
+        this.paidBy = paidBy;
+    }
+    
+    // Workflow helper methods
+    public boolean canBeEdited() {
+        return "DRAFT".equals(status) || "PENDING_APPROVAL".equals(status) || "REJECTED".equals(status);
+    }
+    
+    public boolean canBeDeleted() {
+        return "DRAFT".equals(status) || "PENDING_APPROVAL".equals(status) || "REJECTED".equals(status);
+    }
+    
+    public boolean canBeSubmitted() {
+        return "DRAFT".equals(status) || "REJECTED".equals(status);
+    }
+    
+    public boolean canBeApproved() {
+        return "PENDING_APPROVAL".equals(status);
+    }
+    
+    public boolean canBeRejected() {
+        return "PENDING_APPROVAL".equals(status);
+    }
+    
+    public boolean canBeFinalized() {
+        return "APPROVED".equals(status);
+    }
+    
+    public boolean canBePaid() {
+        return "FINALIZED".equals(status);
+    }
+    
+    public boolean isCompleted() {
+        return "PAID".equals(status);
+    }
+    
+    public boolean isFinalized() {
+        return "FINALIZED".equals(status) || "PAID".equals(status);
     }
 }

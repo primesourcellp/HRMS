@@ -1883,6 +1883,162 @@ const api = {
   },
   downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob()),
   
+  // Gratuity Management
+  getGratuities: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity`)
+      if (!response.ok) {
+        console.error('Gratuity API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching gratuities:', error)
+      return []
+    }
+  },
+  getGratuityById: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/${id}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch gratuity (${response.status})`)
+      }
+      const result = await response.json()
+      return result.gratuity || result
+    } catch (error) {
+      console.error('Error fetching gratuity:', error)
+      throw error
+    }
+  },
+  getGratuitiesByEmployeeId: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/employee/${employeeId}`)
+      if (!response.ok) {
+        console.error('Employee Gratuity API error:', response.status, response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching employee gratuities:', error)
+      return []
+    }
+  },
+  calculateGratuity: async (employeeId, exitDate) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/calculate?employeeId=${employeeId}&exitDate=${exitDate}`, {
+        method: 'POST'
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        throw new Error(errorData.message || 'Failed to calculate gratuity')
+      }
+      const result = await response.json()
+      return result
+    } catch (error) {
+      console.error('Error calculating gratuity:', error)
+      throw error
+    }
+  },
+  createGratuity: async (gratuityData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gratuityData)
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        throw new Error(errorData.message || 'Failed to create gratuity')
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating gratuity:', error)
+      throw error
+    }
+  },
+  updateGratuity: async (id, gratuityData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gratuityData)
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        throw new Error(errorData.message || 'Failed to update gratuity')
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating gratuity:', error)
+      throw error
+    }
+  },
+  approveGratuity: async (id, approvedBy) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/${id}/approve${approvedBy ? `?approvedBy=${approvedBy}` : ''}`, {
+        method: 'POST'
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        throw new Error(errorData.message || 'Failed to approve gratuity')
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error approving gratuity:', error)
+      throw error
+    }
+  },
+  markGratuityAsPaid: async (id, paymentDate, paidBy) => {
+    try {
+      const params = new URLSearchParams()
+      if (paymentDate) params.append('paymentDate', paymentDate)
+      if (paidBy) params.append('paidBy', paidBy)
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/${id}/pay${params.toString() ? '?' + params.toString() : ''}`, {
+        method: 'POST'
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        throw new Error(errorData.message || 'Failed to mark gratuity as paid')
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error marking gratuity as paid:', error)
+      throw error
+    }
+  },
+  rejectGratuity: async (id, reason) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/${id}/reject?reason=${encodeURIComponent(reason)}`, {
+        method: 'POST'
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        throw new Error(errorData.message || 'Failed to reject gratuity')
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error rejecting gratuity:', error)
+      throw error
+    }
+  },
+  deleteGratuity: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/gratuity/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }))
+        throw new Error(errorData.message || 'Failed to delete gratuity')
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error deleting gratuity:', error)
+      throw error
+    }
+  },
+  
   // Shift Change Requests
   createShiftChangeRequest: async (requestData) => {
     try {

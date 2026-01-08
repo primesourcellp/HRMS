@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.dto.PayrollDTO;
+import com.hrms.entity.Employee;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.SalaryStructure;
 import com.hrms.mapper.DTOMapper;
@@ -168,15 +169,60 @@ public class PayrollController {
     }
 
     /**
+     * Submit payroll for approval
+     */
+    @PostMapping("/{id}/submit")
+    public ResponseEntity<Map<String, Object>> submitPayrollForApproval(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long userId) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.submitPayrollForApproval(id, userId);
+            response.put("success", true);
+            response.put("message", "Payroll submitted for approval successfully");
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+    
+    /**
      * Approve a payroll
      */
     @PostMapping("/{id}/approve")
-    public ResponseEntity<Map<String, Object>> approvePayroll(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> approvePayroll(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long userId) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.approvePayroll(id);
+            Payroll payroll = payrollService.approvePayroll(id, userId);
             response.put("success", true);
             response.put("message", "Payroll approved successfully");
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+    
+    /**
+     * Reject a payroll
+     */
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<Map<String, Object>> rejectPayroll(
+            @PathVariable Long id,
+            @RequestParam String rejectionReason,
+            @RequestParam(required = false) Long userId) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Payroll payroll = payrollService.rejectPayroll(id, rejectionReason, userId);
+            response.put("success", true);
+            response.put("message", "Payroll rejected successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -190,10 +236,12 @@ public class PayrollController {
      * Finalize a payroll
      */
     @PostMapping("/{id}/finalize")
-    public ResponseEntity<Map<String, Object>> finalizePayroll(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> finalizePayroll(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long userId) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.finalizePayroll(id);
+            Payroll payroll = payrollService.finalizePayroll(id, userId);
             response.put("success", true);
             response.put("message", "Payroll finalized successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -211,10 +259,11 @@ public class PayrollController {
     @PostMapping("/finalize-all")
     public ResponseEntity<Map<String, Object>> finalizeAllApprovedPayrolls(
             @RequestParam String month,
-            @RequestParam Integer year) {
+            @RequestParam Integer year,
+            @RequestParam(required = false) Long userId) {
         Map<String, Object> response = new HashMap<>();
         try {
-            List<Payroll> payrolls = payrollService.finalizeAllApprovedPayrolls(month, year);
+            List<Payroll> payrolls = payrollService.finalizeAllApprovedPayrolls(month, year, userId);
             response.put("success", true);
             response.put("message", "Finalized " + payrolls.size() + " payrolls");
             response.put("payrolls", DTOMapper.toPayrollDTOList(payrolls));
@@ -231,10 +280,12 @@ public class PayrollController {
      * Mark payroll as paid
      */
     @PostMapping("/{id}/mark-paid")
-    public ResponseEntity<Map<String, Object>> markPayrollAsPaid(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> markPayrollAsPaid(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long userId) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.markPayrollAsPaid(id);
+            Payroll payroll = payrollService.markPayrollAsPaid(id, userId);
             response.put("success", true);
             response.put("message", "Payroll marked as paid");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -267,24 +318,6 @@ public class PayrollController {
         }
     }
 
-    /**
-     * Submit payroll for approval (moves from DRAFT to PENDING_APPROVAL)
-     */
-    @PostMapping("/{id}/submit")
-    public ResponseEntity<Map<String, Object>> submitPayrollForApproval(@PathVariable Long id) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            Payroll payroll = payrollService.submitPayrollForApproval(id);
-            response.put("success", true);
-            response.put("message", "Payroll submitted for approval successfully");
-            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-        }
-    }
 
     @GetMapping("/{id}/payslip")
     public ResponseEntity<?> generatePayslipPDF(@PathVariable Long id) {
@@ -304,6 +337,30 @@ public class PayrollController {
             payslipData.put("payPeriod", payroll.getMonth() + " " + (payroll.getYear() != null ? payroll.getYear() : ""));
             payslipData.put("payDate", LocalDate.now().toString());
             
+            // Add employee statutory and banking information
+            if (payroll.getEmployee() != null) {
+                Employee employee = payroll.getEmployee();
+                // Try to get statutory and banking fields using reflection (in case methods exist)
+                payslipData.put("uan", getEmployeeField(employee, "uan"));
+                payslipData.put("pfAccountNumber", getEmployeeField(employee, "pfAccountNumber"));
+                payslipData.put("bankAccountNumber", getEmployeeField(employee, "bankAccountNumber"));
+                payslipData.put("bankName", getEmployeeField(employee, "bankName"));
+                payslipData.put("ifscCode", getEmployeeField(employee, "ifscCode"));
+            } else {
+                payslipData.put("uan", null);
+                payslipData.put("pfAccountNumber", null);
+                payslipData.put("bankAccountNumber", null);
+                payslipData.put("bankName", null);
+                payslipData.put("ifscCode", null);
+            }
+            
+            // Add attendance information (calculate if not available)
+            // These fields may not exist in Payroll entity, so we'll calculate or set defaults
+            payslipData.put("workingDays", 0); // Will be calculated or set from payroll if available
+            payslipData.put("presentDays", 0);
+            payslipData.put("leaveDays", 0);
+            payslipData.put("lopDays", 0);
+            
             if (salaryStructureOpt.isPresent()) {
                 // Use salary structure data if available
                 SalaryStructure salaryStructure = salaryStructureOpt.get();
@@ -312,16 +369,34 @@ public class PayrollController {
                 Double netSalary = salaryStructure.getNetSalary();
                 
                 payslipData.put("basicSalary", basicSalary != null ? basicSalary : (payroll.getBaseSalary() != null ? payroll.getBaseSalary() : 0.0));
-                payslipData.put("hra", salaryStructure.getHra());
+                payslipData.put("hra", salaryStructure.getHra() != null ? salaryStructure.getHra() : 0.0);
+                payslipData.put("specialAllowance", salaryStructure.getSpecialAllowance() != null ? salaryStructure.getSpecialAllowance() : 0.0);
+                payslipData.put("transportAllowance", salaryStructure.getTransportAllowance() != null ? salaryStructure.getTransportAllowance() : 0.0);
+                payslipData.put("medicalAllowance", salaryStructure.getMedicalAllowance() != null ? salaryStructure.getMedicalAllowance() : 0.0);
+                payslipData.put("otherAllowances", salaryStructure.getOtherAllowances() != null ? salaryStructure.getOtherAllowances() : 0.0);
+                
+                // Calculate total allowances
                 Double transportAllowance = salaryStructure.getTransportAllowance() != null ? salaryStructure.getTransportAllowance() : 0.0;
                 Double medicalAllowance = salaryStructure.getMedicalAllowance() != null ? salaryStructure.getMedicalAllowance() : 0.0;
-                payslipData.put("allowances", transportAllowance + medicalAllowance);
+                Double specialAllowance = salaryStructure.getSpecialAllowance() != null ? salaryStructure.getSpecialAllowance() : 0.0;
+                Double otherAllowances = salaryStructure.getOtherAllowances() != null ? salaryStructure.getOtherAllowances() : 0.0;
+                Double totalAllowances = transportAllowance + medicalAllowance + specialAllowance + otherAllowances;
+                payslipData.put("allowances", totalAllowances);
+                
                 payslipData.put("grossSalary", grossSalary != null ? grossSalary : (payroll.getAmount() != null ? payroll.getAmount() : 0.0));
-                payslipData.put("pf", salaryStructure.getPf());
-                payslipData.put("esi", salaryStructure.getEsi());
-                payslipData.put("tds", salaryStructure.getTds());
-                Double totalDeductions = (grossSalary != null && netSalary != null) ? (grossSalary - netSalary) : 
-                                       (payroll.getDeductions() != null ? payroll.getDeductions() : 0.0);
+                payslipData.put("pf", salaryStructure.getPf() != null ? salaryStructure.getPf() : 0.0);
+                payslipData.put("esi", salaryStructure.getEsi() != null ? salaryStructure.getEsi() : 0.0);
+                payslipData.put("tds", salaryStructure.getTds() != null ? salaryStructure.getTds() : 0.0);
+                payslipData.put("professionalTax", salaryStructure.getProfessionalTax() != null ? salaryStructure.getProfessionalTax() : 0.0);
+                payslipData.put("otherDeductions", salaryStructure.getOtherDeductions() != null ? salaryStructure.getOtherDeductions() : 0.0);
+                
+                // Calculate total deductions
+                Double pf = salaryStructure.getPf() != null ? salaryStructure.getPf() : 0.0;
+                Double esi = salaryStructure.getEsi() != null ? salaryStructure.getEsi() : 0.0;
+                Double tds = salaryStructure.getTds() != null ? salaryStructure.getTds() : 0.0;
+                Double professionalTax = salaryStructure.getProfessionalTax() != null ? salaryStructure.getProfessionalTax() : 0.0;
+                Double otherDeductions = salaryStructure.getOtherDeductions() != null ? salaryStructure.getOtherDeductions() : 0.0;
+                Double totalDeductions = pf + esi + tds + professionalTax + otherDeductions;
                 payslipData.put("totalDeductions", totalDeductions);
             } else {
                 // Use payroll data when salary structure is not available
@@ -332,17 +407,65 @@ public class PayrollController {
                 Double grossSalary = payroll.getAmount() != null ? payroll.getAmount() : (baseSalary + allowances + bonus);
                 
                 payslipData.put("basicSalary", baseSalary);
-                payslipData.put("hra", null);
+                payslipData.put("hra", 0.0);
+                payslipData.put("specialAllowance", 0.0);
+                payslipData.put("transportAllowance", 0.0);
+                payslipData.put("medicalAllowance", 0.0);
+                payslipData.put("otherAllowances", allowances);
                 payslipData.put("allowances", allowances);
                 payslipData.put("grossSalary", grossSalary);
-                payslipData.put("pf", null);
-                payslipData.put("esi", null);
-                payslipData.put("tds", null);
+                payslipData.put("pf", 0.0);
+                payslipData.put("esi", 0.0);
+                payslipData.put("tds", 0.0);
+                payslipData.put("professionalTax", 0.0);
+                payslipData.put("otherDeductions", 0.0);
                 payslipData.put("totalDeductions", deductions);
             }
             
+            // Add bonus from payroll
+            payslipData.put("bonus", payroll.getBonus() != null ? payroll.getBonus() : 0.0);
+            
+            // Calculate net salary: Gross Salary - Total Deductions
+            Double grossSalaryValue = null;
+            Double totalDeductionsValue = null;
+            
+            // Extract gross salary
+            Object grossObj = payslipData.get("grossSalary");
+            if (grossObj instanceof Number) {
+                grossSalaryValue = ((Number) grossObj).doubleValue();
+            } else if (grossObj != null) {
+                try {
+                    grossSalaryValue = Double.parseDouble(grossObj.toString());
+                } catch (NumberFormatException e) {
+                    grossSalaryValue = payroll.getAmount() != null ? payroll.getAmount() : 0.0;
+                }
+            } else {
+                grossSalaryValue = payroll.getAmount() != null ? payroll.getAmount() : 0.0;
+            }
+            
+            // Extract total deductions
+            Object deductionsObj = payslipData.get("totalDeductions");
+            if (deductionsObj instanceof Number) {
+                totalDeductionsValue = ((Number) deductionsObj).doubleValue();
+            } else if (deductionsObj != null) {
+                try {
+                    totalDeductionsValue = Double.parseDouble(deductionsObj.toString());
+                } catch (NumberFormatException e) {
+                    totalDeductionsValue = payroll.getDeductions() != null ? payroll.getDeductions() : 0.0;
+                }
+            } else {
+                totalDeductionsValue = payroll.getDeductions() != null ? payroll.getDeductions() : 0.0;
+            }
+            
+            // Calculate net salary
             Double netSalary = payroll.getNetSalary() != null ? payroll.getNetSalary() : 
-                             (payroll.getAmount() != null ? payroll.getAmount() : 0.0);
+                             (grossSalaryValue - totalDeductionsValue);
+            
+            // Ensure net salary is never null or negative
+            if (netSalary == null || netSalary < 0) {
+                netSalary = Math.max(0.0, grossSalaryValue - totalDeductionsValue);
+            }
+            
             payslipData.put("netSalary", netSalary);
 
             byte[] pdfBytes = pdfGeneratorService.generatePayslip(payslipData);
@@ -426,6 +549,55 @@ public class PayrollController {
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+    
+    // Helper method to get employee field using reflection
+    private Object getEmployeeField(Employee employee, String fieldName) {
+        try {
+            String methodName = "get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
+            java.lang.reflect.Method method = employee.getClass().getMethod(methodName);
+            return method.invoke(employee);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Remove duplicate payroll records for all employees
+     */
+    @PostMapping("/remove-duplicates")
+    public ResponseEntity<Map<String, Object>> removeDuplicatePayrolls() {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            int removed = payrollService.removeDuplicatePayrolls();
+            response.put("success", true);
+            response.put("message", "Removed " + removed + " duplicate payroll record(s)");
+            response.put("removedCount", removed);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error removing duplicates: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Remove duplicate payroll records for a specific employee
+     */
+    @PostMapping("/remove-duplicates/{employeeId}")
+    public ResponseEntity<Map<String, Object>> removeDuplicatePayrollsForEmployee(@PathVariable Long employeeId) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            int removed = payrollService.removeDuplicatePayrollsForEmployee(employeeId);
+            response.put("success", true);
+            response.put("message", "Removed " + removed + " duplicate payroll record(s) for employee " + employeeId);
+            response.put("removedCount", removed);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error removing duplicates: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 }

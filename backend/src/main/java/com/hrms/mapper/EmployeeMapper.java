@@ -14,7 +14,6 @@ public class EmployeeMapper {
         dto.setName(e.getName());
         dto.setEmail(e.getEmail());
         dto.setRole(e.getRole());
-        dto.setClient(e.getClient());
         dto.setDepartment(e.getDepartment());
         dto.setLocation(e.getLocation());
         dto.setDesignation(e.getDesignation());
@@ -28,7 +27,8 @@ public class EmployeeMapper {
         dto.setMaritalStatus(e.getMaritalStatus());
         dto.setAboutMe(e.getAboutMe());
         dto.setExpertise(e.getExpertise());
-        dto.setUan(e.getUan());
+        // Note: uan field doesn't exist in Employee entity yet, setting to null
+        dto.setUan(null);
         dto.setPan(e.getPan());
         dto.setAadhaar(e.getAadhaar());
         dto.setBankAccountNumber(e.getBankAccountNumber());
@@ -77,8 +77,6 @@ public class EmployeeMapper {
         }
         return dto;
     }
-
-    
 
     public static WorkExperienceDTO toWorkExperienceDTO(WorkExperience w) {
         if (w == null) return null;
