@@ -213,8 +213,9 @@ public class PDFGeneratorService {
             earningsTable.addCell(createCell("₹" + formatCurrency.apply(bonus), false));
         }
         
-        // Gross Salary
-        Double grossSalary = getDoubleValue.apply(payslipData.get("grossSalary"));
+        // Gross Salary - Recalculate as sum of all earnings components shown
+        // Calculate gross salary as sum of all earnings: Basic + HRA + All Allowances + Bonus
+        Double grossSalary = basicSalary + hra + specialAllowance + transportAllowance + medicalAllowance + otherAllowances + bonus;
         earningsTable.addCell(createCell("Gross Salary", true));
         earningsTable.addCell(createCell("₹" + formatCurrency.apply(grossSalary), true));
         document.add(earningsTable);
@@ -267,7 +268,7 @@ public class PDFGeneratorService {
         document.add(deductionsTable);
         document.add(new Paragraph("\n"));
 
-        // Net Salary - Calculate if not provided
+        // Net Salary - Calculate if not provided: Gross Salary (includes bonus) - Total Deductions
         Object netSalaryObj = payslipData.get("netSalary");
         Double netSalaryValue = null;
         
@@ -278,21 +279,19 @@ public class PDFGeneratorService {
                 try {
                     netSalaryValue = Double.parseDouble(netSalaryObj.toString());
                 } catch (NumberFormatException e) {
-                    // If parsing fails, calculate from gross salary and deductions
-                    Object grossObj = payslipData.get("grossSalary");
+                    // If parsing fails, calculate from gross salary (includes bonus) and deductions
                     Object deductionsObj = payslipData.get("totalDeductions");
-                    Double gross = grossObj != null ? Double.parseDouble(grossObj.toString()) : 0.0;
                     Double deductions = deductionsObj != null ? Double.parseDouble(deductionsObj.toString()) : 0.0;
-                    netSalaryValue = gross - deductions;
+                    // Use the calculated gross salary which already includes bonus
+                    netSalaryValue = grossSalary - deductions;
                 }
             }
         } else {
-            // Calculate net salary if not provided
-            Object grossObj = payslipData.get("grossSalary");
+            // Calculate net salary if not provided: Gross Salary (includes bonus) - Total Deductions
             Object deductionsObj = payslipData.get("totalDeductions");
-            Double gross = grossObj != null ? Double.parseDouble(grossObj.toString()) : 0.0;
             Double deductions = deductionsObj != null ? Double.parseDouble(deductionsObj.toString()) : 0.0;
-            netSalaryValue = gross - deductions;
+            // Use the calculated gross salary which already includes bonus
+            netSalaryValue = grossSalary - deductions;
         }
         
         // Format net salary with 2 decimal places

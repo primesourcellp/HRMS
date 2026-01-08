@@ -52,8 +52,13 @@ public class PayrollService {
     }
 
     public Payroll createPayroll(Payroll payroll) {
-        // Calculate net amount
-        double amount = payroll.getBaseSalary() + payroll.getAllowances() + payroll.getBonus() - payroll.getDeductions();
+        // Calculate net amount (handle null values)
+        double baseSalary = payroll.getBaseSalary() != null ? payroll.getBaseSalary() : 0.0;
+        double allowances = payroll.getAllowances() != null ? payroll.getAllowances() : 0.0;
+        double bonus = payroll.getBonus() != null ? payroll.getBonus() : 0.0;
+        double deductions = payroll.getDeductions() != null ? payroll.getDeductions() : 0.0;
+        
+        double amount = baseSalary + allowances + bonus - deductions;
         payroll.setAmount(amount);
         payroll.setNetSalary(amount);
         payroll.setStatus("DRAFT");
@@ -258,6 +263,8 @@ public class PayrollService {
         payroll.setAllowances(totalAllowances);
         payroll.setBonus(0.0);
         payroll.setDeductions(totalDeductions);
+        // Amount should represent net salary (not gross), but for backward compatibility, keep grossSalary
+        // The netSalary field is the correct one to use
         payroll.setAmount(grossSalary);
         // Net salary is prorated based on attendance/leaves
         payroll.setNetSalary(netSalary);
@@ -444,8 +451,13 @@ public class PayrollService {
             payroll.setNotes(payrollDTO.getNotes());
         }
 
-        // Recalculate amount and net salary
-        double amount = payroll.getBaseSalary() + payroll.getAllowances() + payroll.getBonus() - payroll.getDeductions();
+        // Recalculate amount and net salary (handle null values)
+        double baseSalary = payroll.getBaseSalary() != null ? payroll.getBaseSalary() : 0.0;
+        double allowances = payroll.getAllowances() != null ? payroll.getAllowances() : 0.0;
+        double bonus = payroll.getBonus() != null ? payroll.getBonus() : 0.0;
+        double deductions = payroll.getDeductions() != null ? payroll.getDeductions() : 0.0;
+        
+        double amount = baseSalary + allowances + bonus - deductions;
         payroll.setAmount(amount);
         payroll.setNetSalary(amount);
 
@@ -574,5 +586,33 @@ public class PayrollService {
             case "DRAFT": return 1;
             default: return 0;
         }
+    }
+    
+    /**
+     * Recalculate net salary for all payrolls (fixes incorrect calculations)
+     * Only updates payrolls in DRAFT or PENDING_APPROVAL status
+     */
+    @Transactional
+    public int recalculateAllNetSalaries() {
+        List<Payroll> allPayrolls = payrollRepository.findAll();
+        int updatedCount = 0;
+        
+        for (Payroll payroll : allPayrolls) {
+            // Only recalculate if in editable status
+            if (payroll.canBeEdited()) {
+                double baseSalary = payroll.getBaseSalary() != null ? payroll.getBaseSalary() : 0.0;
+                double allowances = payroll.getAllowances() != null ? payroll.getAllowances() : 0.0;
+                double bonus = payroll.getBonus() != null ? payroll.getBonus() : 0.0;
+                double deductions = payroll.getDeductions() != null ? payroll.getDeductions() : 0.0;
+                
+                double netSalary = baseSalary + allowances + bonus - deductions;
+                payroll.setNetSalary(netSalary);
+                payroll.setAmount(netSalary); // Also update amount to match net salary
+                payrollRepository.save(payroll);
+                updatedCount++;
+            }
+        }
+        
+        return updatedCount;
     }
 }

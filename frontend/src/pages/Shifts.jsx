@@ -52,8 +52,9 @@ const Shifts = () => {
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
-  const isEmployee = userType === 'employee'
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+  // Employee detection: userType === 'employee' OR userRole === 'EMPLOYEE' OR not admin
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'MANAGER' || userRole === 'FINANCE'
+  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && userType !== 'admin')
   const currentUserId = localStorage.getItem('userId')
 
   useEffect(() => {
@@ -1021,13 +1022,15 @@ const Shifts = () => {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
-              <button
-                onClick={() => openModal()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
-              >
-                <Plus size={20} />
-                Add Shift
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => openModal()}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                >
+                  <Plus size={20} />
+                  Add Shift
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
