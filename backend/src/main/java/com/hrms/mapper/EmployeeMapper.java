@@ -28,8 +28,10 @@ public class EmployeeMapper {
         dto.setMaritalStatus(e.getMaritalStatus());
         dto.setAboutMe(e.getAboutMe());
         dto.setExpertise(e.getExpertise());
+        dto.setUan(e.getUan());
         dto.setPan(e.getPan());
         dto.setAadhaar(e.getAadhaar());
+        dto.setBankAccountNumber(e.getBankAccountNumber());
         dto.setWorkPhoneNumber(e.getWorkPhoneNumber());
         dto.setPersonalMobileNumber(e.getPersonalMobileNumber());
         dto.setExtension(e.getExtension());
@@ -138,8 +140,10 @@ public class EmployeeMapper {
         user.setMaritalStatus(dto.getMaritalStatus());
         user.setAboutMe(dto.getAboutMe());
         user.setExpertise(dto.getExpertise());
+        user.setUan(dto.getUan());
         user.setPan(dto.getPan());
         user.setAadhaar(dto.getAadhaar());
+        user.setBankAccountNumber(dto.getBankAccountNumber());
         user.setWorkPhoneNumber(dto.getWorkPhoneNumber());
         user.setPersonalMobileNumber(dto.getPersonalMobileNumber());
         user.setExtension(dto.getExtension());

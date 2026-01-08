@@ -64,10 +64,23 @@ public class UserService {
     // -------------------- GET USER BY ID --------------------
     @Transactional(readOnly = true)
     public Optional<User> getEmployeeById(long id) {
-        // Use findByIdWithDetails to eagerly fetch all related collections
-        Optional<User> userOpt = userRepository.findByIdWithDetails(java.lang.Long.valueOf(id));
+        // Fetch user with work experiences first (to avoid MultipleBagFetchException)
+        Optional<User> userOpt = userRepository.findByIdWithWorkExperiences(java.lang.Long.valueOf(id));
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+            
+            // Fetch education details separately
+            Optional<User> userWithEducation = userRepository.findByIdWithEducationDetails(java.lang.Long.valueOf(id));
+            if (userWithEducation.isPresent()) {
+                user.setEducationDetails(userWithEducation.get().getEducationDetails());
+            }
+            
+            // Fetch dependent details separately
+            Optional<User> userWithDependent = userRepository.findByIdWithDependentDetails(java.lang.Long.valueOf(id));
+            if (userWithDependent.isPresent()) {
+                user.setDependentDetails(userWithDependent.get().getDependentDetails());
+            }
+            
             // Force initialization of lazy collections by accessing them
             if (user.getWorkExperiences() != null) {
                 user.getWorkExperiences().size(); // Force initialization
@@ -262,8 +275,10 @@ public class UserService {
         if (newData.getAboutMe() != null) emp.setAboutMe(newData.getAboutMe());
         if (newData.getExpertise() != null) emp.setExpertise(newData.getExpertise());
 
+        if (newData.getUan() != null) emp.setUan(newData.getUan());
         if (newData.getPan() != null) emp.setPan(newData.getPan());
         if (newData.getAadhaar() != null) emp.setAadhaar(newData.getAadhaar());
+        if (newData.getBankAccountNumber() != null) emp.setBankAccountNumber(newData.getBankAccountNumber());
 
         if (newData.getWorkPhoneNumber() != null) emp.setWorkPhoneNumber(newData.getWorkPhoneNumber());
         if (newData.getPersonalMobileNumber() != null) emp.setPersonalMobileNumber(newData.getPersonalMobileNumber());
@@ -441,8 +456,8 @@ public class UserService {
     }
 
     public Optional<User> getUserById(Long id) {
-        // Use findByIdWithDetails to eagerly fetch all related collections
-        return userRepository.findByIdWithDetails(id);
+        // Use getEmployeeById which handles fetching collections separately
+        return getEmployeeById(id.longValue());
     }
 
     @org.springframework.transaction.annotation.Transactional

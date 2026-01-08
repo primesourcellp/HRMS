@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { User, Bell, FileText, Upload, Shield } from 'lucide-react'
+import { User, Bell, FileText, Upload, Shield, Eye, Download } from 'lucide-react'
 import api from '../services/api'
+
+const API_BASE_URL = 'http://localhost:8080/api'
 
 const formatDateForInput = (dateString) => {
   if (!dateString) return ''
@@ -35,6 +37,7 @@ const Settings = () => {
     name: localStorage.getItem('userName') || '',
     email: localStorage.getItem('userEmail') || '',
     phone: '',
+    personalMobileNumber: '',
     department: '',
     position: '',
     role: localStorage.getItem('userRole') || '',
@@ -44,7 +47,11 @@ const Settings = () => {
     age: '',
     maritalStatus: '',
     aboutMe: '',
-    sourceOfHire: ''
+    sourceOfHire: '',
+    pan: '',
+    aadhaar: '',
+    uanNumber: '',
+    bankAccountNumber: ''
   })
   const [documents, setDocuments] = useState([])
   const [docFormData, setDocFormData] = useState({
@@ -222,7 +229,12 @@ const Settings = () => {
           setProfileData({
             name: employee.name || '',
             email: employee.email || '',
-            phone: employee.phone || employee.personalMobileNumber || '',
+            phone: employee.phone || '',
+            personalMobileNumber: employee.personalMobileNumber || '',
+            pan: employee.pan || '',
+            aadhaar: employee.aadhaar || '',
+            uanNumber: employee.uan || '',
+            bankAccountNumber: employee.bankAccountNumber || '',
             department: employee.department || '',
             position: employee.designation || '',
             role: 'EMPLOYEE',
@@ -281,15 +293,19 @@ const Settings = () => {
           await api.updateEmployee(employee.id, {
             name: profileData.name || '',
             email: profileData.email,
-            phone: profileData.phone,
-            personalMobileNumber: profileData.phone,
+            phone: profileData.phone || profileData.personalMobileNumber || '',
+            personalMobileNumber: profileData.personalMobileNumber || '',
             department: profileData.department,
             designation: profileData.position,
             gender: profileData.gender,
             dateOfBirth: profileData.dateOfBirth,
             maritalStatus: profileData.maritalStatus,
             aboutMe: profileData.aboutMe,
-            sourceOfHire: profileData.sourceOfHire
+            sourceOfHire: profileData.sourceOfHire,
+            pan: profileData.pan || '',
+            aadhaar: profileData.aadhaar || '',
+            uan: profileData.uanNumber || '',
+            bankAccountNumber: profileData.bankAccountNumber || ''
           }, userRole)
         }
       } else {
@@ -369,6 +385,87 @@ const Settings = () => {
 
   const handleNotificationChange = (key) => {
     setNotifications({ ...notifications, [key]: !notifications[key] })
+  }
+
+  const handleDownloadDocument = async (docId, fileName) => {
+    try {
+      console.log('Downloading document:', docId, fileName)
+      const downloadUrl = `${API_BASE_URL}/documents/${docId}/download`
+      
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error')
+        throw new Error(`Failed to download: ${response.status} ${errorText}`)
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.setAttribute('download', fileName)
+      a.style.display = 'none'
+      a.style.visibility = 'hidden'
+      document.body.appendChild(a)
+
+      setTimeout(() => {
+        a.click()
+        setTimeout(() => {
+          if (document.body.contains(a)) {
+            document.body.removeChild(a)
+          }
+          window.URL.revokeObjectURL(url)
+        }, 500)
+      }, 10)
+    } catch (error) {
+      console.error('Download error:', error)
+      if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        alert('Cannot connect to server. Please ensure:\n1. Backend is running on http://localhost:8080\n2. Check browser console (F12) for CORS errors\n3. Try refreshing the page')
+      } else {
+        alert('Error downloading document: ' + (error.message || 'Unknown error'))
+      }
+    }
+  }
+
+  const handleViewDocument = async (docId, fileName, event) => {
+    try {
+      console.log('Viewing document:', docId, fileName)
+      let button = null
+      if (event) {
+        button = event.target?.closest('button')
+        if (button?.disabled) return
+        if (button) button.disabled = true
+      }
+
+      const viewUrl = `${API_BASE_URL}/documents/${docId}/view`
+      const newWindow = window.open(viewUrl, '_blank')
+      if (!newWindow) {
+        alert('Please allow popups for this site to view documents, or use the download button instead.')
+      }
+
+      if (button) {
+        setTimeout(() => {
+          button.disabled = false
+        }, 2000)
+      }
+    } catch (error) {
+      console.error('View error:', error)
+      if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        alert('Cannot connect to server. Please ensure:\n1. Backend is running on http://localhost:8080\n2. Check browser console (F12) for CORS errors\n3. Verify the document exists in the database')
+      } else {
+        alert('Error opening document: ' + (error.message || 'Unknown error'))
+      }
+      if (button) {
+        button.disabled = false
+      }
+    }
   }
 
   const handlePasswordChange = async (e) => {
@@ -530,14 +627,62 @@ const Settings = () => {
                     {isEmployee && (
                       <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Personal Mobile Number</label>
                   <input
                     type="tel"
-                    value={profileData.phone}
-                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                    value={profileData.personalMobileNumber}
+                    onChange={(e) => setProfileData({ ...profileData, personalMobileNumber: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="+1 234-567-8900"
+                            placeholder="Enter your mobile number"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Your personal mobile number</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">PAN Card Number</label>
+                  <input
+                    type="text"
+                    value={profileData.pan}
+                    onChange={(e) => setProfileData({ ...profileData, pan: e.target.value.toUpperCase() })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter PAN card number"
+                    maxLength={10}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">10-character PAN card number</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Aadhaar Card Number</label>
+                  <input
+                    type="text"
+                    value={profileData.aadhaar}
+                    onChange={(e) => setProfileData({ ...profileData, aadhaar: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter Aadhaar card number"
+                    maxLength={12}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">12-digit Aadhaar card number</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">UAN Number</label>
+                  <input
+                    type="text"
+                    value={profileData.uanNumber}
+                    onChange={(e) => setProfileData({ ...profileData, uanNumber: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter UAN number"
+                    maxLength={12}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">12-digit UAN (Universal Account Number)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bank Account Number</label>
+                  <input
+                    type="text"
+                    value={profileData.bankAccountNumber}
+                    onChange={(e) => setProfileData({ ...profileData, bankAccountNumber: e.target.value.replace(/\D/g, '') })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter bank account number"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Your bank account number</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
@@ -842,6 +987,22 @@ const Settings = () => {
                             <p className="text-xs text-gray-400 mt-1">{doc.description}</p>
                           )}
                         </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handleViewDocument(doc.id, doc.fileName, e)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="View Document"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Download Document"
+                        >
+                          <Download size={18} />
+                        </button>
                       </div>
                     </div>
                   ))

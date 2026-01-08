@@ -136,9 +136,10 @@ public class User {
     private String expertise;
 
     // Identity Info
-   
+    private String uan;
     private String pan;
     private String aadhaar;
+    private String bankAccountNumber;
 
     // Contact Info
     private String workPhoneNumber;
@@ -197,11 +198,17 @@ public class User {
 
     
 
+    public String getUan() { return uan; }
+    public void setUan(String uan) { this.uan = uan; }
+
     public String getPan() { return pan; }
     public void setPan(String pan) { this.pan = pan; }
 
     public String getAadhaar() { return aadhaar; }
     public void setAadhaar(String aadhaar) { this.aadhaar = aadhaar; }
+
+    public String getBankAccountNumber() { return bankAccountNumber; }
+    public void setBankAccountNumber(String bankAccountNumber) { this.bankAccountNumber = bankAccountNumber; }
 
     public String getWorkPhoneNumber() { return workPhoneNumber; }
     public void setWorkPhoneNumber(String workPhoneNumber) { this.workPhoneNumber = workPhoneNumber; }

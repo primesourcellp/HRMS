@@ -28,6 +28,7 @@ public class EmployeeDTO {
     private String uan;
     private String pan;
     private String aadhaar;
+    private String bankAccountNumber;
     private String workPhoneNumber;
     private String personalMobileNumber;
     private String extension;
@@ -126,6 +127,9 @@ public class EmployeeDTO {
 
     public String getAadhaar() { return aadhaar; }
     public void setAadhaar(String aadhaar) { this.aadhaar = aadhaar; }
+
+    public String getBankAccountNumber() { return bankAccountNumber; }
+    public void setBankAccountNumber(String bankAccountNumber) { this.bankAccountNumber = bankAccountNumber; }
 
     public String getWorkPhoneNumber() { return workPhoneNumber; }
     public void setWorkPhoneNumber(String workPhoneNumber) { this.workPhoneNumber = workPhoneNumber; }

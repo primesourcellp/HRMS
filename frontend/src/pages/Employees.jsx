@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import styles from './Employees.module.css';
+import Toast from '../components/Toast';
 
 
 const API_BASE_URL = 'http://localhost:8080/api'; 
@@ -68,10 +69,9 @@ const [showDocModal, setShowDocModal] = useState(false)
 const [showViewModal, setShowViewModal] = useState(false) 
 const [selectedEmployee, setSelectedEmployee] = useState(null) 
 const [editingEmployee, setEditingEmployee] = useState(null)
-const [isEditingInView, setIsEditingInView] = useState(false)
-const [viewFormData, setViewFormData] = useState({}) 
 const [loading, setLoading] = useState(true) 
 const [error, setError] = useState(null)
+const [toast, setToast] = useState(null)
 const [openMenuId, setOpenMenuId] = useState(null) 
 const [formData, setFormData] = useState({ 
 employeeId: '', 
@@ -82,7 +82,6 @@ password: '',
 role: '', 
 department: '', 
 location: '', 
-designation: '', 
 employmentType: '', 
 employeeStatus: 'Active', 
 sourceOfHire: '', 
@@ -163,9 +162,22 @@ useEffect(() => {
   })()
 }, [])
 
-const loadDesignations = (employeesList) => {
+// Auto-view employee when navigated from Users page
+// Check immediately on mount and show loading state
+const [autoViewingId, setAutoViewingId] = useState(null)
+const [isAutoViewing, setIsAutoViewing] = useState(false)
+
+useEffect(() => {
+  const viewEmployeeId = sessionStorage.getItem('viewEmployeeId')
+  if (viewEmployeeId) {
+    setAutoViewingId(viewEmployeeId)
+    setIsAutoViewing(true)
+  }
+}, [])
+
+const loadDesignations = async (employeesList) => {
   try {
-    // Extract unique designations from employees
+    // Extract unique designations from employees (kept for other uses but not shown in form)
     const designationList = Array.from(
       new Set(
         employeesList
@@ -185,20 +197,78 @@ const loadDesignations = (employeesList) => {
     ).sort()
     setRoles(roleList)
     
-    // Extract unique employment types from employees
-    const employmentTypeList = Array.from(
-      new Set(
-        employeesList
-          .map(emp => emp.employmentType)
-          .filter(type => type && type.trim() !== '')
+    // Standard employment types that should always be available
+    const standardEmploymentTypes = [
+      'Full-Time',
+      'Part-Time',
+      'Contract',
+      'Temporary',
+      'Intern',
+      'Freelance',
+      'Consultant',
+      'Volunteer',
+      'Seasonal',
+      'On-Call',
+      'Per Diem',
+      'Fixed-Term'
+    ]
+    
+    // Fetch all employees to get all employment types (not just currently visible ones)
+    try {
+      const allEmployees = await api.getEmployees()
+      const allEmployeesList = Array.isArray(allEmployees) ? allEmployees : []
+      
+      // Extract unique employment types from all employees
+      const dbEmploymentTypes = Array.from(
+        new Set(
+          allEmployeesList
+            .map(emp => emp.employmentType)
+            .filter(type => type && type.trim() !== '')
+        )
       )
-    ).sort()
-    setEmploymentTypes(employmentTypeList)
+      
+      // Merge standard types with database types, ensuring no duplicates
+      const allEmploymentTypes = Array.from(
+        new Set([...standardEmploymentTypes, ...dbEmploymentTypes])
+      ).sort()
+      
+      setEmploymentTypes(allEmploymentTypes)
+    } catch (err) {
+      console.error('Error loading all employees for employment types:', err)
+      // Fallback: merge standard types with types from current list
+      const currentEmploymentTypes = Array.from(
+        new Set(
+          employeesList
+            .map(emp => emp.employmentType)
+            .filter(type => type && type.trim() !== '')
+        )
+      )
+      
+      const allEmploymentTypes = Array.from(
+        new Set([...standardEmploymentTypes, ...currentEmploymentTypes])
+      ).sort()
+      
+      setEmploymentTypes(allEmploymentTypes)
+    }
   } catch (error) {
-    console.error('Error loading designations:', error)
+    console.error('Error loading designations and employment types:', error)
     setDesignations([])
     setRoles([])
-    setEmploymentTypes([])
+    // Always set standard types even on error
+    setEmploymentTypes([
+      'Full-Time',
+      'Part-Time',
+      'Contract',
+      'Temporary',
+      'Intern',
+      'Freelance',
+      'Consultant',
+      'Volunteer',
+      'Seasonal',
+      'On-Call',
+      'Per Diem',
+      'Fixed-Term'
+    ])
   }
 } 
 
@@ -250,7 +320,6 @@ password: '',  // Never show password when editing
 role: editingEmployee.role || '', 
 department: editingEmployee.department || '', 
 location: editingEmployee.location || '', 
-designation: editingEmployee.designation || '', 
 employmentType: editingEmployee.employmentType || '', 
 employeeStatus: editingEmployee.employeeStatus || 'Active', 
 sourceOfHire: editingEmployee.sourceOfHire || '', 
@@ -284,7 +353,7 @@ permanentCountry: editingEmployee.permanentCountry || '',
 permanentState: editingEmployee.permanentState || '', 
 permanentPostalCode: editingEmployee.permanentPostalCode || '', 
 dateOfExit: formatDateForInput(editingEmployee.dateOfExit), 
-salary: editingEmployee.salary || '', 
+salary: editingEmployee.salary ? (typeof editingEmployee.salary === 'number' ? editingEmployee.salary.toString() : String(editingEmployee.salary).replace(/[₹,\s]/g, '')) : '', 
 }) 
 setWorkExperiences(editingEmployee.workExperiences || []) 
 setEducationDetails(editingEmployee.educationDetails || []) 
@@ -299,7 +368,6 @@ password: '',  // MUST be empty - never show admin password
 role: '', 
 department: '', 
 location: '', 
-designation: '', 
 employmentType: '', 
 employeeStatus: 'Active', 
 sourceOfHire: '', 
@@ -356,7 +424,7 @@ const loadEmployees = async () => {
 			if (Array.isArray(data)) {
 				setEmployees(data)
 				// Load designations from employees
-				loadDesignations(data)
+				await loadDesignations(data)
 				if (data.length === 0) {
 					// Clear any previous error - empty list is a valid state
 					setError(null)
@@ -387,10 +455,75 @@ alert('Error loading documents: ' + (error.message || 'Unknown error'))
 // Set empty array on error to prevent undefined issues 
 setDocuments(prev => ({ ...prev, [employeeId]: [] })) 
 } 
-} 
+}
+
+// Auto-view employee when navigated from Users page - directly fetch and show
+useEffect(() => {
+  const viewEmployeeId = sessionStorage.getItem('viewEmployeeId')
+  if (!viewEmployeeId || !isAutoViewing) return
+  
+  // Directly fetch the employee data without waiting for the list
+  ;(async () => {
+    try {
+      const employeeData = await api.getEmployee(parseInt(viewEmployeeId))
+      if (employeeData) {
+        setSelectedEmployee(employeeData)
+        await loadDocuments(parseInt(viewEmployeeId))
+        setShowViewModal(true)
+        setIsAutoViewing(false)
+        sessionStorage.removeItem('viewEmployeeId')
+        setAutoViewingId(null)
+      }
+    } catch (error) {
+      console.error('Error fetching employee for auto-view:', error)
+      // Fallback to waiting for list to load
+      setIsAutoViewing(false)
+    }
+  })()
+}, [isAutoViewing])
+
+// Fallback: Auto-view employee when navigated from Users page
+// This effect runs after employees/users are loaded if direct fetch didn't work
+useEffect(() => {
+  const viewEmployeeId = sessionStorage.getItem('viewEmployeeId')
+  if (!viewEmployeeId || isAutoViewing) return
+  
+  // Wait for employees/users to be loaded
+  if (employees.length > 0 || users.length > 0) {
+    // Find the employee/user by ID
+    const employee = employees.find(emp => emp.id && emp.id.toString() === viewEmployeeId)
+    const user = !employee ? users.find(u => u.id && u.id.toString() === viewEmployeeId) : null
+    
+    if (employee || user) {
+      // Use setTimeout to ensure handleViewEmployee is accessible (defined later in component)
+      const timer = setTimeout(() => {
+        try {
+          if (employee) {
+            handleViewEmployee(employee)
+          } else if (user) {
+            handleViewEmployee({ ...user, type: 'user' })
+          }
+          sessionStorage.removeItem('viewEmployeeId')
+          setAutoViewingId(null)
+        } catch (error) {
+          console.error('Error viewing employee:', error)
+          sessionStorage.removeItem('viewEmployeeId')
+          setAutoViewingId(null)
+        }
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }
+}, [employees, users, navigate, isAutoViewing]) 
 // Combine employees and (non-superadmin) users into a single list
-// Include all employees
-const employeeRecords = Array.isArray(employees) ? employees.map(e => ({ ...e, type: 'employee' })) : []
+// Include all employees except SUPER_ADMIN
+const employeeRecords = Array.isArray(employees) ? employees
+  .filter(e => {
+    const role = (e.role || e.designation || '').toUpperCase()
+    return role !== 'SUPER_ADMIN'
+  })
+  .map(e => ({ ...e, type: 'employee' })) : []
 
 // Include all users except SUPER_ADMIN (explicitly include HR_ADMIN, MANAGER, FINANCE, EMPLOYEE)
 const userRecords = Array.isArray(users) ? users
@@ -439,15 +572,21 @@ const combinedRecords = [
   ...userRecords // Add all user records
 ]
 
-// Extract unique roles from combinedRecords
+// Extract unique roles from combinedRecords (excluding SUPER_ADMIN)
 const uniqueRoles = [...new Set(
   combinedRecords
     .map(emp => emp.role || emp.designation)
-    .filter(role => role && role.trim() !== '')
+    .filter(role => role && role.trim() !== '' && role.toUpperCase() !== 'SUPER_ADMIN')
     .map(role => role.toUpperCase())
 )].sort()
 
-const filteredEmployees = combinedRecords.filter(emp => { 
+const filteredEmployees = combinedRecords.filter(emp => {
+  // Exclude SUPER_ADMIN from the filtered list
+  const role = (emp.role || emp.designation || '').toUpperCase()
+  if (role === 'SUPER_ADMIN') {
+    return false
+  }
+  
   const matchesName = 
     !nameSearchTerm || 
     (emp.name && emp.name.toLowerCase().includes(nameSearchTerm.toLowerCase()));
@@ -456,7 +595,7 @@ const filteredEmployees = combinedRecords.filter(emp => {
     (emp.email && emp.email.toLowerCase().includes(emailSearchTerm.toLowerCase()));
   const matchesStatus = statusFilter === 'All' || emp.employeeStatus === statusFilter;
   const matchesClient = clientFilter === 'All' || (clientFilter === 'Unassigned' ? !emp.client : emp.client === clientFilter);
-  const matchesRole = roleFilter === 'All' || (emp.role || emp.designation || '').toUpperCase() === roleFilter.toUpperCase();
+  const matchesRole = roleFilter === 'All' || role === roleFilter.toUpperCase();
   return matchesName && matchesEmail && matchesStatus && matchesClient && matchesRole;
 })
 // Format date to DD/MM/YYYY
@@ -496,231 +635,83 @@ const formatDateForInput = (dateString) => {
 } 
 } 
 const handleOpenModal = async (employee = null) => { 
-// If this is a non-employee user, open the detailed form with mapped fields
-if (employee && employee.type === 'user') {
-  setEditingEmployee({ ...employee, type: 'user' })
-  const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
-  const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
-  setFormData({
-    employeeId: employee.employeeId || '',
-    name: employee.name || '',
-    email: employee.email || '',
-    role: employee.designation || employee.role || '',
-    department: employee.department || '',
-    location: employee.location || '',
-    designation: employee.designation || '',
-    employmentType: employee.employmentType || '',
-    employeeStatus: employee.employeeStatus || 'Active',
-    sourceOfHire: employee.sourceOfHire || '',
-    dateOfJoining: formattedJoinDate,
-    dateOfBirth: formattedDateOfBirth,
-    age: calculateAge(formattedDateOfBirth),
-    gender: employee.gender || '',
-    maritalStatus: employee.maritalStatus || '',
-    aboutMe: employee.aboutMe || '',
-    expertise: employee.expertise || '',
-
-    pan: employee.pan || '',
-    aadhaar: employee.aadhaar || '',
-    workPhoneNumber: employee.workPhoneNumber || '',
-    personalMobileNumber: employee.personalMobileNumber || '',
-    extension: employee.extension || '',
-    personalEmailAddress: employee.personalEmailAddress || '',
-    seatingLocation: employee.seatingLocation || '',
-    tags: employee.tags || '',
-    presentAddressLine1: employee.presentAddressLine1 || '',
-    presentAddressLine2: employee.presentAddressLine2 || '',
-    presentCity: employee.presentCity || '',
-    presentCountry: employee.presentCountry || '',
-    presentState: employee.presentState || '',
-    presentPostalCode: employee.presentPostalCode || '',
-    sameAsPresentAddress: employee.sameAsPresentAddress || false,
-    permanentAddressLine1: employee.permanentAddressLine1 || '',
-    permanentAddressLine2: employee.permanentAddressLine2 || '',
-    permanentCity: employee.permanentCity || '',
-    permanentCountry: employee.permanentCountry || '',
-    permanentState: employee.permanentState || '',
-    permanentPostalCode: employee.permanentPostalCode || '',
-    dateOfExit: formatDateForInput(employee.dateOfExit),
-    salary: employee.salary || '',
-  })
-  setWorkExperiences(employee.workExperiences || [])
-  setEducationDetails(employee.educationDetails || [])
+  setError('')
   setShowModal(true)
-  return
-}
-
-if (employee) { 
-// Fetch full employee details to ensure we have all fields 
-try { 
-console.log('Fetching employee details for ID:', employee.id)
-const fullEmployee = await api.getEmployee(employee.id) 
-console.log('Fetched employee data:', fullEmployee)
-if (fullEmployee) { 
-setEditingEmployee(fullEmployee) 
-const formattedJoinDate = formatDateForInput(fullEmployee.dateOfJoining) 
-const formattedDateOfBirth = formatDateForInput(fullEmployee.dateOfBirth) 
-setFormData({ 
-employeeId: fullEmployee.employeeId || '', 
-name: fullEmployee.name || '', 
-email: fullEmployee.email || '', 
-role: fullEmployee.role || '', 
-department: fullEmployee.department || '', 
-location: fullEmployee.location || '', 
-designation: fullEmployee.designation || '', 
-employmentType: fullEmployee.employmentType || '', 
-employeeStatus: fullEmployee.employeeStatus || 'Active', 
-sourceOfHire: fullEmployee.sourceOfHire || '', 
-dateOfJoining: formattedJoinDate, 
-dateOfBirth: formattedDateOfBirth, 
-age: calculateAge(formattedDateOfBirth), 
-gender: fullEmployee.gender || '', 
-maritalStatus: fullEmployee.maritalStatus || '', 
-aboutMe: fullEmployee.aboutMe || '', 
-expertise: fullEmployee.expertise || '', 
-
-pan: fullEmployee.pan || '', 
-aadhaar: fullEmployee.aadhaar || '', 
-workPhoneNumber: fullEmployee.workPhoneNumber || '', 
-personalMobileNumber: fullEmployee.personalMobileNumber || '', 
-extension: fullEmployee.extension || '', 
-personalEmailAddress: fullEmployee.personalEmailAddress || '', 
-seatingLocation: fullEmployee.seatingLocation || '', 
-tags: fullEmployee.tags || '', 
-presentAddressLine1: fullEmployee.presentAddressLine1 || '', 
-presentAddressLine2: fullEmployee.presentAddressLine2 || '', 
-presentCity: fullEmployee.presentCity || '', 
-presentCountry: fullEmployee.presentCountry || '', 
-presentState: fullEmployee.presentState || '', 
-presentPostalCode: fullEmployee.presentPostalCode || '', 
-sameAsPresentAddress: fullEmployee.sameAsPresentAddress || false, 
-permanentAddressLine1: fullEmployee.permanentAddressLine1 || '', 
-permanentAddressLine2: fullEmployee.permanentAddressLine2 || '', 
-permanentCity: fullEmployee.permanentCity || '', 
-permanentCountry: fullEmployee.permanentCountry || '', 
-permanentState: fullEmployee.permanentState || '', 
-permanentPostalCode: fullEmployee.permanentPostalCode || '', 
-dateOfExit: formatDateForInput(fullEmployee.dateOfExit), 
-salary: fullEmployee.salary || '', 
-
-}) 
-console.log('Setting work experiences:', fullEmployee.workExperiences)
-console.log('Setting education details:', fullEmployee.educationDetails)
-console.log('Setting dependent details:', fullEmployee.dependentDetails)
-setWorkExperiences(Array.isArray(fullEmployee.workExperiences) ? fullEmployee.workExperiences : []) 
-setEducationDetails(Array.isArray(fullEmployee.educationDetails) ? fullEmployee.educationDetails : [])
-// Also set dependent details if the state exists
-if (typeof setDependentDetails === 'function') {
-  setDependentDetails(Array.isArray(fullEmployee.dependentDetails) ? fullEmployee.dependentDetails : [])
-} 
-} else { 
-// Fallback to the employee object passed 
-setEditingEmployee(employee) 
-const formattedJoinDate = formatDateForInput(employee.dateOfJoining) 
-const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth) 
-setFormData({ 
-employeeId: employee.employeeId || '', 
-name: employee.name || '', 
-email: employee.email || '', 
-role: employee.role || '', 
-department: employee.department || '', 
-location: employee.location || '', 
-designation: employee.designation || '', 
-employmentType: employee.employmentType || '', 
-employeeStatus: employee.employeeStatus || 'Active', 
-sourceOfHire: employee.sourceOfHire || '', 
-dateOfJoining: formattedJoinDate, 
-dateOfBirth: formattedDateOfBirth, 
-age: calculateAge(formattedDateOfBirth), 
-gender: employee.gender || '', 
-maritalStatus: employee.maritalStatus || '', 
-aboutMe: employee.aboutMe || '', 
-expertise: employee.expertise || '', 
-
-pan: employee.pan || '', 
-aadhaar: employee.aadhaar || '', 
-workPhoneNumber: employee.workPhoneNumber || '', 
-personalMobileNumber: employee.personalMobileNumber || '', 
-extension: employee.extension || '', 
-personalEmailAddress: employee.personalEmailAddress || '', 
-seatingLocation: employee.seatingLocation || '', 
-tags: employee.tags || '', 
-presentAddressLine1: employee.presentAddressLine1 || '', 
-presentAddressLine2: employee.presentAddressLine2 || '', 
-presentCity: employee.presentCity || '', 
-presentCountry: employee.presentCountry || '', 
-presentState: employee.presentState || '', 
-presentPostalCode: employee.presentPostalCode || '', 
-sameAsPresentAddress: employee.sameAsPresentAddress || false, 
-permanentAddressLine1: employee.permanentAddressLine1 || '', 
-permanentAddressLine2: employee.permanentAddressLine2 || '', 
-permanentCity: employee.permanentCity || '', 
-permanentCountry: employee.permanentCountry || '', 
-permanentState: employee.permanentState || '', 
-permanentPostalCode: employee.permanentPostalCode || '', 
-dateOfExit: formatDateForInput(employee.dateOfExit), 
-salary: employee.salary || '', 
-
-}) 
-setWorkExperiences(employee.workExperiences || [])
-setEducationDetails(employee.educationDetails || [])
-
-	}
-} catch (error) {
-console.error('Error fetching employee details:', error) 
-// Fallback to the employee object passed 
-setEditingEmployee(employee) 
-const formattedJoinDate = formatDateForInput(employee.dateOfJoining) 
-const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth) 
-setFormData({ 
-employeeId: employee.employeeId || '', 
-name: employee.name || '', 
-email: employee.email || '', 
-role: employee.role || '', 
-department: employee.department || '', 
-location: employee.location || '', 
-designation: employee.designation || '', 
-employmentType: employee.employmentType || '', 
-employeeStatus: employee.employeeStatus || 'Active', 
-sourceOfHire: employee.sourceOfHire || '', 
-dateOfJoining: formattedJoinDate, 
-dateOfBirth: formattedDateOfBirth, 
-age: calculateAge(formattedDateOfBirth), 
-gender: employee.gender || '', 
-maritalStatus: employee.maritalStatus || '', 
-aboutMe: employee.aboutMe || '', 
-expertise: employee.expertise || '', 
-
-pan: employee.pan || '', 
-aadhaar: employee.aadhaar || '', 
-workPhoneNumber: employee.workPhoneNumber || '', 
-personalMobileNumber: employee.personalMobileNumber || '', 
-extension: employee.extension || '', 
-personalEmailAddress: employee.personalEmailAddress || '', 
-seatingLocation: employee.seatingLocation || '', 
-tags: employee.tags || '', 
-presentAddressLine1: employee.presentAddressLine1 || '', 
-presentAddressLine2: employee.presentAddressLine2 || '', 
-presentCity: employee.presentCity || '', 
-presentCountry: employee.presentCountry || '', 
-presentState: employee.presentState || '', 
-presentPostalCode: employee.presentPostalCode || '', 
-sameAsPresentAddress: employee.sameAsPresentAddress || false, 
-permanentAddressLine1: employee.permanentAddressLine1 || '', 
-permanentAddressLine2: employee.permanentAddressLine2 || '', 
-permanentCity: employee.permanentCity || '', 
-permanentCountry: employee.permanentCountry || '', 
-permanentState: employee.permanentState || '', 
-permanentPostalCode: employee.permanentPostalCode || '', 
-dateOfExit: formatDateForInput(employee.dateOfExit), 
-salary: employee.salary || '', 
-
-}) 
-setWorkExperiences(employee.workExperiences || [])
-setEducationDetails(employee.educationDetails || [])
-
-} 
-} else { 
+  
+  if (employee) {
+    // Unified handling for both users and employees - always fetch full data
+    let fullEmployeeData = employee
+    
+    // Try to fetch full employee data regardless of type (user or employee)
+    if (employee.id) {
+      try {
+        console.log('Fetching full employee/user details for ID:', employee.id)
+        const fullData = await api.getEmployee(employee.id)
+        if (fullData) {
+          fullEmployeeData = fullData
+          console.log('Fetched full employee data:', fullData)
+        }
+      } catch (err) {
+        console.error('Error fetching full employee data:', err)
+        // Continue with partial data if fetch fails
+      }
+    }
+    
+    // Set editing employee with full data
+    setEditingEmployee(fullEmployeeData)
+    
+    // Format dates
+    const formattedJoinDate = formatDateForInput(fullEmployeeData.dateOfJoining)
+    const formattedDateOfBirth = formatDateForInput(fullEmployeeData.dateOfBirth)
+    
+    // Set form data with full employee data (same for both users and employees)
+    setFormData({
+      employeeId: fullEmployeeData.employeeId || '',
+      name: fullEmployeeData.name || '',
+      client: fullEmployeeData.client || '',
+      email: fullEmployeeData.email || '',
+      password: '', // Password is not pre-filled for security
+      role: fullEmployeeData.role || '',
+      department: fullEmployeeData.department || '',
+      location: fullEmployeeData.location || '',
+      employmentType: fullEmployeeData.employmentType || '',
+      employeeStatus: fullEmployeeData.employeeStatus || (fullEmployeeData.active !== undefined ? (fullEmployeeData.active ? 'Active' : 'Inactive') : 'Active'),
+      sourceOfHire: fullEmployeeData.sourceOfHire || '',
+      dateOfJoining: formattedJoinDate,
+      dateOfBirth: formattedDateOfBirth,
+      age: calculateAge(formattedDateOfBirth),
+      gender: fullEmployeeData.gender || '',
+      maritalStatus: fullEmployeeData.maritalStatus || '',
+      aboutMe: fullEmployeeData.aboutMe || '',
+      expertise: fullEmployeeData.expertise || '',
+      pan: fullEmployeeData.pan || '',
+      aadhaar: fullEmployeeData.aadhaar || '',
+      workPhoneNumber: fullEmployeeData.workPhoneNumber || '',
+      personalMobileNumber: fullEmployeeData.personalMobileNumber || '',
+      extension: fullEmployeeData.extension || '',
+      personalEmailAddress: fullEmployeeData.personalEmailAddress || '',
+      seatingLocation: fullEmployeeData.seatingLocation || '',
+      tags: fullEmployeeData.tags || '',
+      presentAddressLine1: fullEmployeeData.presentAddressLine1 || '',
+      presentAddressLine2: fullEmployeeData.presentAddressLine2 || '',
+      presentCity: fullEmployeeData.presentCity || '',
+      presentCountry: fullEmployeeData.presentCountry || '',
+      presentState: fullEmployeeData.presentState || '',
+      presentPostalCode: fullEmployeeData.presentPostalCode || '',
+      sameAsPresentAddress: fullEmployeeData.sameAsPresentAddress || false,
+      permanentAddressLine1: fullEmployeeData.permanentAddressLine1 || '',
+      permanentAddressLine2: fullEmployeeData.permanentAddressLine2 || '',
+      permanentCity: fullEmployeeData.permanentCity || '',
+      permanentCountry: fullEmployeeData.permanentCountry || '',
+      permanentState: fullEmployeeData.permanentState || '',
+      permanentPostalCode: fullEmployeeData.permanentPostalCode || '',
+      dateOfExit: formatDateForInput(fullEmployeeData.dateOfExit),
+      salary: fullEmployeeData.salary ? (typeof fullEmployeeData.salary === 'number' ? fullEmployeeData.salary.toString() : String(fullEmployeeData.salary).replace(/[₹,\s]/g, '')) : '',
+    })
+    
+    setWorkExperiences(Array.isArray(fullEmployeeData.workExperiences) ? fullEmployeeData.workExperiences : [])
+    setEducationDetails(Array.isArray(fullEmployeeData.educationDetails) ? fullEmployeeData.educationDetails : [])
+  } else {
 // Adding new employee - ensure all fields are empty, especially email and password
 // NEVER populate from localStorage - always start fresh
 setEditingEmployee(null) 
@@ -734,7 +725,6 @@ password: '',  // MUST be empty - never use admin password
 role: '', 
 department: '', 
 location: '', 
-designation: '', 
 employmentType: '', 
 employeeStatus: 'Active', 
 sourceOfHire: '', 
@@ -778,182 +768,34 @@ setShowModal(true)
 } 
 // Fetch and show full employee details in view modal (module-level)
 const handleViewEmployee = async (employee) => {
-	// If the record is a non-employee user, initialize view directly
-	if (employee?.type === 'user') {
-		try {
-			setSelectedEmployee(employee)
-			const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
-			const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
-			setViewFormData({
-				employeeId: employee.employeeId || '',
-				name: employee.name || '',
-				client: employee.client || '',
-				email: employee.email || '',
-				password: '',
-				role: employee.designation || employee.role || '',
-				department: employee.department || '',
-				location: employee.location || '',
-				designation: employee.designation || '',
-				employmentType: employee.employmentType || '',
-				employeeStatus: employee.employeeStatus || 'Active',
-				sourceOfHire: employee.sourceOfHire || '',
-				dateOfJoining: formattedJoinDate,
-				dateOfBirth: formattedDateOfBirth,
-				age: calculateAge(formattedDateOfBirth),
-				gender: employee.gender || '',
-				maritalStatus: employee.maritalStatus || '',
-				aboutMe: employee.aboutMe || '',
-				workPhoneNumber: employee.workPhoneNumber || '',
-				personalMobileNumber: employee.personalMobileNumber || '',
-				salary: employee.salary || ''
-			})
-		} finally {
-			setShowViewModal(true)
-			setIsEditingInView(false)
-		}
-		return
-	}
 	try {
+		// Always fetch full employee data regardless of type (user or employee)
+		// This ensures we get all details including work experiences, education, dependent details, etc.
 		const full = await api.getEmployee(employee.id)
-		setSelectedEmployee(full || employee)
-		// Load documents for the employee
-		await loadDocuments(employee.id)
-		// Initialize view form data
-		const formattedJoinDate = formatDateForInput(full?.dateOfJoining || employee.dateOfJoining)
-		const formattedDateOfBirth = formatDateForInput(full?.dateOfBirth || employee.dateOfBirth)
-		setViewFormData({
-			employeeId: (full || employee).employeeId || '',
-			name: (full || employee).name || '',
-			client: (full || employee).client || '',
-			email: (full || employee).email || '',
-			password: '',
-			role: (full || employee).role || '',
-			department: (full || employee).department || '',
-			location: (full || employee).location || '',
-			designation: (full || employee).designation || '',
-			employmentType: (full || employee).employmentType || '',
-			employeeStatus: (full || employee).employeeStatus || 'Active',
-			sourceOfHire: (full || employee).sourceOfHire || '',
-			dateOfJoining: formattedJoinDate,
-			dateOfBirth: formattedDateOfBirth,
-			age: calculateAge(formattedDateOfBirth),
-			gender: (full || employee).gender || '',
-			maritalStatus: (full || employee).maritalStatus || '',
-			aboutMe: (full || employee).aboutMe || '',
-			workPhoneNumber: (full || employee).workPhoneNumber || '',
-			personalMobileNumber: (full || employee).personalMobileNumber || '',
-			salary: (full || employee).salary || ''
-		})
+		if (full) {
+			setSelectedEmployee(full)
+			// Load documents for the employee
+			await loadDocuments(employee.id)
+		} else {
+			// Fallback to partial data if fetch fails
+			setSelectedEmployee(employee)
+			await loadDocuments(employee.id)
+		}
 	} catch (err) {
 		console.error('Error fetching full employee for view:', err)
+		// Fallback to partial data if fetch fails
 		setSelectedEmployee(employee)
 		// Still try to load documents even if employee fetch fails
-		await loadDocuments(employee.id)
-		// Initialize view form data with employee data
-		const formattedJoinDate = formatDateForInput(employee.dateOfJoining)
-		const formattedDateOfBirth = formatDateForInput(employee.dateOfBirth)
-		setViewFormData({
-			employeeId: employee.employeeId || '',
-			name: employee.name || '',
-			client: employee.client || '',
-			email: employee.email || '',
-			password: '',
-			role: employee.role || '',
-			department: employee.department || '',
-			location: employee.location || '',
-			designation: employee.designation || '',
-			employmentType: employee.employmentType || '',
-			employeeStatus: employee.employeeStatus || 'Active',
-			sourceOfHire: employee.sourceOfHire || '',
-			dateOfJoining: formattedJoinDate,
-			dateOfBirth: formattedDateOfBirth,
-			age: calculateAge(formattedDateOfBirth),
-			gender: employee.gender || '',
-			maritalStatus: employee.maritalStatus || '',
-			aboutMe: employee.aboutMe || '',
-			workPhoneNumber: employee.workPhoneNumber || '',
-			personalMobileNumber: employee.personalMobileNumber || '',
-			salary: employee.salary || ''
-		})
+		try {
+			await loadDocuments(employee.id)
+		} catch (docErr) {
+			console.error('Error loading documents:', docErr)
+		}
 	} finally {
 		setShowViewModal(true)
-		setIsEditingInView(false)
 	}
 }
 
-const handleSaveViewEmployee = async () => {
-	if (!selectedEmployee) return
-	
-	try {
-		setLoading(true)
-		// If this is a user record, update via user API
-		if (selectedEmployee.type === 'user') {
-			const userData = {
-				name: viewFormData.name || '',
-				email: viewFormData.email,
-				role: viewFormData.role,
-				department: viewFormData.department,
-				designation: viewFormData.designation,
-				client: viewFormData.client,
-				location: viewFormData.location,
-				employmentType: viewFormData.employmentType,
-				active: viewFormData.employeeStatus ? viewFormData.employeeStatus === 'Active' : true,
-				sourceOfHire: viewFormData.sourceOfHire,
-				dateOfJoining: viewFormData.dateOfJoining,
-				dateOfBirth: viewFormData.dateOfBirth,
-				gender: viewFormData.gender,
-				maritalStatus: viewFormData.maritalStatus,
-				aboutMe: viewFormData.aboutMe,
-				salary: viewFormData.salary
-			}
-			await api.updateUser(selectedEmployee.id, userData, userRole)
-			// refresh lists
-			const u = await api.getUsers()
-			setUsers(Array.isArray(u) ? u.filter(u => {
-				const role = (u.role || '').toUpperCase()
-				return role !== 'SUPER_ADMIN'
-			}) : [])
-			setIsEditingInView(false)
-			alert('User updated successfully!')
-			return
-		}
-
-		const employeeData = {
-			name: viewFormData.name || '',
-			email: viewFormData.email,
-			phone: viewFormData.personalMobileNumber || viewFormData.workPhoneNumber,
-			personalMobileNumber: viewFormData.personalMobileNumber,
-			workPhoneNumber: viewFormData.workPhoneNumber,
-			department: viewFormData.department,
-			designation: viewFormData.designation,
-			client: viewFormData.client,
-			location: viewFormData.location,
-			employmentType: viewFormData.employmentType,
-			employeeStatus: viewFormData.employeeStatus,
-			sourceOfHire: viewFormData.sourceOfHire,
-			dateOfJoining: viewFormData.dateOfJoining,
-			dateOfBirth: viewFormData.dateOfBirth,
-			gender: viewFormData.gender,
-			maritalStatus: viewFormData.maritalStatus,
-			aboutMe: viewFormData.aboutMe,
-			salary: viewFormData.salary,
-			role: viewFormData.role
-		}
-		
-		if (viewFormData.password) {
-			employeeData.password = viewFormData.password
-		}
-		
-		await api.updateEmployee(selectedEmployee.id, employeeData, userRole)
-		await handleViewEmployee(selectedEmployee) // Reload employee data
-		setIsEditingInView(false)
-		alert('User updated successfully!')
-	} catch (error) {
-		alert('Error updating user: ' + error.message)
-	} finally {
-		setLoading(false)
-	}
-}
 
 const handleSubmit = async (e) => { 
 e.preventDefault() 
@@ -966,12 +808,9 @@ const employeeData = {
 	client: formData.client,
 }
 
-// The backend expects a top-level `phone` field. If the form doesn't
-// include a dedicated `phone`, fall back to `personalMobileNumber` or
-// `workPhoneNumber` before saving. If editing and employee already has a phone, use it.
-// If neither is provided, ask the user for a phone number to avoid a DB NOT NULL violation.
-let fallbackPhone = (formData.personalMobileNumber && formData.personalMobileNumber.trim()) || 
-                   (formData.workPhoneNumber && formData.workPhoneNumber.trim()) || ''
+// The backend expects a top-level `phone` field. Use workPhoneNumber or existing phone.
+// Personal Mobile Number should be filled in employee settings/profile, not here.
+let fallbackPhone = (formData.workPhoneNumber && formData.workPhoneNumber.trim()) || ''
 
 // If editing and no phone in form but employee has one, use existing phone
 if (editingEmployee && !fallbackPhone && editingEmployee.phone) {
@@ -980,7 +819,7 @@ if (editingEmployee && !fallbackPhone && editingEmployee.phone) {
 
 if (!fallbackPhone) {
 	setLoading(false)
-	alert('Please enter a phone number in Personal Mobile Number or Work Phone Number')
+	alert('Please enter a phone number in Work Phone Number')
 	return
 }
 // Use fallbackPhone for the required `phone` property
@@ -1000,7 +839,15 @@ if (!employeeData.status || employeeData.status.trim() === '') {
 	}
 }
 
-// Password field has been removed
+// Handle password - optional when editing, required when creating
+if (formData.password && formData.password.trim() !== '') {
+  employeeData.password = formData.password
+} else if (!editingEmployee) {
+  // Password required for new employees
+  setLoading(false)
+  alert('Password is required for new employees')
+  return
+}
 
 // Debug: Log the employeeData to see if client is included
 console.log('DEBUG: Sending employeeData with client:', employeeData.client)
@@ -1009,12 +856,23 @@ console.log('DEBUG: Full employeeData object:', JSON.stringify(employeeData, nul
 
 try { 
 if (editingEmployee) { 
-  await api.updateEmployee(editingEmployee.id, employeeData, userRole) 
+  await api.updateEmployee(editingEmployee.id, employeeData, userRole)
+  // Optimistically update local state immediately
+  setEmployees(prev => prev.map(emp => 
+    emp.id === editingEmployee.id ? { ...emp, ...employeeData } : emp
+  ))
+  setToast({ message: 'Employee updated successfully!', type: 'success' })
 } else { 
-  await api.createEmployee(employeeData, userRole) 
+  const newEmployee = await api.createEmployee(employeeData, userRole)
+  // Optimistically add to local state immediately
+  if (newEmployee && newEmployee.id) {
+    setEmployees(prev => [...prev, newEmployee])
+  }
+  setToast({ message: 'Employee created successfully!', type: 'success' })
   // Refresh client list after adding new employee
   await loadClients()
 } 
+// Reload from server to ensure consistency
 await loadEmployees() 
 setShowModal(false) 
 // Navigate back to employees list if on new page
@@ -1033,7 +891,6 @@ password: '',
 role: '', 
 department: '', 
 location: '', 
-designation: '', 
 employmentType: '', 
 employeeStatus: 'Active', 
 sourceOfHire: '', 
@@ -1083,18 +940,33 @@ const handleDelete = async (record) => {
   if (!window.confirm(`Are you sure you want to delete this ${isUser ? 'user' : 'employee'}?`)) return 
   try { 
     if (isUser) {
+      // Optimistically remove from local state immediately
+      setUsers(prev => prev.filter(user => user.id !== record.id))
       await api.deleteUser(record.id, userRole)
+      setToast({ message: 'User deleted successfully!', type: 'success' })
+      // Reload from server to ensure consistency
       const list = await api.getUsers()
       setUsers(Array.isArray(list) ? list.filter(u => {
         const role = (u.role || '').toUpperCase()
         return role !== 'SUPER_ADMIN'
       }) : [])
     } else {
-      await api.deleteEmployee(record.id, userRole) 
+      // Optimistically remove from local state immediately - filter from both employees and combined records
+      setEmployees(prev => prev.filter(emp => emp.id !== record.id))
+      await api.deleteEmployee(record.id, userRole)
+      setToast({ message: 'Employee deleted successfully!', type: 'success' })
+      // Reload from server to ensure consistency
       await loadEmployees() 
     }
-  } catch (error) { 
-    alert('Error deleting record: ' + error.message) 
+  } catch (error) {
+    // Revert optimistic update on error
+    await loadEmployees()
+    const list = await api.getUsers()
+    setUsers(Array.isArray(list) ? list.filter(u => {
+      const role = (u.role || '').toUpperCase()
+      return role !== 'SUPER_ADMIN'
+    }) : [])
+    setToast({ message: 'Error deleting record: ' + (error.message || 'Unknown error'), type: 'error' })
   } 
 } 
 const handleUploadDocument = async (e) => { 
@@ -1250,32 +1122,45 @@ console.error('Error opening document modal:', error)
 alert('Error loading documents: ' + (error.message || 'Unknown error')) 
 } 
 } 
-if (loading) { 
+if (loading || isAutoViewing) { 
 return ( 
+  <>
+    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 <div className={styles.loadingWrap}> 
   <div className={styles.loadingCard}> 
     <span className={styles.spinner}></span> 
-    <p className={styles.loadingText}>Loading users...</p> 
+    <p className={styles.loadingText}>{isAutoViewing ? 'Loading employee details...' : 'Loading users...'}</p> 
   </div> 
-</div> 
+</div>
+  </>
 ); 
 } 
     
 // If viewing employee details, show inline detail view (full page)
 if (showViewModal && selectedEmployee) {
   return (
+    <>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
       <div className="w-full mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
               <Eye size={28} className="text-blue-600" />
-              {selectedEmployee.type === 'user'
-                ? `${(selectedEmployee.role === 'HR_ADMIN' || selectedEmployee.designation === 'HR_ADMIN') ? 'HR Admin'
-                    : (selectedEmployee.role === 'MANAGER' || selectedEmployee.designation === 'MANAGER') ? 'Manager'
-                    : (selectedEmployee.role === 'FINANCE' || selectedEmployee.designation === 'FINANCE') ? 'Finance'
-                    : 'User'} Details`
-                : 'User Details'}
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span>{selectedEmployee.name || 'N/A'}</span>
+                  <span className="text-lg font-normal text-gray-600">
+                    - {selectedEmployee.role === 'HR_ADMIN' ? 'HR Admin' 
+                      : selectedEmployee.role === 'MANAGER' ? 'Manager'
+                      : selectedEmployee.role === 'FINANCE' ? 'Finance'
+                      : selectedEmployee.role === 'EMPLOYEE' ? 'Employee'
+                      : selectedEmployee.role === 'SUPER_ADMIN' ? 'Super Admin'
+                      : selectedEmployee.role || 'User'}
+                  </span>
+                </div>
+                <span className="text-sm font-normal text-gray-500">ID: {selectedEmployee.id || selectedEmployee.employeeId || 'N/A'}</span>
+              </div>
             </h3>
             <div className="flex items-center gap-2">
               <button
@@ -1293,7 +1178,6 @@ if (showViewModal && selectedEmployee) {
                 onClick={() => {
                   setShowViewModal(false)
                   setSelectedEmployee(null)
-                  setIsEditingInView(false)
                 }}
                 className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
               >
@@ -1307,10 +1191,10 @@ if (showViewModal && selectedEmployee) {
               <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee ID</label>
                   <input
                     type="text"
-                    value={selectedEmployee.id || selectedEmployee.employeeId || 'N/A'}
+                    value={selectedEmployee.employeeId || selectedEmployee.id || 'N/A'}
                     readOnly
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
                   />
@@ -1343,6 +1227,24 @@ if (showViewModal && selectedEmployee) {
                   />
                   <p className="mt-1 text-xs text-gray-500">Password is hidden for security</p>
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.workPhoneNumber || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.personalMobileNumber || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
               </div>
             </div>
             {/* Work Information */}
@@ -1372,15 +1274,6 @@ if (showViewModal && selectedEmployee) {
                   <input
                     type="text"
                     value={selectedEmployee.employmentType || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Designation</label>
-                  <input
-                    type="text"
-                    value={selectedEmployee.designation || 'N/A'}
                     readOnly
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
                   />
@@ -1504,30 +1397,6 @@ if (showViewModal && selectedEmployee) {
                 </div>
               </div>
             </div>
-            {/* Contact Details */}
-            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-              <h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
-                  <input
-                    type="text"
-                    value={selectedEmployee.workPhoneNumber || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number</label>
-                  <input
-                    type="text"
-                    value={selectedEmployee.personalMobileNumber || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
-                </div>
-              </div>
-            </div>
             {/* Work Experience */}
             {selectedEmployee.workExperiences && selectedEmployee.workExperiences.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
@@ -1569,6 +1438,107 @@ if (showViewModal && selectedEmployee) {
                       </p>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {/* Dependent Details */}
+            {selectedEmployee.dependentDetails && selectedEmployee.dependentDetails.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Dependent Details</h4>
+                <div className="space-y-4">
+                  {selectedEmployee.dependentDetails.map((dep, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <p className="text-base font-semibold text-gray-900">{dep.dependentName || 'N/A'}</p>
+                      <p className="text-sm text-gray-600">Relationship: {dep.relationship || 'N/A'}</p>
+                      {dep.dateOfBirth && (
+                        <p className="text-sm text-gray-500">
+                          Date of Birth: {formatDate(dep.dateOfBirth)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Additional Information */}
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <h4 className="text-xl font-bold text-gray-800 mb-4">Additional Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">PAN Card Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.pan || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Aadhaar Card Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.aadhaar || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">UAN Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.uan || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Bank Account Number</label>
+                  <input
+                    type="text"
+                    value={selectedEmployee.bankAccountNumber || 'N/A'}
+                    readOnly
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
+                  />
+                </div>
+              </div>
+            </div>
+            {/* Address Information */}
+            {(selectedEmployee.presentAddressLine1 || selectedEmployee.permanentAddressLine1) && (
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Address Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedEmployee.presentAddressLine1 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Present Address</label>
+                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <p className="text-sm text-gray-900">{selectedEmployee.presentAddressLine1}</p>
+                        {selectedEmployee.presentAddressLine2 && (
+                          <p className="text-sm text-gray-900">{selectedEmployee.presentAddressLine2}</p>
+                        )}
+                        <p className="text-sm text-gray-700">
+                          {[selectedEmployee.presentCity, selectedEmployee.presentState, selectedEmployee.presentPostalCode, selectedEmployee.presentCountry]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {selectedEmployee.permanentAddressLine1 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Permanent Address</label>
+                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <p className="text-sm text-gray-900">{selectedEmployee.permanentAddressLine1}</p>
+                        {selectedEmployee.permanentAddressLine2 && (
+                          <p className="text-sm text-gray-900">{selectedEmployee.permanentAddressLine2}</p>
+                        )}
+                        <p className="text-sm text-gray-700">
+                          {[selectedEmployee.permanentCity, selectedEmployee.permanentState, selectedEmployee.permanentPostalCode, selectedEmployee.permanentCountry]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1620,7 +1590,6 @@ if (showViewModal && selectedEmployee) {
                 onClick={() => {
                   setShowViewModal(false)
                   setSelectedEmployee(null)
-                  setIsEditingInView(false)
                 }}
                 className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold shadow-md hover:shadow-lg transition-all"
               >
@@ -1631,27 +1600,31 @@ if (showViewModal && selectedEmployee) {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
 // If on new employee page, editing, or adding from list page, show only the form (full page)
 if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showModal && !isNewEmployeePage && !editingEmployee)) {
-  // Import the form content from modal section - we'll render it inline
-  const FormContent = () => {
-    // This will be the same form as in the modal - we'll reference it below
-    return null // Placeholder
-  }
-  
   return (
+    <>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
       <div className="w-full mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
-              <Plus size={28} className="text-blue-600" />
-              {editingEmployee?.type === 'user'
-                ? `${editingEmployee.role === 'HR_ADMIN' ? 'Edit HR Admin' : editingEmployee.role === 'MANAGER' ? 'Edit Manager' : editingEmployee.role === 'FINANCE' ? 'Edit Finance' : 'Edit User'}`
-                : `${editingEmployee ? 'Edit User' : 'Add User'}`}
+              {editingEmployee ? (
+                <>
+                  <Edit size={28} className="text-blue-600" />
+                  Edit {editingEmployee.role === 'HR_ADMIN' ? 'HR Admin' : editingEmployee.role === 'MANAGER' ? 'Manager' : editingEmployee.role === 'FINANCE' ? 'Finance' : editingEmployee.role === 'EMPLOYEE' ? 'Employee' : 'User'} - {formData.name || editingEmployee.name}
+                </>
+              ) : (
+                <>
+                  <Plus size={28} className="text-blue-600" />
+                  Add New User
+                </>
+              )}
             </h3>
             <button
               onClick={() => {
@@ -1669,7 +1642,6 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                   role: '',
                   department: '',
                   location: '',
-                  designation: '',
                   employmentType: '',
                   employeeStatus: 'Active',
                   sourceOfHire: '',
@@ -1718,18 +1690,15 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
             <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
               <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {editingEmployee && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">S.No</label>
-                    <input
-                      type="text"
-                      value={formData.employeeId}
-                      onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                      readOnly={true}
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee ID</label>
+                  <input
+                    type="text"
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
                   <input
@@ -1862,23 +1831,6 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Designation *</label>
-                  <input
-                    list="designation-list-full"
-                    type="text"
-                    value={formData.designation}
-                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                    placeholder="Enter designation"
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <datalist id="designation-list-full">
-                    {designations.map((designation) => (
-                      <option key={designation} value={designation} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
                   <input
                     list="client-list-full"
@@ -1947,17 +1899,6 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number *</label>
-                  <input
-                    type="tel"
-                    value={formData.personalMobileNumber}
-                    onChange={(e) => setFormData({ ...formData, personalMobileNumber: e.target.value })}
-                    placeholder="Enter Phone Number"
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
               </div>
             </div>
             <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
@@ -1978,7 +1919,6 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                     role: '',
                     department: '',
                     location: '',
-                    designation: '',
                     employmentType: '',
                     employeeStatus: 'Active',
                     sourceOfHire: '',
@@ -2025,18 +1965,21 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                 disabled={loading}
                 className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
               >
-                {loading ? 'Saving...' : 'Save User'}
+                {loading ? 'Saving...' : editingEmployee ? 'Update User' : 'Create User'}
               </button>
             </div>
           </form>
         </div>
       </div>
     </div>
+    </>
   )
 }
 
-return ( 
-<div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
+return (
+  <>
+    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    <div className="space-y-6 bg-gray-50 p-6 max-w-full overflow-x-hidden">
 {/* Search and Filters - Redesigned */} 
 <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-200"> 
 <div className="flex gap-2"> 
@@ -2119,7 +2062,10 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 			{employee.name?.charAt(0) || 'E'} 
 		</div>  */}
 		<div> 
-			<div className="text-sm font-bold text-gray-900 underline  cursor-pointer" 	onClick={() => handleViewEmployee(employee)} >{employee.name || 'N/A'}</div> 
+			<div className="text-sm font-bold text-gray-900 underline cursor-pointer" onClick={() => {
+				// Directly open the detail view (same as View Details button)
+				handleViewEmployee(employee)
+			}}>{employee.name || 'N/A'}</div> 
 			<div className="text-xs text-gray-500">ID: {employee.id}</div> 
 		</div> 
 	</div>
@@ -2178,6 +2124,7 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 			<button
 				onClick={(e) => {
 					e.stopPropagation()
+					// Directly open the detail view
 					handleViewEmployee(employee)
 					setOpenDropdownId(null)
 				}}
@@ -2373,7 +2320,8 @@ title="Delete Document"
 </div> 
 )}
 </div>
-)
+    </>
+  )
 }
 
 export default Employees 

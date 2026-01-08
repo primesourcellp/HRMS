@@ -1,14 +1,15 @@
 package com.hrms.repository;
 
-import com.hrms.entity.User;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
-import java.util.Optional;
+import com.hrms.entity.User;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -44,13 +45,29 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = "UPDATE employees SET shift_id = NULL, shift_assignment_start_date = NULL, shift_assignment_end_date = NULL WHERE id = :employeeId", nativeQuery = true)
     void removeEmployeeShiftId(@Param("employeeId") Long employeeId);
     
-    // Fetch user with all related collections (work experiences, education details, dependent details, shift)
+    // Fetch user with work experiences and shift (fetch only one collection to avoid MultipleBagFetchException)
     @Query("SELECT DISTINCT u FROM User u " +
            "LEFT JOIN FETCH u.workExperiences " +
-           "LEFT JOIN FETCH u.educationDetails " +
-           "LEFT JOIN FETCH u.dependentDetails " +
            "LEFT JOIN FETCH u.shift " +
            "WHERE u.id = :id")
-    Optional<User> findByIdWithDetails(@Param("id") Long id);
+    Optional<User> findByIdWithWorkExperiences(@Param("id") Long id);
+    
+    // Fetch user with education details
+    @Query("SELECT DISTINCT u FROM User u " +
+           "LEFT JOIN FETCH u.educationDetails " +
+           "WHERE u.id = :id")
+    Optional<User> findByIdWithEducationDetails(@Param("id") Long id);
+    
+    // Fetch user with dependent details
+    @Query("SELECT DISTINCT u FROM User u " +
+           "LEFT JOIN FETCH u.dependentDetails " +
+           "WHERE u.id = :id")
+    Optional<User> findByIdWithDependentDetails(@Param("id") Long id);
+    
+    // Fetch user with shift only (for cases where we don't need collections)
+    @Query("SELECT DISTINCT u FROM User u " +
+           "LEFT JOIN FETCH u.shift " +
+           "WHERE u.id = :id")
+    Optional<User> findByIdWithShift(@Param("id") Long id);
 }
 

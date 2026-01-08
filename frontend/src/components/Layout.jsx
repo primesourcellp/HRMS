@@ -74,7 +74,7 @@ const Layout = () => {
     try {
       const allMenuItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
-        { path: '/employees', icon: Users, label: 'Users', permission: 'employees' },
+        { path: '/employees', icon: Users, label: 'Employee', permission: 'employees' },
         { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'Team Attendance' : 'Attendance', permission: 'attendance' },
         { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : 'Leave Management', permission: 'leave' },
         { path: '/payroll', icon: DollarSign, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll' },
@@ -84,7 +84,7 @@ const Layout = () => {
         { path: '/recruitment', icon: Briefcase, label: 'Recruitment', permission: 'recruitment' },
         { path: '/analytics', icon: BarChart3, label: userRole === ROLES.FINANCE ? 'Cost Analytics' : 'Analytics', permission: 'analytics' },
         { path: '/users', icon: Shield, label: 'User Management', permission: 'users' },
-        { path: '/settings', icon: Settings, label: 'Settings', permission: 'settings' },
+        { path: '/settings', icon: Settings, label: 'Profile', permission: 'settings' },
       ]
 
       // Filter menu items based on permissions
@@ -101,7 +101,7 @@ const Layout = () => {
       // Return at least dashboard and settings as fallback
       return [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
-        { path: '/settings', icon: Settings, label: 'Settings', permission: 'settings' },
+        { path: '/settings', icon: Settings, label: 'Profile', permission: 'settings' },
       ]
     }
   }
