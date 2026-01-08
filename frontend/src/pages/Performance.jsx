@@ -25,7 +25,7 @@ const Performance = () => {
   const [reviewCycles, setReviewCycles] = useState([])
   const [showKpiModal, setShowKpiModal] = useState(false)
   const [editingKpi, setEditingKpi] = useState(null)
-  const [kpiFormData, setKpiFormData] = useState({ name: '', description: '', target: '', weight: 0, active: true })
+  const [kpiFormData, setKpiFormData] = useState({ name: '', description: '', target: '', weight: '', active: true })
 
   // Computed KPI results
   const [computedKpiResults, setComputedKpiResults] = useState([])
@@ -321,13 +321,13 @@ const Performance = () => {
       setKpiFormData({
         name: kpi.name || '',
         description: kpi.description || '',
-        target: kpi.target || '',
-        weight: kpi.weight || 0,
+        target: (kpi.target !== undefined && kpi.target !== null) ? kpi.target : '',
+        weight: (kpi.weight !== undefined && kpi.weight !== null) ? kpi.weight : '',
         active: kpi.active === undefined ? true : kpi.active
       })
     } else {
       setEditingKpi(null)
-      setKpiFormData({ name: '', description: '', target: '', weight: 0, active: true })
+      setKpiFormData({ name: '', description: '', target: '', weight: '', active: true })
     }
     setShowKpiModal(true)
   }
@@ -354,11 +354,18 @@ const Performance = () => {
     setError(null)
     setSuccessMessage(null)
     try {
+      // Normalize empty strings to null/number types for backend
+      const payload = {
+        ...kpiFormData,
+        weight: kpiFormData.weight === '' ? null : parseInt(kpiFormData.weight, 10),
+        target: kpiFormData.target === '' ? null : (typeof kpiFormData.target === 'string' ? kpiFormData.target.trim() : kpiFormData.target)
+      }
+
       if (editingKpi) {
-        await api.updateKpi(editingKpi.id, kpiFormData)
+        await api.updateKpi(editingKpi.id, payload)
         setSuccessMessage('KPI updated!')
       } else {
-        await api.createKpi(kpiFormData)
+        await api.createKpi(payload)
         setSuccessMessage('KPI created!')
       }
       await loadData()
@@ -379,11 +386,15 @@ const Performance = () => {
     setError(null)
     setSuccessMessage(null)
     try {
+      const payload = {
+        ...cycleFormData
+      }
+
       if (editingCycle) {
-        await api.updateReviewCycle(editingCycle.id, cycleFormData)
+        await api.updateReviewCycle(editingCycle.id, payload)
         setSuccessMessage('Review cycle updated!')
       } else {
-        await api.createReviewCycle(cycleFormData)
+        await api.createReviewCycle(payload)
         setSuccessMessage('Review cycle created!')
       }
       await loadData()
@@ -1380,6 +1391,7 @@ const Performance = () => {
                     <label className="block text-sm text-gray-600 mb-1">Name *</label>
                     <input value={cycleFormData.name} onChange={(e) => setCycleFormData({ ...cycleFormData, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
                   </div>
+
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Start Date</label>
                     <input type="date" value={cycleFormData.startDate} onChange={(e) => setCycleFormData({ ...cycleFormData, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
@@ -1439,7 +1451,7 @@ const Performance = () => {
                       <div key={k.id} className="border rounded-lg p-3 flex items-start justify-between">
                         <div>
                           <div className="font-medium text-gray-800">{k.name}</div>
-                          <div className="text-xs text-gray-500">{k.target || 'No target specified'}</div>
+                          <div className="text-xs text-gray-500">{k.target !== undefined && k.target !== null && k.target !== '' ? k.target : 'No target specified'}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <button onClick={() => openKpiModal(k)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
@@ -1460,11 +1472,11 @@ const Performance = () => {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Target</label>
-                    <input value={kpiFormData.target} onChange={(e) => setKpiFormData({ ...kpiFormData, target: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                    <input type="text" placeholder="Enter target (e.g., 75 or 75%)" value={kpiFormData.target} onChange={(e) => setKpiFormData({ ...kpiFormData, target: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Weight</label>
-                    <input type="number" min="0" max="100" value={kpiFormData.weight} onChange={(e) => setKpiFormData({ ...kpiFormData, weight: parseInt(e.target.value || 0) })} className="w-full px-3 py-2 border rounded-lg" />
+                    <input type="number" min="0" max="100" placeholder="Enter weight (0-100)" value={kpiFormData.weight} onChange={(e) => setKpiFormData({ ...kpiFormData, weight: e.target.value === '' ? '' : parseInt(e.target.value, 10) })} className="w-full px-3 py-2 border rounded-lg" />
                   </div>
                   <div>
                     <label className="inline-flex items-center gap-2 text-sm">
@@ -1525,6 +1537,21 @@ const Performance = () => {
                   <label className="block text-sm font-medium text-gray-600 mb-1">Cycle</label>
                   <p className="text-sm text-gray-800">{(reviewCycles.find(c => c.id === selectedPerformance.reviewCycleId) || {}).name || '—'}</p>
                 </div>
+                {selectedPerformance.reviewCycleId && (() => {
+                  const cycle = reviewCycles.find(c => c.id === selectedPerformance.reviewCycleId)
+                  return cycle ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Cycle Start Date</label>
+                        <p className="text-sm text-gray-800">{formatDate(cycle.startDate)}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Cycle End Date</label>
+                        <p className="text-sm text-gray-800">{formatDate(cycle.endDate)}</p>
+                      </div>
+                    </>
+                  ) : null
+                })()}
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Review Date</label>
                   <p className="text-sm text-gray-800">{formatDate(selectedPerformance.reviewDate)}</p>
