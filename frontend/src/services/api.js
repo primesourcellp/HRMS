@@ -628,6 +628,36 @@ const api = {
     }
   },
 
+  getAttendanceByEmployeeDateRange: async (employeeId, startDate, endDate) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/employee/${employeeId}/range?startDate=${startDate}&endDate=${endDate}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch attendance (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching attendance by employee date range:', error)
+      throw error
+    }
+  },
+
+  getAttendanceByDateRange: async (startDate, endDate) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/attendance/range?startDate=${startDate}&endDate=${endDate}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch attendance (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching attendance by date range:', error)
+      throw error
+    }
+  },
+
   checkIn: async (data) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/attendance/check-in`, {

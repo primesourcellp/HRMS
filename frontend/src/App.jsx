@@ -7,6 +7,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Employees from './pages/Employees'
 import Attendance from './pages/Attendance'
+import MyAttendance from './pages/MyAttendance'
 import LeaveManagement from './pages/LeaveManagement'
 import Payroll from './pages/Payroll'
 import Performance from './pages/Performance'
@@ -33,6 +34,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="employees" element={<Employees />} />
             <Route path="attendance" element={<Attendance />} />
+            <Route path="my-attendance" element={<MyAttendance />} />
             <Route path="leave" element={<LeaveManagement />} />
             <Route path="payroll" element={<Payroll />} />
             <Route path="performance" element={<Performance />} />

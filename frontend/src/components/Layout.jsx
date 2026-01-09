@@ -75,6 +75,7 @@ const Layout = () => {
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
         { path: '/employees', icon: Users, label: 'Employee', permission: 'employees' },
         { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'Team Attendance' : 'Attendance', permission: 'attendance' },
+        { path: '/my-attendance', icon: Calendar, label: 'My Attendance', permission: 'myAttendance', roles: [ROLES.HR_ADMIN, ROLES.FINANCE] },
         { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : 'Leave Management', permission: 'leave' },
         { path: '/payroll', icon: null, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll', customIcon: '₹' },
         { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
@@ -86,9 +87,13 @@ const Layout = () => {
         { path: '/settings', icon: Settings, label: 'Profile', permission: 'settings' },
       ]
 
-      // Filter menu items based on permissions
+      // Filter menu items based on permissions and roles
       return allMenuItems.filter(item => {
         try {
+          // Check if item has specific roles requirement
+          if (item.roles && !item.roles.includes(userRole)) {
+            return false
+          }
           return hasPermission(userRole, item.permission)
         } catch (error) {
           console.error('Error checking permission:', error)

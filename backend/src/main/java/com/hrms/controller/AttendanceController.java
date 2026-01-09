@@ -253,5 +253,32 @@ public class AttendanceController {
         
         return ResponseEntity.ok(attendanceService.markAttendance(employeeId, date, status, checkIn, checkOut));
     }
+
+    @GetMapping("/employee/{employeeId}/range")
+    public ResponseEntity<?> getAttendanceByEmployeeIdAndDateRange(
+            @PathVariable Long employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        try {
+            return ResponseEntity.ok(attendanceService.getAttendanceByEmployeeIdAndDateRange(employeeId, startDate, endDate));
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error fetching attendance by date range: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    @GetMapping("/range")
+    public ResponseEntity<?> getAttendanceByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        try {
+            return ResponseEntity.ok(attendanceService.getAttendanceByDateRange(startDate, endDate));
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error fetching attendance by date range: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
 }
 

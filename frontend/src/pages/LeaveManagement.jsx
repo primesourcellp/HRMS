@@ -29,6 +29,7 @@ const LeaveManagement = () => {
     maxDays: '',
     carryForward: false,
     maxCarryForward: '',
+    monthlyLeave: false,
     description: '',
     active: true
   })
@@ -55,19 +56,24 @@ const LeaveManagement = () => {
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
   const currentUserId = localStorage.getItem('userId')
+  const isSuperAdmin = userRole === 'SUPER_ADMIN'
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
   const isEmployee = userType === 'employee'
+  const isHrAdmin = userRole === 'HR_ADMIN'
+  const isManager = userRole === 'MANAGER'
+  const isFinance = userRole === 'FINANCE'
+  const canApplyLeave = isEmployee || isManager || isFinance // HR_ADMIN removed - they apply leave from My Attendance page
 
   useEffect(() => {
     loadData()
   }, [filter])
 
   useEffect(() => {
-    // Auto-set employeeId for employees
-    if (isEmployee && currentUserId && !formData.employeeId) {
+    // Auto-set employeeId for employees, managers, and finance (HR_ADMIN applies leave from My Attendance page)
+    if (canApplyLeave && currentUserId && !formData.employeeId) {
       setFormData(prev => ({ ...prev, employeeId: currentUserId.toString() }))
     }
-  }, [isEmployee, currentUserId, formData.employeeId])
+  }, [canApplyLeave, currentUserId, formData.employeeId])
 
   useEffect(() => {
     // Calculate days when dates change
@@ -84,23 +90,60 @@ const LeaveManagement = () => {
       setError(null)
       
       let leavesData
-      if (isEmployee && currentUserId) {
-        // Employees see only their own leaves
+      if (isEmployee && currentUserId && !isHrAdmin) {
+        // Employees (but not HR_ADMIN) see only their own leaves
+        leavesData = await api.getLeavesByEmployee(parseInt(currentUserId))
+        if (filter !== 'All') {
+          leavesData = leavesData.filter(l => l.status === filter)
+        }
+      } else if (isAdmin || isHrAdmin) {
+        // Admins and HR_ADMIN see all leaves for management
+        leavesData = filter === 'All' ? await api.getLeaves() : await api.getLeaves(filter)
+        // For HR_ADMIN, filter to only show MANAGER, EMPLOYEE, and FINANCE leaves (exclude HR_ADMIN's own leaves)
+        if (isHrAdmin && currentUserId) {
+          const allEmployees = await api.getEmployees()
+          const allEmployeesList = Array.isArray(allEmployees) ? allEmployees : []
+          const currentId = parseInt(currentUserId)
+          
+          leavesData = leavesData.filter(leave => {
+            const empId = leave.employeeId ? parseInt(leave.employeeId) : null
+            if (!empId) return false
+            
+            // Find the employee to check their role
+            const employee = allEmployeesList.find(emp => {
+              const id = emp.id ? parseInt(emp.id) : null
+              return id === empId
+            })
+            
+            if (!employee) return false
+            
+            const empRole = (employee.role || '').toUpperCase()
+            
+            // Exclude HR_ADMIN's own leaves
+            if (empId === currentId || parseInt(empId) === currentId || empId.toString() === currentUserId) {
+              return false
+            }
+            
+            // Only include MANAGER, EMPLOYEE, and FINANCE roles
+            return empRole === 'MANAGER' || empRole === 'EMPLOYEE' || empRole === 'FINANCE'
+          })
+        }
+      } else if (canApplyLeave && currentUserId) {
+        // Other roles that can apply leave see only their own
         leavesData = await api.getLeavesByEmployee(parseInt(currentUserId))
         if (filter !== 'All') {
           leavesData = leavesData.filter(l => l.status === filter)
         }
       } else {
-        // Admins see all leaves
-        leavesData = filter === 'All' ? await api.getLeaves() : await api.getLeaves(filter)
+        leavesData = []
       }
 
       const [typesData, allTypesData, employeesData, usersData] = await Promise.all([
         api.getActiveLeaveTypes(),
-        // Always fetch all leave types for admins (we control visibility via the switch)
-        isAdmin ? api.getLeaveTypes() : Promise.resolve([]),
-        // Load employees for admins, or load current employee's data for employees
-        isAdmin ? api.getEmployees() : (isEmployee && currentUserId ? 
+        // Always fetch all leave types for admins and HR_ADMIN (we control visibility via the switch)
+        (isAdmin || isHrAdmin) ? api.getLeaveTypes() : Promise.resolve([]),
+        // Load employees for admins and HR_ADMIN, or load current employee's data for employees
+        (isAdmin || isHrAdmin) ? api.getEmployees() : (canApplyLeave && currentUserId ?
           api.getEmployees().then(emps => {
             // Filter to include only current employee for employees
             const currentEmp = emps.find(emp => {
@@ -109,13 +152,13 @@ const LeaveManagement = () => {
             })
             return currentEmp ? [currentEmp] : []
           }).catch(() => []) : Promise.resolve([])),
-        // Load users (admins) to get approver names
-        isAdmin ? api.getUsers() : Promise.resolve([])
+        // Load users (admins and HR_ADMIN) to get approver names
+        (isAdmin || isHrAdmin) ? api.getUsers() : Promise.resolve([])
       ])
       
       setLeaves(Array.isArray(leavesData) ? leavesData : [])
-      // For admin, show all types (management view). For employees, show only active leave types.
-      if (isAdmin) {
+      // For admin and HR_ADMIN, show all types (management view). For employees, show only active leave types.
+      if (isAdmin || isHrAdmin) {
         setLeaveTypes(Array.isArray(allTypesData) ? allTypesData : [])
       } else {
         setLeaveTypes(Array.isArray(typesData) ? typesData : [])
@@ -124,8 +167,8 @@ const LeaveManagement = () => {
       // Set employees and ensure we have all employees referenced in leaves
       const employeesList = Array.isArray(employeesData) ? employeesData : []
       
-      // For admins, if we have leaves but missing employees, ensure all employees are loaded
-      if (isAdmin && leavesData && Array.isArray(leavesData) && leavesData.length > 0 && employeesList.length > 0) {
+      // For admins and HR_ADMIN, if we have leaves but missing employees, ensure all employees are loaded
+      if ((isAdmin || isHrAdmin) && leavesData && Array.isArray(leavesData) && leavesData.length > 0 && employeesList.length > 0) {
         const leaveEmployeeIds = [...new Set(leavesData.map(l => l.employeeId).filter(id => id != null && id !== undefined))]
         const loadedEmployeeIds = new Set(employeesList.map(e => {
           const id = typeof e.id === 'string' ? parseInt(e.id) : e.id
@@ -314,7 +357,7 @@ const LeaveManagement = () => {
       const requiredDays = formData.halfDay ? 0.5 : calculatedDays
       const selectedType = leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))
       
-      if (balance === 0 && selectedType?.maxDays && selectedType.maxDays > 0 && isEmployee && currentUserId) {
+      if (balance === 0 && selectedType?.maxDays && selectedType.maxDays > 0 && canApplyLeave && currentUserId) {
         try {
           // Try to auto-assign leave balance using maxDays
           const employeeId = parseInt(currentUserId)
@@ -340,7 +383,7 @@ const LeaveManagement = () => {
       
       const submitData = {
         ...formData,
-        employeeId: isEmployee ? parseInt(currentUserId) : parseInt(formData.employeeId),
+        employeeId: canApplyLeave ? parseInt(currentUserId) : parseInt(formData.employeeId),
         leaveTypeId: parseInt(formData.leaveTypeId),
         type: leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))?.name || 'Leave'
       }
@@ -365,7 +408,7 @@ const LeaveManagement = () => {
 
   const resetForm = () => {
       setFormData({
-      employeeId: isEmployee ? currentUserId : '',
+      employeeId: canApplyLeave ? currentUserId : '',
         leaveTypeId: '',
         startDate: '',
         endDate: '',
@@ -501,8 +544,8 @@ const LeaveManagement = () => {
     
     const currentUserIdNum = currentUserId ? parseInt(currentUserId) : null
     
-    // If this is the current employee viewing their own leaves, use localStorage
-    if (isEmployee && currentUserIdNum && empId === currentUserIdNum) {
+    // If this is the current employee or HR_ADMIN viewing their own leaves, use localStorage
+    if (canApplyLeave && currentUserIdNum && empId === currentUserIdNum) {
       const userName = localStorage.getItem('userName')
       if (userName) return userName
     }
@@ -632,6 +675,7 @@ const LeaveManagement = () => {
         maxDays: leaveType.maxDays || '',
         carryForward: leaveType.carryForward || false,
         maxCarryForward: leaveType.maxCarryForward || '',
+        monthlyLeave: leaveType.monthlyLeave || false,
         description: leaveType.description || '',
         active: leaveType.active !== undefined ? leaveType.active : true
       })
@@ -643,6 +687,7 @@ const LeaveManagement = () => {
         maxDays: '',
         carryForward: false,
         maxCarryForward: '',
+        monthlyLeave: false,
         description: '',
         active: true
       })
@@ -796,8 +841,8 @@ const LeaveManagement = () => {
         </div>
       </div>
 
-      {/* Toggle Buttons for Leave Applications and Leave Types - Admin Only */}
-      {isAdmin && (
+      {/* Toggle Buttons for Leave Applications and Leave Types - Admin and HR_ADMIN */}
+      {(isAdmin || isHrAdmin) && (
         <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex items-center gap-4">
             <button
@@ -859,19 +904,49 @@ const LeaveManagement = () => {
             <option value="APPROVED">Approved</option>
             <option value="REJECTED">Rejected</option>
           </select>
-          {isAdmin && (
+          {(isAdmin || isHrAdmin) && (
             <select
               value={employeeFilter}
               onChange={(e) => setEmployeeFilter(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="All">All Employees</option>
-              {employees.map(emp => {
-                const employeeName = emp.name || `Employee ${emp.id}`
-                return (
-                  <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
-                )
-              })}
+              {employees
+                .filter(emp => {
+                  const empRole = (emp.role || emp.designation || '').toUpperCase()
+                  const empId = emp.id || emp.employeeId
+                  
+                  // For SUPER_ADMIN, exclude their own record from the dropdown
+                  if (isSuperAdmin && currentUserId) {
+                    const currentId = parseInt(currentUserId)
+                    return empId !== currentId && parseInt(empId) !== currentId && empId.toString() !== currentUserId
+                  }
+                  
+                  // For HR_ADMIN, only show MANAGER and FINANCE roles, exclude SUPER_ADMIN and HR_ADMIN
+                  if (isHrAdmin) {
+                    // Exclude SUPER_ADMIN and HR_ADMIN roles
+                    if (empRole === 'SUPER_ADMIN' || empRole === 'HR_ADMIN') {
+                      return false
+                    }
+                    // Exclude HR_ADMIN's own record
+                    if (currentUserId) {
+                      const currentId = parseInt(currentUserId)
+                      if (empId === currentId || parseInt(empId) === currentId || empId.toString() === currentUserId) {
+                        return false
+                      }
+                    }
+                    // Only include MANAGER and FINANCE roles
+                    return empRole === 'MANAGER' || empRole === 'FINANCE'
+                  }
+                  
+                  return true
+                })
+                .map(emp => {
+                  const employeeName = emp.name || `Employee ${emp.id}`
+                  return (
+                    <option key={emp.id} value={emp.id.toString()}>{employeeName}</option>
+                  )
+                })}
             </select>
           )}
           {isAdmin && (
@@ -883,7 +958,7 @@ const LeaveManagement = () => {
               Add Leave Type
             </button>
           )}
-          {isEmployee && (
+          {canApplyLeave && (
             <button
               onClick={async () => {
                 resetForm()
@@ -926,8 +1001,8 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Leave Balances - Only visible to employees (in Applications view) */}
-      {activeView === 'applications' && isEmployee && (() => {
+      {/* Leave Balances - Only visible to employees and HR_ADMIN (in Applications view) */}
+      {activeView === 'applications' && canApplyLeave && (() => {
         // Remove duplicates by grouping by leaveTypeId (keep the one with highest totalDays or most recent)
         const uniqueBalances = leaveBalances.reduce((acc, balance) => {
           const typeId = balance.leaveTypeId
@@ -1230,7 +1305,7 @@ const LeaveManagement = () => {
                       >
                         <Eye size={18} />
                       </button>
-                    {isAdmin && leave.status === 'PENDING' && (
+                    {(isAdmin || isHrAdmin) && leave.status === 'PENDING' && (
                         <>
                         <button
                           onClick={() => {
@@ -1251,7 +1326,7 @@ const LeaveManagement = () => {
                           </button>
                         </>
                       )}
-                      {(isAdmin || (isEmployee && leave.employeeId.toString() === currentUserId)) && 
+                      {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && 
                        leave.status === 'PENDING' && (
                         <button
                           onClick={() => handleCancelLeave(leave.id)}
@@ -1261,7 +1336,7 @@ const LeaveManagement = () => {
                           <X size={18} />
                         </button>
                       )}
-                      {isAdmin && leave.status !== 'APPROVED' && (
+                      {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && leave.status !== 'APPROVED' && (
                         <button
                           onClick={() => handleDeleteLeave(leave.id)}
                           className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
@@ -1285,8 +1360,8 @@ const LeaveManagement = () => {
       </div>
       )}
 
-      {/* Leave Types View - Admin Only */}
-      {activeView === 'types' && isAdmin && (
+      {/* Leave Types View - Admin and HR_ADMIN */}
+      {activeView === 'types' && (isAdmin || isHrAdmin) && (
         <>
           {/* Filters and Actions for Leave Types */}
           <div className="bg-white rounded-lg shadow-md p-4">
@@ -2096,7 +2171,7 @@ const LeaveManagement = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Max Days Per Year
+                    {leaveTypeFormData.monthlyLeave ? 'Max Days Per Month' : 'Max Days Per Year'}
                   </label>
                   <input
                     type="number"
@@ -2106,7 +2181,11 @@ const LeaveManagement = () => {
                     placeholder="Leave empty for unlimited"
                     min="0"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Maximum days allowed per year (optional)</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {leaveTypeFormData.monthlyLeave 
+                      ? 'Maximum days allowed per month (optional)' 
+                      : 'Maximum days allowed per year (optional)'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -2134,6 +2213,18 @@ const LeaveManagement = () => {
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700">Allow Carry Forward</span>
                   </label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={leaveTypeFormData.monthlyLeave}
+                      onChange={(e) => setLeaveTypeFormData({ ...leaveTypeFormData, monthlyLeave: e.target.checked })}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-700">Monthly Leave</span>
+                  </label>
+                  <span className="text-xs text-gray-500">(Per month - Resets every month)</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="flex items-center cursor-pointer">

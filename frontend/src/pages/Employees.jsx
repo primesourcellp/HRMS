@@ -128,7 +128,9 @@ const [designations, setDesignations] = useState([])
 const [roles, setRoles] = useState([])
 const [employmentTypes, setEmploymentTypes] = useState([])
 const [openDropdownId, setOpenDropdownId] = useState(null)
-const userRole = localStorage.getItem('userRole') 
+const userRole = localStorage.getItem('userRole')
+const isHrAdmin = userRole === 'HR_ADMIN'
+const currentUserId = localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null 
 
 // Close dropdown when clicking outside
 useEffect(() => {
@@ -149,10 +151,24 @@ useEffect(() => {
   ;(async () => {
     try {
       const list = await api.getUsers()
-      // Include all users except SUPER_ADMIN (HR_ADMIN, MANAGER, FINANCE, EMPLOYEE are all included)
+      // Filter based on role: HR_ADMIN sees only MANAGER, FINANCE, EMPLOYEE (exclude HR_ADMIN and SUPER_ADMIN)
       const filtered = Array.isArray(list) ? list.filter(u => {
         const role = (u.role || '').toUpperCase()
-        return role !== 'SUPER_ADMIN'
+        const userId = u.id || u.userId
+        
+        // Exclude SUPER_ADMIN for everyone
+        if (role === 'SUPER_ADMIN') return false
+        
+        // For HR_ADMIN: exclude HR_ADMIN role and exclude HR_ADMIN's own record
+        if (isHrAdmin) {
+          if (role === 'HR_ADMIN') return false
+          if (currentUserId && (userId === currentUserId || parseInt(userId) === currentUserId)) return false
+          // Only include MANAGER, FINANCE, EMPLOYEE
+          return role === 'MANAGER' || role === 'FINANCE' || role === 'EMPLOYEE'
+        }
+        
+        // For other roles, include all except SUPER_ADMIN
+        return true
       }) : []
       setUsers(filtered)
     } catch (e) {
@@ -517,20 +533,47 @@ useEffect(() => {
   }
 }, [employees, users, navigate, isAutoViewing]) 
 // Combine employees and (non-superadmin) users into a single list
-// Include all employees except SUPER_ADMIN
+// Filter employees based on role: HR_ADMIN sees only MANAGER, FINANCE, EMPLOYEE (exclude HR_ADMIN and SUPER_ADMIN)
 const employeeRecords = Array.isArray(employees) ? employees
   .filter(e => {
     const role = (e.role || e.designation || '').toUpperCase()
-    return role !== 'SUPER_ADMIN'
+    const empId = e.id || e.employeeId
+    
+    // Exclude SUPER_ADMIN for everyone
+    if (role === 'SUPER_ADMIN') return false
+    
+    // For HR_ADMIN: exclude HR_ADMIN role and exclude HR_ADMIN's own record
+    if (isHrAdmin) {
+      if (role === 'HR_ADMIN') return false
+      if (currentUserId && (empId === currentUserId || parseInt(empId) === currentUserId)) return false
+      // Only include MANAGER, FINANCE, EMPLOYEE
+      return role === 'MANAGER' || role === 'FINANCE' || role === 'EMPLOYEE'
+    }
+    
+    // For other roles, include all except SUPER_ADMIN
+    return true
   })
   .map(e => ({ ...e, type: 'employee' })) : []
 
-// Include all users except SUPER_ADMIN (explicitly include HR_ADMIN, MANAGER, FINANCE, EMPLOYEE)
+// Filter users based on role: HR_ADMIN sees only MANAGER, FINANCE, EMPLOYEE (exclude HR_ADMIN and SUPER_ADMIN)
 const userRecords = Array.isArray(users) ? users
   .filter(u => {
     const role = (u.role || '').toUpperCase()
-    // Exclude only SUPER_ADMIN, include all other roles (HR_ADMIN, MANAGER, FINANCE, EMPLOYEE)
-    return role !== 'SUPER_ADMIN'
+    const userId = u.id || u.userId
+    
+    // Exclude SUPER_ADMIN for everyone
+    if (role === 'SUPER_ADMIN') return false
+    
+    // For HR_ADMIN: exclude HR_ADMIN role and exclude HR_ADMIN's own record
+    if (isHrAdmin) {
+      if (role === 'HR_ADMIN') return false
+      if (currentUserId && (userId === currentUserId || parseInt(userId) === currentUserId)) return false
+      // Only include MANAGER, FINANCE, EMPLOYEE
+      return role === 'MANAGER' || role === 'FINANCE' || role === 'EMPLOYEE'
+    }
+    
+    // For other roles, include all except SUPER_ADMIN
+    return true
   })
   .map(u => {
     return {

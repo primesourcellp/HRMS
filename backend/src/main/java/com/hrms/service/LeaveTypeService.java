@@ -38,6 +38,7 @@ public class LeaveTypeService {
         if (leaveTypeDetails.getMaxDays() != null) leaveType.setMaxDays(leaveTypeDetails.getMaxDays());
         if (leaveTypeDetails.getCarryForward() != null) leaveType.setCarryForward(leaveTypeDetails.getCarryForward());
         if (leaveTypeDetails.getMaxCarryForward() != null) leaveType.setMaxCarryForward(leaveTypeDetails.getMaxCarryForward());
+        if (leaveTypeDetails.getMonthlyLeave() != null) leaveType.setMonthlyLeave(leaveTypeDetails.getMonthlyLeave());
         if (leaveTypeDetails.getActive() != null) leaveType.setActive(leaveTypeDetails.getActive());
 
         return leaveTypeRepository.save(java.util.Objects.requireNonNull(leaveType));
