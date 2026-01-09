@@ -34,6 +34,7 @@ export const PERMISSIONS = {
     dashboard: true,
     employees: true,
     attendance: true,
+    myAttendance: true,
     leave: true,
     payroll: true,
     performance: true,
@@ -93,8 +94,9 @@ export const PERMISSIONS = {
   FINANCE: {
     dashboard: true,
     employees: false,
-    attendance: false,
-    leave: false,
+    attendance: true, // My attendance access
+    myAttendance: true, // My attendance access
+    leave: true, // Apply leave access
     payroll: true, // Payroll validation
     performance: false,
     shifts: false,

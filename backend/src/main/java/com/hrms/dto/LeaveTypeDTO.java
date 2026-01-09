@@ -7,6 +7,7 @@ public class LeaveTypeDTO {
     private Integer maxDays;
     private Boolean carryForward;
     private Integer maxCarryForward;
+    private Boolean monthlyLeave;
     private String description;
     private Boolean active;
 
@@ -15,13 +16,14 @@ public class LeaveTypeDTO {
     }
 
     public LeaveTypeDTO(Long id, String name, String code, Integer maxDays,
-                       Boolean carryForward, Integer maxCarryForward, String description, Boolean active) {
+                       Boolean carryForward, Integer maxCarryForward, Boolean monthlyLeave, String description, Boolean active) {
         this.id = id;
         this.name = name;
         this.code = code;
         this.maxDays = maxDays;
         this.carryForward = carryForward;
         this.maxCarryForward = maxCarryForward;
+        this.monthlyLeave = monthlyLeave;
         this.description = description;
         this.active = active;
     }
@@ -73,6 +75,14 @@ public class LeaveTypeDTO {
 
     public void setMaxCarryForward(Integer maxCarryForward) {
         this.maxCarryForward = maxCarryForward;
+    }
+
+    public Boolean getMonthlyLeave() {
+        return monthlyLeave;
+    }
+
+    public void setMonthlyLeave(Boolean monthlyLeave) {
+        this.monthlyLeave = monthlyLeave;
     }
 
     public String getDescription() {

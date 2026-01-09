@@ -33,7 +33,7 @@ const Performance = () => {
   const kpiCacheRef = useRef({}) // cache computed results keyed by employee_kpi_start_end
   const [showCycleModal, setShowCycleModal] = useState(false)
   const [editingCycle, setEditingCycle] = useState(null)
-  const [cycleFormData, setCycleFormData] = useState({ name: '', startDate: '', endDate: '', active: true })
+  const [cycleFormData, setCycleFormData] = useState({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
   const [performanceFormData, setPerformanceFormData] = useState({
     employeeId: '',
     reviewDate: format(new Date(), 'yyyy-MM-dd'),
@@ -339,11 +339,12 @@ const Performance = () => {
         name: cycle.name || '',
         startDate: cycle.startDate || '',
         endDate: cycle.endDate || '',
-        active: cycle.active === undefined ? true : cycle.active
+        active: cycle.active === undefined ? true : cycle.active,
+        kpiConfigId: cycle.kpiConfigId ? cycle.kpiConfigId.toString() : ''
       })
     } else {
       setEditingCycle(null)
-      setCycleFormData({ name: '', startDate: '', endDate: '', active: true })
+      setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
     }
     setShowCycleModal(true)
   }
@@ -386,8 +387,11 @@ const Performance = () => {
     setError(null)
     setSuccessMessage(null)
     try {
+      const selectedKpi = kpis.find(kpi => kpi.id.toString() === cycleFormData.kpiConfigId)
       const payload = {
-        ...cycleFormData
+        ...cycleFormData,
+        name: selectedKpi ? selectedKpi.name : '',
+        kpiConfigId: cycleFormData.kpiConfigId ? parseInt(cycleFormData.kpiConfigId) : null
       }
 
       if (editingCycle) {
@@ -1341,6 +1345,7 @@ const Performance = () => {
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
           setShowCycleModal(false)
           setEditingCycle(null)
+          setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
         }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
@@ -1351,7 +1356,7 @@ const Performance = () => {
               <div className="flex items-center gap-2">
                 <button onClick={() => openCycleModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">New Cycle</button>
                 <button
-                  onClick={() => { setShowCycleModal(false); setEditingCycle(null) }}
+                  onClick={() => { setShowCycleModal(false); setEditingCycle(null); setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' }) }}
                   className="text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   <X size={24} />
@@ -1366,18 +1371,26 @@ const Performance = () => {
                   {reviewCycles.length === 0 ? (
                     <p className="text-sm text-gray-500">No review cycles defined.</p>
                   ) : (
-                    reviewCycles.map(c => (
-                      <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between">
-                        <div>
-                          <div className="font-medium text-gray-800">{c.name}</div>
-                          <div className="text-xs text-gray-500">{c.startDate || 'N/A'} → {c.endDate || 'N/A'}</div>
+                    reviewCycles.map(c => {
+                      const associatedKpi = kpis.find(kpi => kpi.id === c.kpiConfigId)
+                      return (
+                        <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between">
+                          <div>
+                            <div className="font-medium text-gray-800">{c.name}</div>
+                            <div className="text-xs text-gray-500">{c.startDate || 'N/A'} → {c.endDate || 'N/A'}</div>
+                            {associatedKpi && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                KPI: {associatedKpi.name} {associatedKpi.target ? `(Target: ${associatedKpi.target})` : ''}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => openCycleModal(c)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
+                            <button onClick={() => handleDeleteCycle(c.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openCycleModal(c)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
-                          <button onClick={() => handleDeleteCycle(c.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
-                        </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
@@ -1386,8 +1399,27 @@ const Performance = () => {
                 <h4 className="font-semibold text-gray-800 mb-2">Create / Edit Cycle</h4>
                 <form onSubmit={handleCycleSubmit} className="space-y-3">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Name *</label>
-                    <input value={cycleFormData.name} onChange={(e) => setCycleFormData({ ...cycleFormData, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+                    <label className="block text-sm text-gray-600 mb-1">Cycle Name *</label>
+                    <select 
+                      value={cycleFormData.kpiConfigId || ''} 
+                      onChange={(e) => {
+                        const selectedKpi = kpis.find(kpi => kpi.id.toString() === e.target.value)
+                        setCycleFormData({ 
+                          ...cycleFormData, 
+                          name: selectedKpi ? selectedKpi.name : '',
+                          kpiConfigId: e.target.value 
+                        })
+                      }} 
+                      className="w-full px-3 py-2 border rounded-lg"
+                      required
+                    >
+                      <option value="">Select KPI Configuration</option>
+                      {kpis.map(kpi => (
+                        <option key={kpi.id} value={kpi.id.toString()}>
+                          {kpi.name} {kpi.target ? `(Target: ${kpi.target})` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -1405,7 +1437,7 @@ const Performance = () => {
                     </label>
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => { setShowCycleModal(false); setEditingCycle(null) }} className="px-4 py-2 border rounded-lg">Close</button>
+                    <button type="button" onClick={() => { setShowCycleModal(false); setEditingCycle(null); setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' }) }} className="px-4 py-2 border rounded-lg">Close</button>
                     <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg">{editingCycle ? 'Update' : 'Create'}</button>
                   </div>
                 </form>

@@ -1,15 +1,16 @@
 package com.hrms.service;
 
-import com.hrms.entity.Attendance;
-import com.hrms.repository.AttendanceRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.hrms.entity.Attendance;
+import com.hrms.repository.AttendanceRepository;
 
 @Service
 public class AttendanceService {
@@ -130,6 +131,20 @@ public class AttendanceService {
         }
 
         return attendanceRepository.save(attendance);
+    }
+
+    public List<Attendance> getAttendanceByEmployeeIdAndDateRange(long employeeId, LocalDate startDate, LocalDate endDate) {
+        return attendanceRepository.findByEmployeeIdAndDateBetween(Long.valueOf(employeeId), startDate, endDate);
+    }
+
+    public List<Attendance> getAttendanceByDateRange(LocalDate startDate, LocalDate endDate) {
+        return attendanceRepository.findAll().stream()
+            .filter(a -> {
+                LocalDate date = a.getDate();
+                return (date.isEqual(startDate) || date.isAfter(startDate)) 
+                    && (date.isEqual(endDate) || date.isBefore(endDate));
+            })
+            .collect(java.util.stream.Collectors.toList());
     }
 }
 

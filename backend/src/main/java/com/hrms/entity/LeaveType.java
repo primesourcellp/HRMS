@@ -1,6 +1,11 @@
 package com.hrms.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "leave_types")
@@ -24,6 +29,9 @@ public class LeaveType {
     @Column(name = "max_carry_forward")
     private Integer maxCarryForward; // Maximum days that can be carried forward
 
+    @Column(name = "monthly_leave", nullable = false)
+    private Boolean monthlyLeave = false; // If true, leave resets every month
+
     @Column(columnDefinition = "TEXT")
     private String description;
 
@@ -35,13 +43,14 @@ public class LeaveType {
     }
 
     public LeaveType(Long id, String name, String code, Integer maxDays, Boolean carryForward, 
-                    Integer maxCarryForward, String description, Boolean active) {
+                    Integer maxCarryForward, Boolean monthlyLeave, String description, Boolean active) {
         this.id = id;
         this.name = name;
         this.code = code;
         this.maxDays = maxDays;
         this.carryForward = carryForward != null ? carryForward : false;
         this.maxCarryForward = maxCarryForward;
+        this.monthlyLeave = monthlyLeave != null ? monthlyLeave : false;
         this.description = description;
         this.active = active != null ? active : true;
     }
@@ -93,6 +102,14 @@ public class LeaveType {
 
     public void setMaxCarryForward(Integer maxCarryForward) {
         this.maxCarryForward = maxCarryForward;
+    }
+
+    public Boolean getMonthlyLeave() {
+        return monthlyLeave;
+    }
+
+    public void setMonthlyLeave(Boolean monthlyLeave) {
+        this.monthlyLeave = monthlyLeave != null ? monthlyLeave : false;
     }
 
     public String getDescription() {
