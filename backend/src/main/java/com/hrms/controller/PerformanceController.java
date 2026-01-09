@@ -119,7 +119,7 @@ public class PerformanceController {
                 "topPerformers", topPerformers,
                 "needsImprovement", needsImprovement
             ));
-
+                        
             dashboard.put("employeeStats", Map.of(
                 "totalEmployees", totalEmployees
             ));
