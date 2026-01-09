@@ -48,7 +48,9 @@ const Shifts = () => {
   const [requestStatusFilter, setRequestStatusFilter] = useState('all')
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
-  const [activeView, setActiveView] = useState('shifts') // 'shifts' or 'requests'
+  const [activeView, setActiveView] = useState('shifts') // 'shifts', 'requests', or 'assignments'
+  const [allAssignments, setAllAssignments] = useState([])
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
@@ -67,6 +69,12 @@ const Shifts = () => {
       loadShiftChangeRequests()
     }
   }, [isEmployee])
+
+  useEffect(() => {
+    if (!isEmployee && activeView === 'assignments' && shifts.length > 0) {
+      loadAllAssignments()
+    }
+  }, [activeView, isEmployee, shifts])
 
   const loadEmployeeShift = async () => {
     try {
@@ -144,6 +152,44 @@ const Shifts = () => {
     } catch (error) {
       console.error('Error loading shift employees:', error)
       setShiftEmployees([])
+    }
+  }
+
+  const loadAllAssignments = async () => {
+    setLoadingAssignments(true)
+    try {
+      const allEmployees = await api.getEmployees()
+      const assignments = []
+      
+      for (const employee of allEmployees) {
+        if (employee.shiftId) {
+          const shift = shifts.find(s => s.id === employee.shiftId)
+          if (shift) {
+            assignments.push({
+              employeeId: employee.id,
+              employeeName: employee.name || 'N/A',
+              employeeEmail: employee.email || 'N/A',
+              employeeIdCode: employee.employeeId || `ID: ${employee.id}`,
+              department: employee.department || 'N/A',
+              shiftId: shift.id,
+              shiftName: shift.name,
+              shiftTime: `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`,
+              workingHours: shift.workingHours?.toFixed(2) || '0',
+              startDate: employee.shiftAssignmentStartDate || null,
+              endDate: employee.shiftAssignmentEndDate || null,
+              status: employee.shiftAssignmentEndDate ? 'Temporary' : 'Permanent'
+            })
+          }
+        }
+      }
+      
+      setAllAssignments(assignments)
+    } catch (error) {
+      console.error('Error loading shift assignments:', error)
+      setError('Failed to load shift assignments')
+      setAllAssignments([])
+    } finally {
+      setLoadingAssignments(false)
     }
   }
 
@@ -971,7 +1017,7 @@ const Shifts = () => {
         </div>
       </div>
 
-      {/* Toggle Buttons for Shifts and Requests */}
+      {/* Toggle Buttons for Shifts, Assignments, and Requests */}
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="flex items-center gap-4">
           <button
@@ -984,6 +1030,17 @@ const Shifts = () => {
           >
             <Clock size={20} />
             All Shifts
+          </button>
+          <button
+            onClick={() => setActiveView('assignments')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+              activeView === 'assignments'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Users size={20} />
+            Shift Assignments
           </button>
           <button
             onClick={() => setActiveView('requests')}
@@ -1229,6 +1286,126 @@ const Shifts = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Shift Assignments Section - Only show when activeView is 'assignments' */}
+      {activeView === 'assignments' && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Users className="text-blue-600" size={20} />
+              Assigned Employees
+            </h3>
+            <button
+              onClick={loadAllAssignments}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm transition-colors"
+              disabled={loadingAssignments}
+            >
+              <Search size={16} />
+              Refresh
+            </button>
+          </div>
+
+          {loadingAssignments ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p className="mt-2 text-gray-600">Loading assignments...</p>
+            </div>
+          ) : allAssignments.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Users className="mx-auto text-gray-400 mb-3" size={48} />
+              <p className="text-lg font-medium">No shift assignments found</p>
+              <p className="text-sm text-gray-400 mt-2">Assign employees to shifts to see them here</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-blue-600 text-white">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Department</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Shift Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Shift Time</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Working Hours</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Start Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">End Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {allAssignments.map((assignment) => (
+                    <tr key={`${assignment.employeeId}-${assignment.shiftId}`} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {assignment.employeeIdCode}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {assignment.employeeName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {assignment.employeeEmail}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {assignment.department}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                        {assignment.shiftName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {assignment.shiftTime}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {assignment.workingHours} hrs
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {assignment.startDate 
+                          ? (() => {
+                              try {
+                                const date = assignment.startDate instanceof Date 
+                                  ? assignment.startDate 
+                                  : new Date(assignment.startDate)
+                                return isNaN(date.getTime()) 
+                                  ? 'Invalid Date' 
+                                  : date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                              } catch (e) {
+                                return String(assignment.startDate)
+                              }
+                            })()
+                          : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {assignment.endDate 
+                          ? (() => {
+                              try {
+                                const date = assignment.endDate instanceof Date 
+                                  ? assignment.endDate 
+                                  : new Date(assignment.endDate)
+                                return isNaN(date.getTime()) 
+                                  ? 'Invalid Date' 
+                                  : date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                              } catch (e) {
+                                return String(assignment.endDate)
+                              }
+                            })()
+                          : <span className="text-green-600 font-semibold">Permanent</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          assignment.status === 'Permanent'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {assignment.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

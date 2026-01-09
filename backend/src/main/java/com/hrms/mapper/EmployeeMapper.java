@@ -64,6 +64,8 @@ public class EmployeeMapper {
         
         dto.setAvatar(e.getAvatar());
         dto.setShiftId(e.getShift() != null ? e.getShift().getId() : null);
+        dto.setShiftAssignmentStartDate(e.getShiftAssignmentStartDate());
+        dto.setShiftAssignmentEndDate(e.getShiftAssignmentEndDate());
         // Map work experiences - ensure empty list if null
         if (e.getWorkExperiences() != null && !e.getWorkExperiences().isEmpty()) {
             dto.setWorkExperiences(e.getWorkExperiences().stream().map(EmployeeMapper::toWorkExperienceDTO).collect(Collectors.toList()));

@@ -83,6 +83,7 @@ const Layout = () => {
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
         { path: '/recruitment', icon: Briefcase, label: 'Recruitment', permission: 'recruitment' },
         { path: '/analytics', icon: BarChart3, label: userRole === ROLES.FINANCE ? 'Cost Analytics' : 'Analytics', permission: 'analytics' },
+        { path: '/clients', icon: Building2, label: 'Client Management', permission: 'employees' },
         { path: '/users', icon: Shield, label: 'User Management', permission: 'users' },
         { path: '/settings', icon: Settings, label: 'Profile', permission: 'settings' },
       ]

@@ -53,6 +53,8 @@ public class EmployeeDTO {
     private Double salary;
     private String avatar;
     private Long shiftId;
+    private LocalDate shiftAssignmentStartDate;
+    private LocalDate shiftAssignmentEndDate;
 
     private List<WorkExperienceDTO> workExperiences;
     private List<EducationDetailDTO> educationDetails;
@@ -202,6 +204,12 @@ public class EmployeeDTO {
 
     public Long getShiftId() { return shiftId; }
     public void setShiftId(Long shiftId) { this.shiftId = shiftId; }
+
+    public LocalDate getShiftAssignmentStartDate() { return shiftAssignmentStartDate; }
+    public void setShiftAssignmentStartDate(LocalDate shiftAssignmentStartDate) { this.shiftAssignmentStartDate = shiftAssignmentStartDate; }
+
+    public LocalDate getShiftAssignmentEndDate() { return shiftAssignmentEndDate; }
+    public void setShiftAssignmentEndDate(LocalDate shiftAssignmentEndDate) { this.shiftAssignmentEndDate = shiftAssignmentEndDate; }
 
     public List<WorkExperienceDTO> getWorkExperiences() { return workExperiences; }
     public void setWorkExperiences(List<WorkExperienceDTO> workExperiences) { this.workExperiences = workExperiences; }

@@ -53,8 +53,7 @@ public class CTCTemplateService {
     public void deleteTemplate(Long id) {
         CTCTemplate template = ctcTemplateRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("CTC Template not found"));
-        template.setActive(false);
-        ctcTemplateRepository.save(template);
+        ctcTemplateRepository.delete(template);
     }
     
     public Optional<CTCTemplate> getTemplateById(Long id) {
