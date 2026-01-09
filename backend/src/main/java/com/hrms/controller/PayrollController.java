@@ -23,9 +23,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.dto.PayrollDTO;
-import com.hrms.entity.User;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.SalaryStructure;
+import com.hrms.entity.User;
 import com.hrms.mapper.DTOMapper;
 import com.hrms.service.PayrollService;
 import com.hrms.service.SalaryStructureService;
@@ -159,6 +159,32 @@ public class PayrollController {
             response.put("message", "Payroll processed for " + payrolls.size() + " employees");
             response.put("payrolls", DTOMapper.toPayrollDTOList(payrolls));
             response.put("count", payrolls.size());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Process payroll for a single employee for a given period
+     */
+    @PostMapping("/process/{employeeId}")
+    public ResponseEntity<Map<String, Object>> processPayrollForEmployee(
+            @PathVariable Long employeeId,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+            Payroll payroll = payrollService.processEmployeePayroll(employeeId, start, end, 
+                start.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM")), start.getYear());
+            response.put("success", true);
+            response.put("message", "Payroll processed successfully");
+            response.put("payroll", DTOMapper.toPayrollDTO(payroll));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();

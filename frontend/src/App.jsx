@@ -17,6 +17,7 @@ import Shifts from './pages/Shifts'
 import HRTickets from './pages/HRTickets'
 import Analytics from './pages/Analytics'
 import CTCTemplates from './pages/CTCTemplates'
+import ClientManagement from './pages/ClientManagement'
 import InitialRoute from './components/InitialRoute'
 import { isAuthenticated, verifyToken } from './utils/auth'
 import { hasPermission, getUserRole } from './utils/roles'
@@ -43,6 +44,7 @@ function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<Users />} />
             <Route path="ctc-templates" element={<CTCTemplates />} />
+            <Route path="clients" element={<ClientManagement />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

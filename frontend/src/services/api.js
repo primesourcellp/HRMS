@@ -576,6 +576,34 @@ const api = {
     }
   },
 
+  getEmployeeCountsByClient: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/clients/employee-counts`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching employee counts by client:', error)
+      throw error
+    }
+  },
+
+  getEmployeesByClient: async (clientName) => {
+    try {
+      const encodedClientName = encodeURIComponent(clientName)
+      const response = await fetchWithAuth(`${API_BASE_URL}/clients/${encodedClientName}/employees`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching employees by client:', error)
+      throw error
+    }
+  },
+
   // ... rest of the file remains unchanged (attendance, leaves, payrolls, docs, etc.)
   // For brevity we keep the rest of the previously working methods but with the
   // same approach (check response.ok, read body for errors and throw where needed).
@@ -1786,6 +1814,18 @@ const api = {
       return { success: false, message: error.message }
     }
   },
+  processPayrollForEmployee: async (employeeId, startDate, endDate) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payroll/process/${employeeId}?startDate=${startDate}&endDate=${endDate}`, {
+        method: 'POST'
+      })
+      return await response.json()
+      
+    } catch (error) {
+      console.error('Error processing payroll for employee:', error)
+      return { success: false, message: error.message }
+    }
+  },
   approvePayroll: async (payrollId) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${payrollId}/approve`, {
@@ -2241,8 +2281,12 @@ const api = {
       const response = await fetchWithAuth(`${API_BASE_URL}/ctc-templates/${templateId}`, {
         method: 'DELETE'
       })
+      if (!response.ok) {
+        const errorData = await readResponseBody(response)
+        throw new Error(errorData?.message || `Failed to delete CTC template: ${response.status} ${response.statusText}`)
+      }
       const data = await response.json()
-      if (!response.ok || data.success === false) {
+      if (data.success === false) {
         throw new Error(data.message || 'Failed to delete CTC template')
       }
       return data
