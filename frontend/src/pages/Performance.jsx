@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TrendingUp, Plus, Edit, Trash2, Star, Calendar, Target, Award, AlertCircle, X, Search, Eye, Filter, ArrowUpDown, BarChart3, LineChart, Download } from 'lucide-react'
 import api from '../services/api'
 import { format, parseISO } from 'date-fns'
@@ -25,10 +25,15 @@ const Performance = () => {
   const [reviewCycles, setReviewCycles] = useState([])
   const [showKpiModal, setShowKpiModal] = useState(false)
   const [editingKpi, setEditingKpi] = useState(null)
-  const [kpiFormData, setKpiFormData] = useState({ name: '', description: '', target: '', weight: 0, active: true })
+  const [kpiFormData, setKpiFormData] = useState({ name: '', description: '', target: '', weight: '', active: true })
+
+  // Computed KPI results
+  const [computedKpiResults, setComputedKpiResults] = useState([])
+  const [computingKpi, setComputingKpi] = useState(false)
+  const kpiCacheRef = useRef({}) // cache computed results keyed by employee_kpi_start_end
   const [showCycleModal, setShowCycleModal] = useState(false)
   const [editingCycle, setEditingCycle] = useState(null)
-  const [cycleFormData, setCycleFormData] = useState({ name: '', startDate: '', endDate: '', active: true })
+  const [cycleFormData, setCycleFormData] = useState({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
   const [performanceFormData, setPerformanceFormData] = useState({
     employeeId: '',
     reviewDate: format(new Date(), 'yyyy-MM-dd'),
@@ -203,6 +208,16 @@ const Performance = () => {
         managerEvaluation: performance.managerEvaluation || '',
         reviewCycleId: performance.reviewCycleId ? performance.reviewCycleId.toString() : ''
       })
+
+      // Prefill inline promotion/compensation forms and load history
+      setPromotionFormData({ employeeId: performance.employeeId || '', effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })
+      setCompensationFormData({ performanceId: performance.id || '', employeeId: performance.employeeId || '', recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })
+      if (performance.employeeId) {
+        loadEmployeeHistory(performance.employeeId)
+      }
+      if (performance.id) {
+        loadCompensationsForPerformance(performance.id)
+      }
     } else {
       setEditingPerformance(null)
       setPerformanceFormData({
@@ -219,6 +234,10 @@ const Performance = () => {
         managerEvaluation: '',
         reviewCycleId: ''
       })
+
+      // reset inline recommendation forms
+      setPromotionFormData({ employeeId: '', effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })
+      setCompensationFormData({ performanceId: '', employeeId: '', recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })
     }
     setShowPerformanceModal(true)
   }
@@ -230,12 +249,17 @@ const Performance = () => {
     setSuccessMessage(null)
     
     try {
+      // Calculate overall progress from goals text to satisfy backend non-null constraint
+      const parsedGoals = parseGoals(performanceFormData.goals)
+      const overallProgress = calculateOverallProgress(parsedGoals)
+
       const performanceData = {
         ...performanceFormData,
         employeeId: parseInt(performanceFormData.employeeId),
         rating: parseInt(performanceFormData.rating),
         kpiConfigId: performanceFormData.kpiConfigId ? parseInt(performanceFormData.kpiConfigId) : null,
-        reviewCycleId: performanceFormData.reviewCycleId ? parseInt(performanceFormData.reviewCycleId) : null
+        reviewCycleId: performanceFormData.reviewCycleId ? parseInt(performanceFormData.reviewCycleId) : null,
+        overallProgress: overallProgress
       }
 
       if (editingPerformance) {
@@ -297,13 +321,13 @@ const Performance = () => {
       setKpiFormData({
         name: kpi.name || '',
         description: kpi.description || '',
-        target: kpi.target || '',
-        weight: kpi.weight || 0,
+        target: (kpi.target !== undefined && kpi.target !== null) ? kpi.target : '',
+        weight: (kpi.weight !== undefined && kpi.weight !== null) ? kpi.weight : '',
         active: kpi.active === undefined ? true : kpi.active
       })
     } else {
       setEditingKpi(null)
-      setKpiFormData({ name: '', description: '', target: '', weight: 0, active: true })
+      setKpiFormData({ name: '', description: '', target: '', weight: '', active: true })
     }
     setShowKpiModal(true)
   }
@@ -315,11 +339,12 @@ const Performance = () => {
         name: cycle.name || '',
         startDate: cycle.startDate || '',
         endDate: cycle.endDate || '',
-        active: cycle.active === undefined ? true : cycle.active
+        active: cycle.active === undefined ? true : cycle.active,
+        kpiConfigId: cycle.kpiConfigId ? cycle.kpiConfigId.toString() : ''
       })
     } else {
       setEditingCycle(null)
-      setCycleFormData({ name: '', startDate: '', endDate: '', active: true })
+      setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
     }
     setShowCycleModal(true)
   }
@@ -330,11 +355,18 @@ const Performance = () => {
     setError(null)
     setSuccessMessage(null)
     try {
+      // Normalize empty strings to null/number types for backend
+      const payload = {
+        ...kpiFormData,
+        weight: kpiFormData.weight === '' ? null : parseInt(kpiFormData.weight, 10),
+        target: kpiFormData.target === '' ? null : (typeof kpiFormData.target === 'string' ? kpiFormData.target.trim() : kpiFormData.target)
+      }
+
       if (editingKpi) {
-        await api.updateKpi(editingKpi.id, kpiFormData)
+        await api.updateKpi(editingKpi.id, payload)
         setSuccessMessage('KPI updated!')
       } else {
-        await api.createKpi(kpiFormData)
+        await api.createKpi(payload)
         setSuccessMessage('KPI created!')
       }
       await loadData()
@@ -355,11 +387,18 @@ const Performance = () => {
     setError(null)
     setSuccessMessage(null)
     try {
+      const selectedKpi = kpis.find(kpi => kpi.id.toString() === cycleFormData.kpiConfigId)
+      const payload = {
+        ...cycleFormData,
+        name: selectedKpi ? selectedKpi.name : '',
+        kpiConfigId: cycleFormData.kpiConfigId ? parseInt(cycleFormData.kpiConfigId) : null
+      }
+
       if (editingCycle) {
-        await api.updateReviewCycle(editingCycle.id, cycleFormData)
+        await api.updateReviewCycle(editingCycle.id, payload)
         setSuccessMessage('Review cycle updated!')
       } else {
-        await api.createReviewCycle(cycleFormData)
+        await api.createReviewCycle(payload)
         setSuccessMessage('Review cycle created!')
       }
       await loadData()
@@ -564,6 +603,8 @@ const Performance = () => {
         console.warn('Could not load compensations by employee:', err)
         setCompensations([])
       }
+
+
     } catch (err) {
       console.error('Error loading employee history:', err)
       setRatingHistory([])
@@ -579,6 +620,197 @@ const Performance = () => {
     } catch (err) {
       console.warn('Could not load compensations for performance:', err)
       setCompensations([])
+    }
+  }
+
+  // KPI auto-calculation helpers (optimized)
+  const parseTargetPercent = (target) => {
+    if (!target && target !== 0) return null
+    try {
+      const t = String(target).trim()
+      const m = t.match(/(\d+(?:\.\d+)?)\s*%?/) // number with optional %
+      if (m) return parseFloat(m[1])
+      return null
+    } catch (e) {
+      return null
+    }
+  }
+
+  const computeAttendanceKpi = async (employeeId, startDate, endDate) => {
+    const cacheKey = `${employeeId}_attendance_${startDate || ''}_${endDate || ''}`
+    if (kpiCacheRef.current[cacheKey]) return kpiCacheRef.current[cacheKey]
+
+    try {
+      const att = await api.getAttendanceByEmployee(employeeId)
+      if (!Array.isArray(att) || att.length === 0) return null
+      const filtered = att.filter(a => {
+        const d = a.date || a.attendanceDate || a.createdAt || a.recordedAt
+        if (!d) return false
+        const dt = new Date(d)
+        if (startDate && dt < new Date(startDate)) return false
+        if (endDate && dt > new Date(endDate)) return false
+        return true
+      })
+      if (filtered.length === 0) return null
+      const present = filtered.filter(a => (a.status || '').toLowerCase() === 'present').length
+      const pct = (present / filtered.length) * 100
+      const res = { name: 'Attendance', value: `${pct.toFixed(1)}%`, percentage: Math.round(pct), raw: { present, total: filtered.length } }
+      kpiCacheRef.current[cacheKey] = res
+      return res
+    } catch (err) {
+      console.warn('Error computing attendance KPI:', err)
+      return null
+    }
+  }
+
+  const computeTaskCompletionKpi = async (employeeId, startDate, endDate) => {
+    const cacheKey = `${employeeId}_task_${startDate || ''}_${endDate || ''}`
+    if (kpiCacheRef.current[cacheKey]) return kpiCacheRef.current[cacheKey]
+
+    try {
+      // Use tickets as proxy for assigned tasks
+      const assigned = await api.getAssignedTickets(employeeId)
+      const arr = Array.isArray(assigned) ? assigned : []
+      const filtered = arr.filter(t => {
+        const d = t.createdAt || t.createdOn
+        if (!d) return false
+        const dt = new Date(d)
+        if (startDate && dt < new Date(startDate)) return false
+        if (endDate && dt > new Date(endDate)) return false
+        return true
+      })
+      if (filtered.length === 0) return null
+      const completed = filtered.filter(t => ['resolved','closed','completed'].includes((t.status || '').toLowerCase())).length
+      const pct = (completed / filtered.length) * 100
+      const res = { name: 'Task Completion', value: `${pct.toFixed(1)}%`, percentage: Math.round(pct), raw: { completed, total: filtered.length } }
+      kpiCacheRef.current[cacheKey] = res
+      return res
+    } catch (err) {
+      console.warn('Error computing task completion KPI:', err)
+      return null
+    }
+  }
+
+  const computeKpiResultsForPerformance = async (performance) => {
+    if (!performance || !performance.kpiConfigId) return []
+    const kpi = kpis.find(k => k.id === performance.kpiConfigId) || null
+    if (!kpi) return []
+
+    if (!performance.employeeId) return []
+
+    setComputingKpi(true)
+    try {
+      // derive date range from reviewCycle if available
+      let startDate = null
+      let endDate = null
+      if (performance.reviewCycleId) {
+        const cycle = reviewCycles.find(c => c.id === performance.reviewCycleId)
+        if (cycle) {
+          startDate = cycle.startDate || null
+          endDate = cycle.endDate || null
+        }
+      }
+      // fallback: use 30 days prior to reviewDate
+      if (!startDate && performance.reviewDate) {
+        const d = new Date(performance.reviewDate)
+        const before = new Date(d)
+        before.setDate(before.getDate() - 30)
+        startDate = before.toISOString()
+        endDate = new Date(performance.reviewDate).toISOString()
+      }
+
+      const cacheKey = `${performance.employeeId}_${kpi.id}_${startDate || ''}_${endDate || ''}`
+      if (kpiCacheRef.current[cacheKey]) {
+        const cached = kpiCacheRef.current[cacheKey]
+        setComputedKpiResults([cached])
+        return [cached]
+      }
+
+      const name = (kpi.name || '').toLowerCase()
+      let result = null
+
+      // Fast path when name clearly indicates type
+      if (name.includes('attendance')) {
+        result = await computeAttendanceKpi(performance.employeeId, startDate, endDate)
+      } else if (name.includes('task') || name.includes('task completion') || name.includes('ticket')) {
+        result = await computeTaskCompletionKpi(performance.employeeId, startDate, endDate)
+      } else {
+        // ambiguous: prefetch both in parallel (faster than sequential) and pick the first non-null
+        const [att, task] = await Promise.allSettled([
+          computeAttendanceKpi(performance.employeeId, startDate, endDate),
+          computeTaskCompletionKpi(performance.employeeId, startDate, endDate)
+        ])
+        result = att.status === 'fulfilled' && att.value ? att.value : (task.status === 'fulfilled' && task.value ? task.value : null)
+      }
+
+      if (result) {
+        const targetPct = parseTargetPercent(kpi.target)
+        result.achieved = targetPct !== null ? (result.percentage >= targetPct) : null
+        kpiCacheRef.current[cacheKey] = result
+        setComputedKpiResults([result])
+        return [result]
+      } else {
+        setComputedKpiResults([])
+        return []
+      }
+    } finally {
+      setComputingKpi(false)
+    }
+  }
+
+  // Inline add from within create/edit review modal
+  const handleAddPromotionInline = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const payload = {
+        ...promotionFormData,
+        employeeId: parseInt(promotionFormData.employeeId || performanceFormData.employeeId || 0)
+      }
+      if (!payload.employeeId) throw new Error('Select an employee before adding a promotion')
+      await api.createPromotion(payload)
+      setSuccessMessage('Promotion recommendation added')
+      await loadEmployeeHistory(payload.employeeId)
+      setPromotionFormData({ employeeId: payload.employeeId, effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error adding promotion')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddCompensationInline = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const payload = {
+        ...compensationFormData,
+        performanceId: compensationFormData.performanceId || (editingPerformance && editingPerformance.id) || null,
+        employeeId: parseInt(compensationFormData.employeeId || performanceFormData.employeeId || 0),
+        recommendedPercentage: compensationFormData.recommendedPercentage ? parseFloat(compensationFormData.recommendedPercentage) : null,
+        recommendedAmount: compensationFormData.recommendedAmount ? parseFloat(compensationFormData.recommendedAmount) : null
+      }
+      if (!payload.employeeId) throw new Error('Select an employee before adding a compensation recommendation')
+      await api.createCompensation(payload)
+      setSuccessMessage('Compensation recommendation added')
+      if (payload.performanceId) {
+        await loadCompensationsForPerformance(payload.performanceId)
+      } else {
+        await loadEmployeeHistory(payload.employeeId)
+      }
+      setCompensationFormData({ performanceId: payload.performanceId || '', employeeId: payload.employeeId, recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err.message || 'Error adding compensation')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -708,6 +940,32 @@ const Performance = () => {
       const percentage = percentMatch ? parseInt(percentMatch[1]) : null
       return { name, value: value.trim(), percentage }
     })
+  }
+
+  // Parse a numeric hours value from a KPI value string.
+  // Supports formats like "20", "20h", "20 hrs", "20 hours", and decimals like "4.5h".
+  const parseHoursFromValue = (value) => {
+    if (!value || typeof value !== 'string') return null
+    // Prefer an explicit hours unit followed by number; fallback to first number found
+    const match = value.match(/(\d+(?:\.\d+)?)(?=\s*(h|hrs|hours)\b)/i) || value.match(/(\d+(?:\.\d+)?)/)
+    if (!match) return null
+    const num = parseFloat(match[1])
+    return Number.isNaN(num) ? null : num
+  }
+
+  // Compute a display percentage for specific KPI names when percentage is not provided by user.
+  // For "Response Time" we compute percent = (hours / 24) * 100 and clamp to 0-100.
+  const computeKpiDisplayPercentage = (name, value, existingPercentage) => {
+    if (existingPercentage !== null && existingPercentage !== undefined) return existingPercentage
+    const lname = (name || '').toLowerCase()
+    if (lname.includes('response time')) {
+      const hours = parseHoursFromValue(value)
+      if (hours != null) {
+        const pct = Math.round((hours / 24) * 100)
+        return Math.max(0, Math.min(100, pct))
+      }
+    }
+    return null
   }
 
   const getKpiBadgeColor = (percentage) => {
@@ -1087,6 +1345,7 @@ const Performance = () => {
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
           setShowCycleModal(false)
           setEditingCycle(null)
+          setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
         }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
@@ -1097,7 +1356,7 @@ const Performance = () => {
               <div className="flex items-center gap-2">
                 <button onClick={() => openCycleModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">New Cycle</button>
                 <button
-                  onClick={() => { setShowCycleModal(false); setEditingCycle(null) }}
+                  onClick={() => { setShowCycleModal(false); setEditingCycle(null); setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' }) }}
                   className="text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   <X size={24} />
@@ -1112,18 +1371,26 @@ const Performance = () => {
                   {reviewCycles.length === 0 ? (
                     <p className="text-sm text-gray-500">No review cycles defined.</p>
                   ) : (
-                    reviewCycles.map(c => (
-                      <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between">
-                        <div>
-                          <div className="font-medium text-gray-800">{c.name}</div>
-                          <div className="text-xs text-gray-500">{c.startDate || 'N/A'} → {c.endDate || 'N/A'}</div>
+                    reviewCycles.map(c => {
+                      const associatedKpi = kpis.find(kpi => kpi.id === c.kpiConfigId)
+                      return (
+                        <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between">
+                          <div>
+                            <div className="font-medium text-gray-800">{c.name}</div>
+                            <div className="text-xs text-gray-500">{c.startDate || 'N/A'} → {c.endDate || 'N/A'}</div>
+                            {associatedKpi && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                KPI: {associatedKpi.name} {associatedKpi.target ? `(Target: ${associatedKpi.target})` : ''}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => openCycleModal(c)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
+                            <button onClick={() => handleDeleteCycle(c.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openCycleModal(c)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
-                          <button onClick={() => handleDeleteCycle(c.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
-                        </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
@@ -1132,9 +1399,29 @@ const Performance = () => {
                 <h4 className="font-semibold text-gray-800 mb-2">Create / Edit Cycle</h4>
                 <form onSubmit={handleCycleSubmit} className="space-y-3">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Name *</label>
-                    <input value={cycleFormData.name} onChange={(e) => setCycleFormData({ ...cycleFormData, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+                    <label className="block text-sm text-gray-600 mb-1">Cycle Name *</label>
+                    <select 
+                      value={cycleFormData.kpiConfigId || ''} 
+                      onChange={(e) => {
+                        const selectedKpi = kpis.find(kpi => kpi.id.toString() === e.target.value)
+                        setCycleFormData({ 
+                          ...cycleFormData, 
+                          name: selectedKpi ? selectedKpi.name : '',
+                          kpiConfigId: e.target.value 
+                        })
+                      }} 
+                      className="w-full px-3 py-2 border rounded-lg"
+                      required
+                    >
+                      <option value="">Select KPI Configuration</option>
+                      {kpis.map(kpi => (
+                        <option key={kpi.id} value={kpi.id.toString()}>
+                          {kpi.name} {kpi.target ? `(Target: ${kpi.target})` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Start Date</label>
                     <input type="date" value={cycleFormData.startDate} onChange={(e) => setCycleFormData({ ...cycleFormData, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
@@ -1150,7 +1437,7 @@ const Performance = () => {
                     </label>
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => { setShowCycleModal(false); setEditingCycle(null) }} className="px-4 py-2 border rounded-lg">Close</button>
+                    <button type="button" onClick={() => { setShowCycleModal(false); setEditingCycle(null); setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' }) }} className="px-4 py-2 border rounded-lg">Close</button>
                     <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg">{editingCycle ? 'Update' : 'Create'}</button>
                   </div>
                 </form>
@@ -1194,7 +1481,7 @@ const Performance = () => {
                       <div key={k.id} className="border rounded-lg p-3 flex items-start justify-between">
                         <div>
                           <div className="font-medium text-gray-800">{k.name}</div>
-                          <div className="text-xs text-gray-500">{k.target || 'No target specified'}</div>
+                          <div className="text-xs text-gray-500">{k.target !== undefined && k.target !== null && k.target !== '' ? k.target : 'No target specified'}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <button onClick={() => openKpiModal(k)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
@@ -1215,11 +1502,11 @@ const Performance = () => {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Target</label>
-                    <input value={kpiFormData.target} onChange={(e) => setKpiFormData({ ...kpiFormData, target: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                    <input type="text" placeholder="Enter target (e.g., 75 or 75%)" value={kpiFormData.target} onChange={(e) => setKpiFormData({ ...kpiFormData, target: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Weight</label>
-                    <input type="number" min="0" max="100" value={kpiFormData.weight} onChange={(e) => setKpiFormData({ ...kpiFormData, weight: parseInt(e.target.value || 0) })} className="w-full px-3 py-2 border rounded-lg" />
+                    <input type="number" min="0" max="100" placeholder="Enter weight (0-100)" value={kpiFormData.weight} onChange={(e) => setKpiFormData({ ...kpiFormData, weight: e.target.value === '' ? '' : parseInt(e.target.value, 10) })} className="w-full px-3 py-2 border rounded-lg" />
                   </div>
                   <div>
                     <label className="inline-flex items-center gap-2 text-sm">
@@ -1280,6 +1567,21 @@ const Performance = () => {
                   <label className="block text-sm font-medium text-gray-600 mb-1">Cycle</label>
                   <p className="text-sm text-gray-800">{(reviewCycles.find(c => c.id === selectedPerformance.reviewCycleId) || {}).name || '—'}</p>
                 </div>
+                {selectedPerformance.reviewCycleId && (() => {
+                  const cycle = reviewCycles.find(c => c.id === selectedPerformance.reviewCycleId)
+                  return cycle ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Cycle Start Date</label>
+                        <p className="text-sm text-gray-800">{formatDate(cycle.startDate)}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Cycle End Date</label>
+                        <p className="text-sm text-gray-800">{formatDate(cycle.endDate)}</p>
+                      </div>
+                    </>
+                  ) : null
+                })()}
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Review Date</label>
                   <p className="text-sm text-gray-800">{formatDate(selectedPerformance.reviewDate)}</p>
@@ -1303,21 +1605,7 @@ const Performance = () => {
                   
                   return (
                     <div className="space-y-4">
-                      {/* Overall Progress */}
-                      {goals.length > 0 && (
-                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-semibold text-blue-700">Overall Progress</span>
-                            <span className="text-lg font-bold text-blue-800">{overallProgress}%</span>
-                          </div>
-                          <div className="w-full bg-blue-200 rounded-full h-3">
-                            <div 
-                              className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full transition-all duration-500 ease-out"
-                              style={{ width: `${overallProgress}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
+
 
                       {/* Individual Goals with Progress Bars */}
                       {goals.length > 0 ? (
@@ -1423,25 +1711,58 @@ const Performance = () => {
                   <p className="text-sm text-gray-700 mb-2">Template: <strong>{(kpis.find(k => k.id === selectedPerformance.kpiConfigId) || {}).name || 'N/A'}</strong></p>
                 )}
 
+                <div className="flex items-center gap-3 mb-3">
+
+                  {computingKpi && <span className="text-sm text-gray-500">Computing...</span>}
+                  {computedKpiResults.length > 0 && <span className="text-sm text-gray-500">(Auto-computed)</span>}
+                </div>
+
                 {(() => {
+                  const computed = computedKpiResults || []
+                  if (computed.length > 0) {
+                    return (
+                      <div className="space-y-2">
+                        {computed.map((k, i) => {
+                          const displayPct = computeKpiDisplayPercentage(k.name, k.value, k.percentage)
+                          return (
+                            <div key={`computed-${i}`} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
+                              <div>
+                                <div className="font-medium text-gray-800">{k.name} {k.raw ? (<span className="text-xs text-gray-500">({k.raw.present || k.raw.completed || 0}/{k.raw.total || 0})</span>) : null}</div>
+                                <div className="text-xs text-gray-500">{k.value} {k.achieved !== null ? (k.achieved ? '• Target Met' : '• Target Not Met') : ''}</div>
+                              </div>
+                              <div>
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${getKpiBadgeColor(displayPct)}`}>
+                                  {displayPct !== null ? `${displayPct}%` : '—'}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  }
+
                   const kpiItems = parseKpis(selectedPerformance.kpiResults)
                   return (
                     <div>
                       {kpiItems.length > 0 ? (
                         <div className="space-y-2">
-                          {kpiItems.map((k, i) => (
-                            <div key={i} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
-                              <div>
-                                <div className="font-medium text-gray-800">{k.name}</div>
-                                <div className="text-xs text-gray-500">{k.value}</div>
+                          {kpiItems.map((k, i) => {
+                            const displayPct = computeKpiDisplayPercentage(k.name, k.value, k.percentage)
+                            return (
+                              <div key={i} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
+                                <div>
+                                  <div className="font-medium text-gray-800">{k.name}</div>
+                                  <div className="text-xs text-gray-500">{k.value}</div>
+                                </div>
+                                <div>
+                                  <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${getKpiBadgeColor(displayPct)}`}>
+                                    {displayPct !== null ? `${displayPct}%` : '—'}
+                                  </span>
+                                </div>
                               </div>
-                              <div>
-                                <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${getKpiBadgeColor(k.percentage)}`}>
-                                  {k.percentage !== null ? `${k.percentage}%` : '—'}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       ) : (
                         <p className="text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-200 whitespace-pre-wrap">{selectedPerformance.kpiResults || 'No KPI results recorded'}</p>
@@ -1520,13 +1841,6 @@ const Performance = () => {
                   <label className="block text-sm font-medium text-gray-600">Promotion History</label>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">{promotions.length} records</span>
-                    {isAdmin && (
-                      <button onClick={() => {
-                        setEditingPromotion(null)
-                        setPromotionFormData({ employeeId: selectedPerformance.employeeId, effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })
-                        setShowPromotionModal(true)
-                      }} className="px-3 py-1 bg-green-600 text-white rounded-md text-sm">Add Promotion</button>
-                    )}
                   </div>
                 </div>
 
@@ -1540,12 +1854,6 @@ const Performance = () => {
                           {p.notes && <div className="text-xs text-gray-600 mt-1">{p.notes}</div>}
                         </div>
                         <div className="flex items-center gap-2">
-                          {isAdmin && (
-                            <>
-                              <button onClick={() => { setEditingPromotion(p); setPromotionFormData({ employeeId: p.employeeId, effectiveDate: p.effectiveDate ? format(parseISO(p.effectiveDate), 'yyyy-MM-dd') : '', fromPosition: p.fromPosition || '', toPosition: p.toPosition || '', notes: p.notes || '' }); setShowPromotionModal(true) }} className="px-3 py-1 bg-yellow-500 text-white rounded-md text-sm">Edit</button>
-                              <button onClick={() => handleDeletePromotion(p.id)} className="px-3 py-1 bg-red-600 text-white rounded-md text-sm">Delete</button>
-                            </>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -1598,9 +1906,6 @@ const Performance = () => {
                   <label className="block text-sm font-medium text-gray-600">Compensation Recommendations</label>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">{compensations.length} records</span>
-                    {isAdmin && (
-                      <button onClick={() => { setEditingCompensation(null); setCompensationFormData({ performanceId: selectedPerformance.id, employeeId: selectedPerformance.employeeId, recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' }); setShowCompensationModal(true) }} className="px-3 py-1 bg-green-600 text-white rounded-md text-sm">Add Recommendation</button>
-                    )}
                   </div>
                 </div>
 
@@ -1614,12 +1919,6 @@ const Performance = () => {
                           {c.notes && <div className="text-xs text-gray-600 mt-1">{c.notes}</div>}
                         </div>
                         <div className="flex items-center gap-2">
-                          {isAdmin && (
-                            <>
-                              <button onClick={() => { setEditingCompensation(c); setCompensationFormData({ performanceId: c.performanceId, employeeId: c.employeeId, recommendedPercentage: c.recommendedPercentage || '', recommendedAmount: c.recommendedAmount || '', status: c.status || 'PENDING', effectiveDate: c.effectiveDate ? format(parseISO(c.effectiveDate), 'yyyy-MM-dd') : '', notes: c.notes || '' }); setShowCompensationModal(true) }} className="px-3 py-1 bg-yellow-500 text-white rounded-md text-sm">Edit</button>
-                              <button onClick={() => handleDeleteCompensation(c.id)} className="px-3 py-1 bg-red-600 text-white rounded-md text-sm">Delete</button>
-                            </>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -1890,6 +2189,61 @@ const Performance = () => {
                   placeholder="Areas that need improvement..."
                 />
               </div>
+
+              {/* Inline Promotion Recommendation (create/edit) */}
+              <div className="mt-4 border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Promotion Recommendation (optional)</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Effective Date</label>
+                    <input type="date" value={promotionFormData.effectiveDate} onChange={(e) => setPromotionFormData({ ...promotionFormData, effectiveDate: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">From Position</label>
+                    <input value={promotionFormData.fromPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, fromPosition: e.target.value })} className="w-full px-3 py-2 border rounded" placeholder="Current position (optional)" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">To Position</label>
+                    <input value={promotionFormData.toPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, toPosition: e.target.value })} className="w-full px-3 py-2 border rounded" placeholder="Recommended position" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm text-gray-600 mb-1">Notes</label>
+                  <textarea value={promotionFormData.notes} onChange={(e) => setPromotionFormData({ ...promotionFormData, notes: e.target.value })} className="w-full px-3 py-2 border rounded" rows={3} placeholder="Rationale and context for promotion recommendation (optional)" />
+                </div>
+                <div className="flex gap-2 justify-end mt-2">
+                  <button type="button" onClick={() => setPromotionFormData({ employeeId: performanceFormData.employeeId || '', effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })} className="px-4 py-2 border rounded">Clear</button>
+                  <button type="button" onClick={handleAddPromotionInline} className="px-4 py-2 bg-green-600 text-white rounded">Add Promotion</button>
+                </div>
+              </div>
+
+              {/* Inline Compensation Recommendation (create/edit) */}
+              <div className="mt-4 border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Compensation Recommendation (optional)</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Recommended %</label>
+                    <input type="number" step="0.1" value={compensationFormData.recommendedPercentage} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedPercentage: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Recommended Amount</label>
+                    <input type="number" step="0.01" value={compensationFormData.recommendedAmount} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedAmount: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Effective Date</label>
+                    <input type="date" value={compensationFormData.effectiveDate} onChange={(e) => setCompensationFormData({ ...compensationFormData, effectiveDate: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm text-gray-600 mb-1">Notes</label>
+                  <textarea value={compensationFormData.notes} onChange={(e) => setCompensationFormData({ ...compensationFormData, notes: e.target.value })} className="w-full px-3 py-2 border rounded" rows={3} placeholder="Notes for compensation recommendation (optional)" />
+                </div>
+                <div className="flex gap-2 justify-end mt-2">
+                  <button type="button" onClick={() => setCompensationFormData({ performanceId: performanceFormData.id || '', employeeId: performanceFormData.employeeId || '', recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })} className="px-4 py-2 border rounded">Clear</button>
+                  <button type="button" onClick={handleAddCompensationInline} className="px-4 py-2 bg-green-600 text-white rounded">Add Recommendation</button>
+                </div>
+              </div>
+
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
                 <button
                   type="button"
