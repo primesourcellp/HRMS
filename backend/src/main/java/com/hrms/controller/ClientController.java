@@ -38,7 +38,9 @@ public class ClientController {
     public ResponseEntity<List<String>> getClients() {
         try {
             List<User> users = userService.getAllEmployees();
+            // Filter out SUPER_ADMIN users - they are not employees
             List<String> clients = users.stream()
+                    .filter(emp -> emp.getRole() == null || !emp.getRole().equalsIgnoreCase("SUPER_ADMIN"))
                     .map(User::getClient)
                     .filter(client -> client != null && !client.trim().isEmpty())
                     .distinct()
@@ -59,15 +61,20 @@ public class ClientController {
     public ResponseEntity<Map<String, Object>> getEmployeeCountsByClient() {
         try {
             List<User> employees = userService.getAllEmployees();
-            Map<String, Long> counts = employees.stream()
+            // Filter out SUPER_ADMIN users - they are not employees
+            List<User> actualEmployees = employees.stream()
+                    .filter(emp -> emp.getRole() == null || !emp.getRole().equalsIgnoreCase("SUPER_ADMIN"))
+                    .collect(Collectors.toList());
+            
+            Map<String, Long> counts = actualEmployees.stream()
                     .filter(emp -> emp.getClient() != null && !emp.getClient().trim().isEmpty())
                     .collect(Collectors.groupingBy(
                             User::getClient,
                             Collectors.counting()
                     ));
             
-            // Also count unassigned employees
-            long unassignedCount = employees.stream()
+            // Also count unassigned employees (excluding SUPER_ADMIN)
+            long unassignedCount = actualEmployees.stream()
                     .filter(emp -> emp.getClient() == null || emp.getClient().trim().isEmpty())
                     .count();
             
@@ -75,7 +82,7 @@ public class ClientController {
             result.put("clientCounts", counts);
             result.put("unassignedCount", unassignedCount);
             result.put("totalClients", counts.size());
-            result.put("totalEmployees", employees.size());
+            result.put("totalEmployees", actualEmployees.size());
             
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -94,7 +101,9 @@ public class ClientController {
     public ResponseEntity<List<EmployeeDTO>> getEmployeesByClient(@PathVariable String clientName) {
         try {
             List<User> employees = userService.getAllEmployees();
+            // Filter out SUPER_ADMIN users and filter by client
             List<User> clientEmployees = employees.stream()
+                    .filter(emp -> emp.getRole() == null || !emp.getRole().equalsIgnoreCase("SUPER_ADMIN"))
                     .filter(emp -> {
                         String empClient = emp.getClient();
                         return empClient != null && empClient.equalsIgnoreCase(clientName);

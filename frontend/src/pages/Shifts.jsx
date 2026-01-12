@@ -28,6 +28,7 @@ const Shifts = () => {
     active: true
   })
   const [assignFormData, setAssignFormData] = useState({
+    shiftId: '',
     employeeId: '',
     startDate: '',
     endDate: ''
@@ -46,6 +47,7 @@ const Shifts = () => {
   })
   const [rejectionReason, setRejectionReason] = useState('')
   const [requestStatusFilter, setRequestStatusFilter] = useState('all')
+  const [requestSearchTerm, setRequestSearchTerm] = useState('')
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
   const [activeView, setActiveView] = useState('shifts') // 'shifts', 'requests', or 'assignments'
@@ -53,6 +55,10 @@ const Shifts = () => {
   const [loadingAssignments, setLoadingAssignments] = useState(false)
   const [openDropdownId, setOpenDropdownId] = useState(null)
   const [dropdownPosition, setDropdownPosition] = useState({})
+  const [assignmentSearchTerm, setAssignmentSearchTerm] = useState('')
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState('all')
+  const [assignmentDepartmentFilter, setAssignmentDepartmentFilter] = useState('all')
+  const [assignmentShiftFilter, setAssignmentShiftFilter] = useState('all')
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
@@ -109,6 +115,12 @@ const Shifts = () => {
         startDate: shift?.assignmentStartDate,
         endDate: shift?.assignmentEndDate
       })
+      
+      // Calculate working hours for employee shift
+      if (shift) {
+        shift.workingHours = calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration)
+      }
+      
       setEmployeeShift(shift)
     } catch (error) {
       console.error('Error loading employee shift:', error)
@@ -121,7 +133,15 @@ const Shifts = () => {
   const loadAllShiftsForEmployee = async () => {
     try {
       const shiftsData = await api.getShifts()
-      setShifts(Array.isArray(shiftsData) ? shiftsData : [])
+      const shiftsArray = Array.isArray(shiftsData) ? shiftsData : []
+      
+      // Calculate working hours for each shift
+      const shiftsWithWorkingHours = shiftsArray.map(shift => ({
+        ...shift,
+        workingHours: calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration)
+      }))
+      
+      setShifts(shiftsWithWorkingHours)
     } catch (error) {
       console.error('Error loading shifts:', error)
       // Don't set error here, just log it - this is for dropdown only
@@ -137,13 +157,20 @@ const Shifts = () => {
         api.getEmployees()
       ])
       const shiftsArray = Array.isArray(shiftsData) ? shiftsData : []
-      setShifts(shiftsArray)
+      
+      // Calculate working hours for each shift
+      const shiftsWithWorkingHours = shiftsArray.map(shift => ({
+        ...shift,
+        workingHours: calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration)
+      }))
+      
+      setShifts(shiftsWithWorkingHours)
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
       
       // Load employee counts for each shift
       const counts = {}
       await Promise.all(
-        shiftsArray.map(async (shift) => {
+        shiftsWithWorkingHours.map(async (shift) => {
           try {
             const employees = await api.getEmployeesByShift(shift.id)
             counts[shift.id] = Array.isArray(employees) ? employees.length : 0
@@ -191,7 +218,7 @@ const Shifts = () => {
               shiftId: shift.id,
               shiftName: shift.name,
               shiftTime: `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`,
-              workingHours: shift.workingHours?.toFixed(2) || '0',
+              workingHours: calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration).toFixed(2),
               startDate: employee.shiftAssignmentStartDate || null,
               endDate: employee.shiftAssignmentEndDate || null,
               status: employee.shiftAssignmentEndDate ? 'Temporary' : 'Permanent'
@@ -316,16 +343,31 @@ const Shifts = () => {
         endDate: assignFormData.endDate || null
       }
       
-      const response = await api.assignEmployeeToShift(selectedShift.id, assignmentData)
+      // Determine which shift to use
+      const shiftId = selectedShift ? selectedShift.id : (assignFormData.shiftId ? parseInt(assignFormData.shiftId) : null)
+      
+      if (!shiftId) {
+        setError('Please select a shift')
+        setLoading(false)
+        return
+      }
+      
+      const response = await api.assignEmployeeToShift(shiftId, assignmentData)
       
       if (response.success === false) {
         throw new Error(response.message || 'Failed to assign employee')
       }
 
-      await loadShiftEmployees(selectedShift.id)
+      if (selectedShift) {
+        await loadShiftEmployees(selectedShift.id)
+      }
       await loadData() // Reload employees to refresh shift assignments
+      if (activeView === 'assignments') {
+        await loadAllAssignments() // Reload assignments table if on assignments view
+      }
       setShowAssignModal(false)
-      setAssignFormData({ employeeId: '', startDate: '', endDate: '' })
+      setAssignFormData({ shiftId: '', employeeId: '', startDate: '', endDate: '' })
+      setSelectedShift(null)
       setSuccessMessage('Employee assigned successfully!')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
@@ -381,6 +423,9 @@ const Shifts = () => {
 
       await loadShiftEmployees(selectedShift.id)
       await loadData() // Reload employees to refresh shift assignments and counts
+      if (activeView === 'assignments') {
+        await loadAllAssignments() // Reload assignments table if on assignments view
+      }
       setShowEditAssignmentModal(false)
       setEditingEmployee(null)
       setEditAssignmentFormData({ startDate: '', endDate: '' })
@@ -408,6 +453,61 @@ const Shifts = () => {
 
       await loadShiftEmployees(selectedShift.id)
       await loadData() // Reload employees to refresh shift assignments and counts
+      setSuccessMessage('Employee unassigned successfully!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      setError(error.message || 'Error unassigning employee')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEditAssignmentFromTable = (assignment) => {
+    // Find the shift from the assignment
+    const shift = shifts.find(s => s.id === assignment.shiftId)
+    if (!shift) {
+      setError('Shift not found')
+      return
+    }
+    
+    // Find the employee from the assignment
+    const employee = employees.find(e => e.id === assignment.employeeId)
+    if (!employee) {
+      setError('Employee not found')
+      return
+    }
+    
+    setSelectedShift(shift)
+    setEditingEmployee({
+      ...employee,
+      shiftAssignmentStartDate: assignment.startDate,
+      shiftAssignmentEndDate: assignment.endDate
+    })
+    
+    const startDate = assignment.startDate || ''
+    const endDate = assignment.endDate || ''
+    setEditAssignmentFormData({
+      startDate: startDate ? (startDate.includes('T') ? startDate.split('T')[0] : startDate) : '',
+      endDate: endDate ? (endDate.includes('T') ? endDate.split('T')[0] : endDate) : ''
+    })
+    setShowEditAssignmentModal(true)
+  }
+
+  const handleDeleteAssignmentFromTable = async (assignment) => {
+    if (!window.confirm(`Are you sure you want to unassign ${assignment.employeeName} from ${assignment.shiftName}?`)) return
+
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await api.unassignEmployeeFromShift(assignment.shiftId, assignment.employeeId)
+      
+      if (response.success === false) {
+        throw new Error(response.message || 'Failed to unassign employee')
+      }
+
+      await loadAllAssignments()
+      await loadData()
       setSuccessMessage('Employee unassigned successfully!')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
@@ -453,9 +553,14 @@ const Shifts = () => {
     setShowEmployeeModal(true)
   }
 
-  const openAssignModal = (shift) => {
+  const openAssignModal = (shift = null) => {
     setSelectedShift(shift)
-    setAssignFormData({ employeeId: '' })
+    setAssignFormData({ 
+      shiftId: shift ? shift.id.toString() : '',
+      employeeId: '', 
+      startDate: '',
+      endDate: ''
+    })
     setShowAssignModal(true)
   }
 
@@ -467,6 +572,46 @@ const Shifts = () => {
       return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
     }
     return timeString
+  }
+
+  const calculateWorkingHours = (startTime, endTime, breakDuration = 0) => {
+    if (!startTime || !endTime) return 0
+    
+    // Parse time strings to hours and minutes
+    const parseTime = (timeStr) => {
+      if (!timeStr) return 0
+      const parts = String(timeStr).split(':')
+      const hours = parseInt(parts[0]) || 0
+      const minutes = parseInt(parts[1] || 0) || 0
+      return hours * 60 + minutes
+    }
+    
+    let startMinutes = parseTime(startTime)
+    let endMinutes = parseTime(endTime)
+    
+    // Handle overnight shifts (end time is earlier than start time)
+    if (endMinutes <= startMinutes) {
+      endMinutes += 24 * 60 // Add 24 hours
+    }
+    
+    const totalMinutes = endMinutes - startMinutes
+    
+    // Parse break duration - handle both number and string formats
+    let breakMinutes = 0
+    if (breakDuration) {
+      if (typeof breakDuration === 'number') {
+        breakMinutes = breakDuration
+      } else if (typeof breakDuration === 'string') {
+        // Try to extract number from string (e.g., "30", "30 minutes", "30 mins")
+        const match = String(breakDuration).match(/(\d+)/)
+        breakMinutes = match ? parseInt(match[1]) : 0
+      }
+    }
+    
+    const workingMinutes = totalMinutes - breakMinutes
+    const workingHours = workingMinutes / 60.0
+    
+    return Math.max(0, workingHours) // Ensure non-negative
   }
 
   const getEmployeeName = (employee) => {
@@ -627,15 +772,15 @@ const Shifts = () => {
 
   const getRequestStatusBadge = (status) => {
     const statusConfig = {
-      PENDING: { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-      APPROVED: { color: 'bg-green-100 text-green-800', icon: Check },
-      REJECTED: { color: 'bg-red-100 text-red-800', icon: X }
+      PENDING: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: Clock },
+      APPROVED: { color: 'bg-green-100 text-green-800 border-green-300', icon: CheckCircle },
+      REJECTED: { color: 'bg-red-100 text-red-800 border-red-300', icon: XCircle }
     }
     const config = statusConfig[status] || statusConfig.PENDING
     const Icon = config.icon
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        <Icon size={14} className="mr-1" />
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${config.color}`}>
+        <Icon size={14} className="mr-1.5" />
         {status}
       </span>
     )
@@ -656,8 +801,14 @@ const Shifts = () => {
 
   // Get available employees (not assigned to any shift or assigned to different shift)
   const getAvailableEmployees = () => {
-    if (!selectedShift) return employees
-    return employees.filter(emp => {
+    // Filter out SUPER_ADMIN users
+    const filteredEmployees = employees.filter(emp => {
+      const role = (emp.role || '').toUpperCase()
+      return role !== 'SUPER_ADMIN'
+    })
+    
+    if (!selectedShift) return filteredEmployees
+    return filteredEmployees.filter(emp => {
       // Employee is available if they don't have a shift or have a different shift
       // We'll check this by comparing shift_id if available
       return true // For now, show all employees (backend will handle assignment)
@@ -669,7 +820,10 @@ const Shifts = () => {
     total: shifts.length,
     active: shifts.filter(s => s.active).length,
     inactive: shifts.filter(s => !s.active).length,
-    totalEmployees: employees.length
+    totalEmployees: employees.filter(emp => {
+      const role = (emp.role || '').toUpperCase()
+      return role !== 'SUPER_ADMIN'
+    }).length
   }
 
   // Employee View - Show only their assigned shift
@@ -1002,11 +1156,7 @@ const Shifts = () => {
   // Admin View - Full shift management
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
-      {/* Page Header */}
-      <div className="bg-white rounded-lg shadow-md p-4 md:p-6 border-2 border-blue-200">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-1">Shift Management</h1>
-        <p className="text-sm text-gray-600">Manage work shifts, assignments, and shift change requests</p>
-      </div>
+  
 
       {/* Success/Error Messages */}
       {successMessage && (
@@ -1181,10 +1331,22 @@ const Shifts = () => {
                       </p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    shift.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                    shift.active 
+                      ? 'bg-green-100 text-green-800 border-green-300' 
+                      : 'bg-gray-100 text-gray-800 border-gray-300'
                   }`}>
-                    {shift.active ? 'Active' : 'Inactive'}
+                    {shift.active ? (
+                      <>
+                        <CheckCircle size={12} className="inline mr-1" />
+                        Active
+                      </>
+                    ) : (
+                      <>
+                        <XCircle size={12} className="inline mr-1" />
+                        Inactive
+                      </>
+                    )}
                   </span>
                 </div>
 
@@ -1210,11 +1372,11 @@ const Shifts = () => {
 
                 <div className="flex gap-2 flex-wrap">
                   <button
-                    onClick={() => openEmployeeModal(shift)}
+                    onClick={() => openAssignModal(shift)}
                     className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-100 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
                   >
-                    <Users size={16} />
-                    Employees
+                    <UserPlus size={16} />
+                    Assign Employee
                   </button>
                   <div className="relative inline-block dropdown-menu-container">
                     <button
@@ -1336,20 +1498,32 @@ const Shifts = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          shift.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${
+                          shift.active 
+                            ? 'bg-green-100 text-green-800 border-green-300' 
+                            : 'bg-gray-100 text-gray-800 border-gray-300'
                         }`}>
-                          {shift.active ? 'Active' : 'Inactive'}
+                          {shift.active ? (
+                            <>
+                              <CheckCircle size={12} className="mr-1.5" />
+                              Active
+                            </>
+                          ) : (
+                            <>
+                              <XCircle size={12} className="mr-1.5" />
+                              Inactive
+                            </>
+                          )}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => openEmployeeModal(shift)}
+                            onClick={() => openAssignModal(shift)}
                             className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="View Employees"
+                            title="Assign Employee"
                           >
-                            <Users size={18} />
+                            <UserPlus size={18} />
                           </button>
                           <div className="relative inline-block dropdown-menu-container">
                             <button
@@ -1433,14 +1607,74 @@ const Shifts = () => {
               <Users className="text-blue-600" size={20} />
               Assigned Employees
             </h3>
-            <button
-              onClick={loadAllAssignments}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm transition-colors"
-              disabled={loadingAssignments}
-            >
-              <Search size={16} />
-              Refresh
-            </button>
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setSelectedShift(null)
+                    setAssignFormData({ employeeId: '', startDate: '', endDate: '' })
+                    setShowAssignModal(true)
+                  }}
+                  className="bg-green-600 text-white px-6 py-2.5 rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                >
+                  <UserPlus size={18} />
+                  Assign Employee
+                </button>
+              )}
+              <button
+                onClick={loadAllAssignments}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm transition-colors"
+                disabled={loadingAssignments}
+              >
+                <Search size={16} />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search employees..."
+                  value={assignmentSearchTerm}
+                  onChange={(e) => setAssignmentSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <select
+                value={assignmentStatusFilter}
+                onChange={(e) => setAssignmentStatusFilter(e.target.value)}
+                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+              >
+                <option value="all">All Status</option>
+                <option value="Permanent">Permanent</option>
+                <option value="Temporary">Temporary</option>
+              </select>
+              <select
+                value={assignmentDepartmentFilter}
+                onChange={(e) => setAssignmentDepartmentFilter(e.target.value)}
+                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+              >
+                <option value="all">All Departments</option>
+                {[...new Set(allAssignments.map(a => a.department).filter(Boolean))].sort().map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+              <select
+                value={assignmentShiftFilter}
+                onChange={(e) => setAssignmentShiftFilter(e.target.value)}
+                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+              >
+                <option value="all">All Shifts</option>
+                {[...new Set(allAssignments.map(a => a.shiftName).filter(Boolean))].sort().map(shiftName => (
+                  <option key={shiftName} value={shiftName}>{shiftName}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {loadingAssignments ? (
@@ -1459,8 +1693,7 @@ const Shifts = () => {
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Department</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Shift Name</th>
@@ -1469,16 +1702,41 @@ const Shifts = () => {
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Start Date</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">End Date</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {allAssignments.map((assignment) => (
+                  {allAssignments
+                    .filter(assignment => {
+                      // Search filter
+                      const matchesSearch = !assignmentSearchTerm || 
+                        assignment.employeeName?.toLowerCase().includes(assignmentSearchTerm.toLowerCase()) ||
+                        assignment.employeeEmail?.toLowerCase().includes(assignmentSearchTerm.toLowerCase()) ||
+                        assignment.employeeIdCode?.toLowerCase().includes(assignmentSearchTerm.toLowerCase()) ||
+                        assignment.department?.toLowerCase().includes(assignmentSearchTerm.toLowerCase())
+                      
+                      // Status filter
+                      const matchesStatus = assignmentStatusFilter === 'all' || assignment.status === assignmentStatusFilter
+                      
+                      // Department filter
+                      const matchesDepartment = assignmentDepartmentFilter === 'all' || assignment.department === assignmentDepartmentFilter
+                      
+                      // Shift filter
+                      const matchesShift = assignmentShiftFilter === 'all' || assignment.shiftName === assignmentShiftFilter
+                      
+                      return matchesSearch && matchesStatus && matchesDepartment && matchesShift
+                    })
+                    .map((assignment) => (
                     <tr key={`${assignment.employeeId}-${assignment.shiftId}`} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {assignment.employeeIdCode}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {assignment.employeeName}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {assignment.employeeName}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {assignment.employeeIdCode?.startsWith('ID:') 
+                            ? assignment.employeeIdCode 
+                            : `ID: ${assignment.employeeIdCode || assignment.employeeId}`}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {assignment.employeeEmail}
@@ -1536,6 +1794,71 @@ const Shifts = () => {
                           {assignment.status}
                         </span>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
+                        <div className="relative inline-block dropdown-menu-container">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const button = e.currentTarget
+                              const rect = button.getBoundingClientRect()
+                              const spaceBelow = window.innerHeight - rect.bottom
+                              const spaceAbove = rect.top
+                              const dropdownHeight = 120
+                              
+                              const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                              
+                              setDropdownPosition(prev => ({
+                                ...prev,
+                                [`assignment-${assignment.employeeId}-${assignment.shiftId}`]: {
+                                  showAbove,
+                                  top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                  right: window.innerWidth - rect.right
+                                }
+                              }))
+                              setOpenDropdownId(openDropdownId === `assignment-${assignment.employeeId}-${assignment.shiftId}` ? null : `assignment-${assignment.employeeId}-${assignment.shiftId}`)
+                            }}
+                            className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                            title="Actions"
+                          >
+                            <MoreVertical size={18} />
+                          </button>
+                          
+                          {openDropdownId === `assignment-${assignment.employeeId}-${assignment.shiftId}` && dropdownPosition[`assignment-${assignment.employeeId}-${assignment.shiftId}`] && (
+                            <div 
+                              className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                              style={{ 
+                                zIndex: 9999,
+                                top: `${dropdownPosition[`assignment-${assignment.employeeId}-${assignment.shiftId}`].top}px`,
+                                right: `${dropdownPosition[`assignment-${assignment.employeeId}-${assignment.shiftId}`].right}px`
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditAssignmentFromTable(assignment)
+                                  setOpenDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <Edit size={16} className="text-blue-600" />
+                                Edit Assignment
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteAssignmentFromTable(assignment)
+                                  setOpenDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <UserMinus size={16} />
+                                Unassign
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1553,82 +1876,210 @@ const Shifts = () => {
               <ArrowLeftRight className="text-blue-600" size={20} />
               Shift Change Requests
             </h3>
-            <select
-              value={requestStatusFilter}
-              onChange={(e) => setRequestStatusFilter(e.target.value)}
-              className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
+            {isEmployee && (
+              <button
+                onClick={() => {
+                  setRequestFormData({ requestedShiftId: '', reason: '' })
+                  setShowRequestModal(true)
+                }}
+                className="bg-blue-600 text-white px-6 py-2.5 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+              >
+                <Plus size={18} />
+                Request Shift Change
+              </button>
+            )}
           </div>
-        {shiftChangeRequests.filter(req => requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase()).length === 0 ? (
-          <p className="text-gray-500 text-sm">No shift change requests found</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Current Shift</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Requested Shift</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reason</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Requested Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {shiftChangeRequests
-                  .filter(req => requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase())
-                  .map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getEmployeeName(request.employeeId)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {getShiftName(request.currentShiftId)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getShiftName(request.requestedShiftId)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-500 max-w-xs truncate">
-                          {request.reason || 'No reason provided'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getRequestStatusBadge(request.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatRequestDate(request.requestedDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {request.status === 'PENDING' ? (
-                          <button
-                            onClick={() => openReviewModal(request)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            Review
-                          </button>
-                        ) : (
-                          <span className="text-gray-400">Reviewed</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+
+          {/* Search and Filters */}
+          <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search by employee name or reason..."
+                  value={requestSearchTerm}
+                  onChange={(e) => setRequestSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <select
+                value={requestStatusFilter}
+                onChange={(e) => setRequestStatusFilter(e.target.value)}
+                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
           </div>
-        )}
+
+          {shiftChangeRequests
+            .filter(req => {
+              const matchesStatus = requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase()
+              const matchesSearch = !requestSearchTerm || 
+                getEmployeeName(req.employeeId)?.toLowerCase().includes(requestSearchTerm.toLowerCase()) ||
+                getShiftName(req.currentShiftId)?.toLowerCase().includes(requestSearchTerm.toLowerCase()) ||
+                getShiftName(req.requestedShiftId)?.toLowerCase().includes(requestSearchTerm.toLowerCase()) ||
+                req.reason?.toLowerCase().includes(requestSearchTerm.toLowerCase())
+              return matchesStatus && matchesSearch
+            })
+            .length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <ArrowLeftRight className="mx-auto text-gray-400 mb-4" size={48} />
+              <p className="text-lg font-medium">No shift change requests found</p>
+              <p className="text-sm text-gray-400 mt-2">
+                {isEmployee 
+                  ? 'Click "Request Shift Change" to submit a new request'
+                  : 'No requests match your search criteria'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Current Shift</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Requested Shift</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Reason</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Requested Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {shiftChangeRequests
+                    .filter(req => {
+                      const matchesStatus = requestStatusFilter === 'all' || req.status === requestStatusFilter.toUpperCase()
+                      const matchesSearch = !requestSearchTerm || 
+                        getEmployeeName(req.employeeId)?.toLowerCase().includes(requestSearchTerm.toLowerCase()) ||
+                        getShiftName(req.currentShiftId)?.toLowerCase().includes(requestSearchTerm.toLowerCase()) ||
+                        getShiftName(req.requestedShiftId)?.toLowerCase().includes(requestSearchTerm.toLowerCase()) ||
+                        req.reason?.toLowerCase().includes(requestSearchTerm.toLowerCase())
+                      return matchesStatus && matchesSearch
+                    })
+                    .map((request) => {
+                      const currentShift = shifts.find(s => s.id === request.currentShiftId)
+                      const requestedShift = shifts.find(s => s.id === request.requestedShiftId)
+                      return (
+                        <tr key={request.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {getEmployeeName(request.employeeId)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {getShiftName(request.currentShiftId)}
+                            </div>
+                            {currentShift && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {formatTime(currentShift.startTime)} - {formatTime(currentShift.endTime)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-blue-600">
+                              {getShiftName(request.requestedShiftId)}
+                            </div>
+                            {requestedShift && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {formatTime(requestedShift.startTime)} - {formatTime(requestedShift.endTime)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-600 max-w-xs">
+                              {request.reason ? (
+                                <span title={request.reason} className="line-clamp-2">
+                                  {request.reason}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 italic">No reason provided</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {getRequestStatusBadge(request.status)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {formatRequestDate(request.requestedDate)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
+                            {request.status === 'PENDING' && isAdmin ? (
+                              <div className="relative inline-block dropdown-menu-container">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const button = e.currentTarget
+                                    const rect = button.getBoundingClientRect()
+                                    const spaceBelow = window.innerHeight - rect.bottom
+                                    const spaceAbove = rect.top
+                                    const dropdownHeight = 120
+                                    
+                                    const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                    
+                                    setDropdownPosition(prev => ({
+                                      ...prev,
+                                      [`request-${request.id}`]: {
+                                        showAbove,
+                                        top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                        right: window.innerWidth - rect.right
+                                      }
+                                    }))
+                                    setOpenDropdownId(openDropdownId === `request-${request.id}` ? null : `request-${request.id}`)
+                                  }}
+                                  className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                  title="Actions"
+                                >
+                                  <MoreVertical size={18} />
+                                </button>
+                                
+                                {openDropdownId === `request-${request.id}` && dropdownPosition[`request-${request.id}`] && (
+                                  <div 
+                                    className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                                    style={{ 
+                                      zIndex: 9999,
+                                      top: `${dropdownPosition[`request-${request.id}`].top}px`,
+                                      right: `${dropdownPosition[`request-${request.id}`].right}px`
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        openReviewModal(request)
+                                        setOpenDropdownId(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                    >
+                                      <Eye size={16} className="text-blue-600" />
+                                      Review
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : request.status === 'PENDING' ? (
+                              <button
+                                onClick={() => openReviewModal(request)}
+                                className="text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors font-medium"
+                              >
+                                View
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-sm">Reviewed</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -1896,21 +2347,56 @@ const Shifts = () => {
       )}
 
       {/* Assign Employee Modal */}
-      {showAssignModal && selectedShift && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">Assign Employee to {selectedShift.name}</h3>
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <UserPlus size={24} className="text-blue-600" />
+                {selectedShift ? `Assign Employee to ${selectedShift.name}` : 'Assign Employee to Shift'}
+              </h3>
               <button
-                onClick={() => { setShowAssignModal(false); setAssignFormData({ employeeId: '', startDate: '', endDate: '' }) }}
-                className="text-gray-400 hover:text-gray-600"
+                onClick={() => { 
+                  setShowAssignModal(false)
+                  setAssignFormData({ shiftId: '', employeeId: '', startDate: '', endDate: '' })
+                  setSelectedShift(null)
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
             <form onSubmit={handleAssignEmployee} className="space-y-4">
+              {!selectedShift && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Shift *</label>
+                  <select
+                    value={assignFormData.shiftId}
+                    onChange={(e) => {
+                      const shiftId = e.target.value
+                      const shift = shifts.find(s => s.id === parseInt(shiftId))
+                      setSelectedShift(shift || null)
+                      setAssignFormData({ ...assignFormData, shiftId: shiftId })
+                    }}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Select a shift</option>
+                    {shifts.filter(s => s.active).map((shift) => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.name} ({formatTime(shift.startTime)} - {formatTime(shift.endTime)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select Employee *</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Select Employee *</label>
+                  <span className="text-xs text-gray-500 font-medium">
+                    Total: {getAvailableEmployees().length} {getAvailableEmployees().length === 1 ? 'employee' : 'employees'}
+                  </span>
+                </div>
                 <select
                   value={assignFormData.employeeId}
                   onChange={(e) => setAssignFormData({ ...assignFormData, employeeId: e.target.value })}
@@ -1927,41 +2413,45 @@ const Shifts = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
                   <input
                     type="date"
                     value={assignFormData.startDate}
                     onChange={(e) => setAssignFormData({ ...assignFormData, startDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date (Optional)</label>
                   <input
                     type="date"
                     value={assignFormData.endDate}
                     onChange={(e) => setAssignFormData({ ...assignFormData, endDate: e.target.value })}
                     min={assignFormData.startDate || undefined}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">Leave empty for permanent assignment</p>
                 </div>
               </div>
-              <div className="flex gap-3 justify-end pt-4">
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 mt-6">
                 <button
                   type="button"
-                  onClick={() => { setShowAssignModal(false); setAssignFormData({ employeeId: '', startDate: '', endDate: '' }) }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  onClick={() => { 
+                    setShowAssignModal(false)
+                    setAssignFormData({ shiftId: '', employeeId: '', startDate: '', endDate: '' })
+                    setSelectedShift(null)
+                  }}
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
                 >
-                  {loading ? 'Assigning...' : 'Assign'}
+                  {loading ? 'Assigning...' : 'Assign Employee'}
                 </button>
               </div>
             </form>

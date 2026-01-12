@@ -241,9 +241,12 @@ const ClientManagement = () => {
                           e.stopPropagation()
                           setSelectedClient('Unassigned')
                           setClientEmployees([])
-                          // Load unassigned employees
+                          // Load unassigned employees (excluding SUPER_ADMIN)
                           api.getEmployees().then(employees => {
-                            const unassigned = employees.filter(emp => !emp.client || emp.client.trim() === '')
+                            const unassigned = employees.filter(emp => {
+                              const role = (emp.role || '').toUpperCase()
+                              return role !== 'SUPER_ADMIN' && (!emp.client || emp.client.trim() === '')
+                            })
                             setClientEmployees(unassigned)
                           })
                           setOpenDropdownId(null)

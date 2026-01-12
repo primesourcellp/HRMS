@@ -44,6 +44,7 @@ const Payroll = () => {
   const [openSalaryDropdownId, setOpenSalaryDropdownId] = useState(null)
   const [openPayrollDropdownId, setOpenPayrollDropdownId] = useState(null)
   const [openCtcTemplateDropdownId, setOpenCtcTemplateDropdownId] = useState(null)
+  const [openGratuityDropdownId, setOpenGratuityDropdownId] = useState(null)
   const [dropdownPosition, setDropdownPosition] = useState({})
   const [processingBulk, setProcessingBulk] = useState(false)
   const [bulkProcessData, setBulkProcessData] = useState({
@@ -166,6 +167,36 @@ const Payroll = () => {
     }
   }, [openPayrollDropdownId])
 
+  // Close dropdown when clicking outside (for CTC Templates)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openCtcTemplateDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenCtcTemplateDropdownId(null)
+      }
+    }
+    if (openCtcTemplateDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openCtcTemplateDropdownId])
+
+  // Close dropdown when clicking outside (for Gratuity)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openGratuityDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenGratuityDropdownId(null)
+      }
+    }
+    if (openGratuityDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openGratuityDropdownId])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -197,6 +228,15 @@ const Payroll = () => {
             console.warn('2. Payroll records exist but are filtered out')
             console.warn('3. API endpoint returned empty array')
           }
+          
+          // Pre-fetch attendance data for all payrolls with startDate/endDate
+          if (Array.isArray(payrollsArray)) {
+            payrollsArray.forEach(payroll => {
+              if (payroll.startDate && payroll.endDate) {
+                fetchAttendanceDataForPayroll(payroll)
+              }
+            })
+          }
         } catch (apiError) {
           console.error('Error fetching employee payroll data:', apiError)
           setPayrolls([])
@@ -222,6 +262,15 @@ const Payroll = () => {
           setCtcTemplateClients(Array.isArray(clientsData) ? clientsData : [])
           // Always set gratuities (empty array if not loading)
           setGratuities(shouldLoadGratuities ? (Array.isArray(gratuitiesData) ? gratuitiesData : []) : [])
+          
+          // Pre-fetch attendance data for all payrolls with startDate/endDate
+          if (Array.isArray(payrollsData)) {
+            payrollsData.forEach(payroll => {
+              if (payroll.startDate && payroll.endDate) {
+                fetchAttendanceDataForPayroll(payroll)
+              }
+            })
+          }
           // Debug: Log to help diagnose
           if (shouldLoadGratuities) {
             console.log('Gratuity data loaded:', {
@@ -349,24 +398,194 @@ const Payroll = () => {
   }
 
   // Calculate working days, present days, and leave/LOP days
-  const calculateAttendanceDays = (payroll) => {
-    // These should ideally come from backend, but we'll calculate from payroll period
+  // State to cache attendance and leave data
+  const [attendanceCache, setAttendanceCache] = useState({})
+  const [leaveCache, setLeaveCache] = useState({})
+  const [attendanceLoading, setAttendanceLoading] = useState({})
+
+  // Fetch attendance and leave data for a payroll period
+  const fetchAttendanceDataForPayroll = async (payroll) => {
+    if (!payroll.startDate || !payroll.endDate) return
+    
+    const employeeId = payroll.employeeId || parseInt(payroll.employeeId)
+    const startDateStr = format(parseISO(payroll.startDate), 'yyyy-MM-dd')
+    const endDateStr = format(parseISO(payroll.endDate), 'yyyy-MM-dd')
+    const cacheKey = `${employeeId}_${startDateStr}_${endDateStr}`
+    
+    // Skip if already cached or loading
+    if (attendanceCache[cacheKey] || attendanceLoading[cacheKey]) return
+    
+    setAttendanceLoading(prev => ({ ...prev, [cacheKey]: true }))
+    
+    try {
+      // Fetch attendance and leaves in parallel
+      const [attendanceRecords, allLeaves] = await Promise.all([
+        api.getAttendanceByEmployeeDateRange(employeeId, startDateStr, endDateStr),
+        api.getLeavesByEmployee(employeeId)
+      ])
+      
+      // Filter leaves that overlap with payroll period
+      const start = parseISO(payroll.startDate)
+      const end = parseISO(payroll.endDate)
+      const leaves = allLeaves.filter(leave => {
+        if (leave.status !== 'APPROVED') return false
+        const leaveStart = parseISO(leave.startDate)
+        const leaveEnd = parseISO(leave.endDate)
+        return !(leaveEnd < start || leaveStart > end)
+      })
+      
+      setAttendanceCache(prev => ({ ...prev, [cacheKey]: attendanceRecords }))
+      setLeaveCache(prev => ({ ...prev, [cacheKey]: leaves }))
+    } catch (error) {
+      console.error('Error fetching attendance/leave data:', error)
+    } finally {
+      setAttendanceLoading(prev => {
+        const newState = { ...prev }
+        delete newState[cacheKey]
+        return newState
+      })
+    }
+  }
+
+  // Calculate attendance details from payroll data using cached attendance records
+  const calculateAttendanceDetails = (payroll) => {
+    let totalDays = 0
+    let presentDays = 0
+    let leaveDays = 0
+    let payableDays = 0
+    let prorationFactor = 1.0
+    
+    // If payroll has startDate and endDate, it was processed with attendance
+    if (payroll.startDate && payroll.endDate) {
+      const start = parseISO(payroll.startDate)
+      const end = parseISO(payroll.endDate)
+      // Calculate total days correctly (inclusive of both start and end dates)
+      totalDays = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1
+      
+      const employeeId = payroll.employeeId || parseInt(payroll.employeeId)
+      const startDateStr = format(start, 'yyyy-MM-dd')
+      const endDateStr = format(end, 'yyyy-MM-dd')
+      const cacheKey = `${employeeId}_${startDateStr}_${endDateStr}`
+      
+      // Use cached attendance data if available
+      const attendanceRecords = attendanceCache[cacheKey]
+      const leaves = leaveCache[cacheKey]
+      
+      if (attendanceRecords && leaves) {
+        // Calculate present days from actual attendance records
+        presentDays = attendanceRecords.filter(att => att.status === 'Present').length
+        
+        // Calculate leave days (only approved leaves within period)
+        leaveDays = leaves.reduce((total, leave) => {
+          const leaveStart = parseISO(leave.startDate)
+          const leaveEnd = parseISO(leave.endDate)
+          const periodStart = leaveStart < start ? start : leaveStart
+          const periodEnd = leaveEnd > end ? end : leaveEnd
+          
+          if (leave.halfDay) {
+            return total + 0.5
+          }
+          const days = Math.floor((periodEnd - periodStart) / (1000 * 60 * 60 * 24)) + 1
+          return total + days
+        }, 0)
+        
+        // Payable days = present days + approved leave days
+        payableDays = presentDays + leaveDays
+        if (payableDays > totalDays) payableDays = totalDays
+        
+        // Calculate proration factor
+        prorationFactor = totalDays > 0 ? payableDays / totalDays : 0.0
+        prorationFactor = Math.max(0, Math.min(1, prorationFactor))
+      } else {
+        // Fallback: calculate from netSalary if attendance data not yet loaded
+        const baseSalary = parseFloat(payroll.baseSalary) || 0
+        const allowances = parseFloat(payroll.allowances) || 0
+        const deductions = parseFloat(payroll.deductions) || 0
+        const bonus = parseFloat(payroll.bonus) || 0
+        const fullNetSalaryWithoutBonus = baseSalary + allowances - deductions
+        const backendNetSalary = parseFloat(payroll.netSalary) || 0
+        
+        if (fullNetSalaryWithoutBonus > 0) {
+          const proratedBase = Math.max(0, backendNetSalary - bonus)
+          prorationFactor = Math.max(0, Math.min(1, proratedBase / fullNetSalaryWithoutBonus))
+          payableDays = Math.min(totalDays, Math.round(totalDays * prorationFactor))
+          presentDays = Math.floor(payableDays * 0.8)
+          leaveDays = Math.max(0, payableDays - presentDays)
+        } else {
+          payableDays = totalDays
+          presentDays = totalDays
+          leaveDays = 0
+          prorationFactor = 1.0
+        }
+        
+        // Trigger async fetch for next render
+        fetchAttendanceDataForPayroll(payroll)
+      }
+    } else {
+      // Fallback: calculate from month
     const month = payroll.month || format(new Date(), 'yyyy-MM')
     const [year, monthNum] = month.split('-').map(Number)
     const startDate = new Date(year, monthNum - 1, 1)
     const endDate = new Date(year, monthNum, 0)
+      totalDays = endDate.getDate()
+      payableDays = totalDays
+      presentDays = totalDays
+      leaveDays = 0
+      prorationFactor = 1.0
+    }
     
-    // Total working days in month (excluding weekends - simplified)
-    const totalDays = endDate.getDate()
-    const workingDays = totalDays // Simplified - can be enhanced to exclude weekends/holidays
-    
-    // Present days and leave days should come from payroll data or be calculated
-    // For now, we'll use placeholder values that should be populated from backend
-    const presentDays = payroll.presentDays || Math.floor(workingDays * 0.9) // Placeholder
+    return {
+      totalDays,
+      presentDays: Math.round(presentDays),
+      leaveDays: Math.round(leaveDays * 10) / 10, // Round to 1 decimal for half-days
+      payableDays: Math.round(payableDays * 10) / 10,
+      prorationFactor: prorationFactor.toFixed(4)
+    }
+  }
+
+  const calculateAttendanceDays = (payroll) => {
+    const details = calculateAttendanceDetails(payroll)
+    return {
+      totalDays: details.totalDays,
+      workingDays: details.totalDays,
+      presentDays: details.presentDays,
+      leaveDays: details.leaveDays,
+      payableDays: details.payableDays
+    }
     const leaveDays = payroll.leaveDays || 0
     const lopDays = workingDays - presentDays - leaveDays
     
     return { workingDays, presentDays, leaveDays, lopDays: Math.max(0, lopDays) }
+  }
+
+  // Helper function to calculate employer and employee contributions
+  const calculateContributions = (payroll, salaryStructure) => {
+    if (!salaryStructure) {
+      return { employeeContribution: 0, employerContribution: 0 }
+    }
+
+    const basicSalary = parseFloat(salaryStructure.basicSalary) || 0
+    const grossSalary = parseFloat(salaryStructure.grossSalary) || 0
+    const pfEmployee = parseFloat(salaryStructure.pf) || 0
+    const esiEmployee = parseFloat(salaryStructure.esi) || 0
+
+    // Employee Contribution = PF + ESI (these are already deducted from employee salary)
+    const employeeContribution = pfEmployee + esiEmployee
+
+    // Employer Contribution calculations:
+    // PF Employer = Employee PF (typically 12% of basic, same as employee)
+    const pfEmployer = pfEmployee
+
+    // ESI Employer = 4.75% of gross (if ESI is applicable)
+    // Employee ESI = 1.75% of gross, so employer = (4.75/1.75) * employee ESI
+    const esiEmployer = esiEmployee > 0 ? (esiEmployee * 4.75 / 1.75) : 0
+
+    const employerContribution = pfEmployer + esiEmployer
+
+    return {
+      employeeContribution: employeeContribution.toFixed(2),
+      employerContribution: employerContribution.toFixed(2)
+    }
   }
 
   const handleViewESSPayslip = async (payrollId) => {
@@ -632,6 +851,306 @@ const Payroll = () => {
       alert(`Payslip downloaded successfully!\n\nPassword: ${employeeId}\n\nThe PDF is password-protected for your security. Use your Employee ID to open it.`)
     } catch (error) {
       alert('Error downloading payslip: ' + error.message)
+    }
+  }
+
+  const handleDownloadAnnualCTC = (payroll) => {
+    try {
+      const employee = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
+      const employeeName = employee?.name || `Employee ID: ${payroll.employeeId}`
+      
+      // Get salary structure for contributions
+      const salaryStructure = salaryStructures.find(s => 
+        (s.employeeId === payroll.employeeId || s.employeeId === parseInt(payroll.employeeId)) && s.active
+      )
+      const contributions = calculateContributions(payroll, salaryStructure)
+      
+      // Calculate values
+      const baseSalary = parseFloat(payroll.baseSalary) || 0
+      const allowances = parseFloat(payroll.allowances) || 0
+      const deductions = parseFloat(payroll.deductions) || 0
+      const bonus = parseFloat(payroll.bonus) || 0
+      const monthlyGross = baseSalary + allowances
+      const monthlyEmployerContribution = parseFloat(contributions.employerContribution) || 0
+      const monthlyCTC = monthlyGross + monthlyEmployerContribution
+      const annualCTC = monthlyCTC * 12
+      
+      // Get attendance details
+      const attendanceDetails = calculateAttendanceDetails(payroll)
+      
+      // Create HTML content for PDF
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Annual CTC - ${employeeName}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 40px;
+              color: #333;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 3px solid #4F46E5;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .header h1 {
+              color: #4F46E5;
+              margin: 0;
+              font-size: 28px;
+            }
+            .header h2 {
+              color: #666;
+              margin: 5px 0;
+              font-size: 18px;
+              font-weight: normal;
+            }
+            .section {
+              margin-bottom: 30px;
+            }
+            .section-title {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              padding: 12px 20px;
+              font-size: 18px;
+              font-weight: bold;
+              margin-bottom: 15px;
+              border-radius: 5px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+            }
+            table th {
+              background-color: #f3f4f6;
+              padding: 12px;
+              text-align: left;
+              border: 1px solid #ddd;
+              font-weight: bold;
+            }
+            table td {
+              padding: 12px;
+              border: 1px solid #ddd;
+            }
+            .highlight {
+              background-color: #fef3c7;
+              font-weight: bold;
+            }
+            .annual-ctc {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              padding: 25px;
+              text-align: center;
+              border-radius: 10px;
+              margin-top: 30px;
+            }
+            .annual-ctc h3 {
+              margin: 0 0 10px 0;
+              font-size: 20px;
+            }
+            .annual-ctc .amount {
+              font-size: 36px;
+              font-weight: bold;
+              margin: 10px 0;
+            }
+            .info-box {
+              background-color: #f9fafb;
+              padding: 15px;
+              border-left: 4px solid #4F46E5;
+              margin: 15px 0;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 2px solid #ddd;
+              text-align: center;
+              color: #666;
+              font-size: 12px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>ANNUAL CTC STATEMENT</h1>
+            <h2>Cost to Company</h2>
+            <p style="margin: 10px 0; color: #666;">${employeeName} - ${payroll.month || 'N/A'}/${payroll.year || 'N/A'}</p>
+            <p style="margin: 5px 0; color: #666;">Generated on: ${format(new Date(), 'MMMM dd, yyyy')}</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Employee Information</div>
+            <table>
+              <tr>
+                <th>Employee Name</th>
+                <td>${employeeName}</td>
+                <th>Employee ID</th>
+                <td>${employee?.employeeId || employee?.id || payroll.employeeId || 'N/A'}</td>
+              </tr>
+              <tr>
+                <th>Department</th>
+                <td>${employee?.department || 'N/A'}</td>
+                <th>Period</th>
+                <td>${payroll.month || 'N/A'}/${payroll.year || 'N/A'}</td>
+              </tr>
+              ${payroll.startDate && payroll.endDate ? `
+              <tr>
+                <th>Payroll Period</th>
+                <td colspan="3">${format(parseISO(payroll.startDate), 'MMMM dd, yyyy')} - ${format(parseISO(payroll.endDate), 'MMMM dd, yyyy')}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          ${payroll.startDate && payroll.endDate ? `
+          <div class="section">
+            <div class="section-title">Attendance Details</div>
+            <table>
+              <tr>
+                <th>Total Days</th>
+                <td>${attendanceDetails.totalDays} days</td>
+                <th>Present Days</th>
+                <td>${attendanceDetails.presentDays} days</td>
+              </tr>
+              <tr>
+                <th>Leave Days</th>
+                <td>${attendanceDetails.leaveDays} days</td>
+                <th>Payable Days</th>
+                <td>${attendanceDetails.payableDays} days</td>
+              </tr>
+              <tr>
+                <th>Proration Factor</th>
+                <td colspan="3">${(parseFloat(attendanceDetails.prorationFactor) * 100).toFixed(2)}%</td>
+              </tr>
+            </table>
+          </div>
+          ` : ''}
+
+          <div class="section">
+            <div class="section-title">Monthly Salary Breakdown</div>
+            <table>
+              <tr>
+                <th>Component</th>
+                <th style="text-align: right;">Amount (₹)</th>
+              </tr>
+              <tr>
+                <td>Base Salary</td>
+                <td style="text-align: right;">${baseSalary.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td>Allowances</td>
+                <td style="text-align: right;">${allowances.toFixed(2)}</td>
+              </tr>
+              <tr class="highlight">
+                <td><strong>Gross Salary</strong></td>
+                <td style="text-align: right;"><strong>${monthlyGross.toFixed(2)}</strong></td>
+              </tr>
+              <tr>
+                <td>Deductions</td>
+                <td style="text-align: right;">-${deductions.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td>Bonus</td>
+                <td style="text-align: right;">+${bonus.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td><strong>Net Salary</strong></td>
+                <td style="text-align: right;"><strong>${(baseSalary + allowances + bonus - deductions).toFixed(2)}</strong></td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Contributions</div>
+            <table>
+              <tr>
+                <th>Contribution Type</th>
+                <th style="text-align: right;">Monthly Amount (₹)</th>
+                <th style="text-align: right;">Annual Amount (₹)</th>
+              </tr>
+              <tr>
+                <td>Employee Contribution (PF + ESI)</td>
+                <td style="text-align: right;">${contributions.employeeContribution}</td>
+                <td style="text-align: right;">${(parseFloat(contributions.employeeContribution) * 12).toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td>Employer Contribution (PF + ESI)</td>
+                <td style="text-align: right;">${contributions.employerContribution}</td>
+                <td style="text-align: right;">${(monthlyEmployerContribution * 12).toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Monthly CTC Calculation</div>
+            <table>
+              <tr>
+                <th>Component</th>
+                <th style="text-align: right;">Amount (₹)</th>
+              </tr>
+              <tr>
+                <td>Monthly Gross Salary</td>
+                <td style="text-align: right;">${monthlyGross.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td>Monthly Employer Contribution</td>
+                <td style="text-align: right;">${monthlyEmployerContribution.toFixed(2)}</td>
+              </tr>
+              <tr class="highlight">
+                <td><strong>Monthly CTC</strong></td>
+                <td style="text-align: right;"><strong>${monthlyCTC.toFixed(2)}</strong></td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="annual-ctc">
+            <h3>ANNUAL CTC (COST TO COMPANY)</h3>
+            <div class="amount">₹${annualCTC.toFixed(2)}</div>
+            <p style="margin: 10px 0 0 0; font-size: 14px;">Monthly CTC × 12 months</p>
+          </div>
+
+          <div class="info-box">
+            <strong>Note:</strong> Annual CTC includes monthly gross salary and employer contributions (PF + ESI). 
+            This represents the total cost to the company for employing this individual for one year.
+          </div>
+
+          <div class="footer">
+            <p>This is a system-generated document. For any discrepancies, please contact HR.</p>
+            <p>Generated on ${format(new Date(), 'MMMM dd, yyyy')} at ${format(new Date(), 'hh:mm a')}</p>
+          </div>
+        </body>
+        </html>
+      `
+      
+      // Create blob and download
+      const blob = new Blob([htmlContent], { type: 'text/html' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Annual_CTC_${employeeName.replace(/\s+/g, '_')}_${payroll.year || new Date().getFullYear()}.html`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      // For PDF, we'll use browser's print to PDF
+      const printWindow = window.open('', '_blank')
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
+      printWindow.focus()
+      
+      // Wait a bit for content to load, then trigger print dialog
+      setTimeout(() => {
+        printWindow.print()
+        // After print dialog, user can save as PDF
+      }, 250)
+      
+    } catch (error) {
+      console.error('Error generating Annual CTC document:', error)
+      alert('Error generating Annual CTC document: ' + error.message)
     }
   }
 
@@ -1149,7 +1668,15 @@ const Payroll = () => {
   }
 
   const handleDeleteGratuity = async (gratuityId) => {
-    if (!window.confirm('Are you sure you want to delete this gratuity record?')) return
+    const gratuity = gratuities.find(g => g.id === gratuityId)
+    const employee = gratuity ? employees.find(emp => emp.id === gratuity.employeeId || emp.id === parseInt(gratuity.employeeId)) : null
+    const employeeName = employee ? employee.name : 'this employee'
+    
+    const confirmMessage = gratuity?.status === 'PAID' 
+      ? `Are you sure you want to delete this PAID gratuity record for ${employeeName}? This action cannot be undone.`
+      : `Are you sure you want to delete this gratuity record for ${employeeName}?`
+    
+    if (!window.confirm(confirmMessage)) return
     
     try {
       setLoading(true)
@@ -2153,11 +2680,30 @@ const Payroll = () => {
     const allowances = parseFloat(viewingPayroll.allowances) || 0
     const bonus = parseFloat(viewingPayroll.bonus) || 0
     const deductions = parseFloat(viewingPayroll.deductions) || 0
-    const calculatedNetSalary = baseSalary + allowances + bonus - deductions
-    const netSalary = viewingPayroll.netSalary != null 
-      ? parseFloat(viewingPayroll.netSalary) 
-      : (viewingPayroll.amount != null ? parseFloat(viewingPayroll.amount) : calculatedNetSalary)
-    const finalNetSalary = isNaN(netSalary) ? calculatedNetSalary : Math.max(0, netSalary)
+    
+    // Get attendance details for proration and display
+    const attendanceDetails = calculateAttendanceDetails(viewingPayroll)
+    const prorationFactor = parseFloat(attendanceDetails.prorationFactor) || 1.0
+    
+    // Calculate full net salary (before proration)
+    const fullNetSalary = baseSalary + allowances + bonus - deductions
+    
+    // If payroll has startDate/endDate, it was processed with attendance - use prorated value
+    let finalNetSalary
+    if (viewingPayroll.startDate && viewingPayroll.endDate && viewingPayroll.netSalary != null) {
+      // Use backend's prorated netSalary and add bonus (bonus is typically not prorated)
+      const proratedBase = (baseSalary + allowances - deductions) * prorationFactor
+      finalNetSalary = Math.max(0, proratedBase + bonus)
+    } else {
+      // No attendance data - use full calculation
+      finalNetSalary = Math.max(0, fullNetSalary)
+    }
+    
+    // Get salary structure for contributions
+    const salaryStructure = salaryStructures.find(s => 
+      (s.employeeId === viewingPayroll.employeeId || s.employeeId === parseInt(viewingPayroll.employeeId)) && s.active
+    )
+    const contributions = calculateContributions(viewingPayroll, salaryStructure)
 
     return (
       <>
@@ -2178,18 +2724,6 @@ const Payroll = () => {
                   </div>
                 </h3>
                 <div className="flex items-center gap-2">
-                  {isAdmin && (viewingPayroll.status === 'DRAFT' || viewingPayroll.status === 'PENDING_APPROVAL') && (
-                    <button
-                      onClick={() => {
-                        setShowViewModal(false)
-                        handleOpenPayrollModal(viewingPayroll)
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                    >
-                      <Edit size={18} />
-                      Edit
-                    </button>
-                  )}
                   <button
                     onClick={() => {
                       setShowViewModal(false)
@@ -2228,6 +2762,53 @@ const Payroll = () => {
                   </div>
                 </div>
 
+                {/* Attendance Details */}
+                {viewingPayroll.startDate && viewingPayroll.endDate && (
+                  <div className="bg-blue-50 rounded-xl p-5 border-2 border-blue-200">
+                    <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                      <Clock size={24} className="text-blue-600" />
+                      Attendance Details
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="bg-white rounded-lg p-3 border border-blue-100">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Total Days</label>
+                        <div className="text-lg font-bold text-gray-900">
+                          {attendanceDetails.totalDays} days
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-green-100">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Present Days</label>
+                        <div className="text-lg font-bold text-green-600">
+                          {attendanceDetails.presentDays} days
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-yellow-100">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Leave Days</label>
+                        <div className="text-lg font-bold text-yellow-600">
+                          {attendanceDetails.leaveDays} days
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-blue-100">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Payable Days</label>
+                        <div className="text-lg font-bold text-blue-600">
+                          {attendanceDetails.payableDays} days
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-purple-100">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Proration Factor</label>
+                        <div className="text-lg font-bold text-purple-600">
+                          {(parseFloat(attendanceDetails.prorationFactor) * 100).toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+                    {viewingPayroll.startDate && viewingPayroll.endDate && (
+                      <div className="mt-3 text-sm text-gray-600">
+                        <span className="font-semibold">Period:</span> {format(parseISO(viewingPayroll.startDate), 'MMM dd, yyyy')} - {format(parseISO(viewingPayroll.endDate), 'MMM dd, yyyy')}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Salary Details */}
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                   <h4 className="text-xl font-bold text-gray-800 mb-4">Salary Details</h4>
@@ -2256,10 +2837,107 @@ const Payroll = () => {
                         -₹{viewingPayroll.deductions?.toFixed(2) || '0.00'}
                       </div>
                     </div>
+                    {viewingPayroll.startDate && viewingPayroll.endDate && (
+                      <div className="md:col-span-2 bg-yellow-50 rounded-lg p-3 border-2 border-yellow-200">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Full Net Salary (Before Proration)</label>
+                        <div className="text-lg font-semibold text-gray-700">
+                          ₹{(baseSalary + allowances + bonus - deductions).toFixed(2)}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">This is the full salary before attendance-based proration</p>
+                      </div>
+                    )}
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Net Salary</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        {viewingPayroll.startDate && viewingPayroll.endDate ? 'Net Salary (After Proration)' : 'Net Salary'}
+                      </label>
                       <div className="text-2xl font-bold text-blue-600">
                         ₹{finalNetSalary.toFixed(2)}
+                      </div>
+                      {viewingPayroll.startDate && viewingPayroll.endDate && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Prorated by {attendanceDetails.payableDays} payable days out of {attendanceDetails.totalDays} total days
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contributions Section */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Contributions</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white rounded-lg p-4 border-2 border-orange-200">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Contribution</label>
+                      <div className="text-lg font-bold text-orange-600">
+                        ₹{contributions.employeeContribution}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">PF + ESI (deducted from salary)</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border-2 border-blue-200">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Employer Contribution</label>
+                      <div className="text-lg font-bold text-blue-600">
+                        ₹{contributions.employerContribution}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">PF + ESI (employer's share)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Annual CTC Calculation Section */}
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-5 border-2 border-purple-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <TrendingUp size={24} className="text-purple-600" />
+                    Annual CTC (Cost to Company)
+                  </h4>
+                  <div className="space-y-4">
+                    {/* Monthly Breakdown */}
+                    <div className="bg-white rounded-lg p-4 border border-purple-100">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Gross Salary</label>
+                          <div className="text-base font-semibold text-gray-900">
+                            ₹{(baseSalary + allowances).toFixed(2)}
+                          </div>
+                          <p className="text-xs text-gray-500">Base + Allowances</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Employer Contribution</label>
+                          <div className="text-base font-semibold text-blue-600">
+                            ₹{contributions.employerContribution}
+                          </div>
+                          <p className="text-xs text-gray-500">PF + ESI (employer)</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly CTC</label>
+                          <div className="text-lg font-bold text-purple-600">
+                            ₹{(parseFloat(baseSalary + allowances) + parseFloat(contributions.employerContribution)).toFixed(2)}
+                          </div>
+                          <p className="text-xs text-gray-500">Gross + Employer Contribution</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Annual CTC */}
+                    <div className="bg-gradient-to-r from-purple-100 to-indigo-100 rounded-lg p-4 border-2 border-purple-300">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Annual CTC</label>
+                          <p className="text-xs text-gray-600">Monthly CTC × 12 months</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold text-purple-700">
+                            ₹{((parseFloat(baseSalary + allowances) + parseFloat(contributions.employerContribution)) * 12).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-purple-200">
+                        <button
+                          onClick={() => handleDownloadAnnualCTC(viewingPayroll)}
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
+                        >
+                          <Download size={18} />
+                          Download Annual CTC PDF
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -3029,6 +3707,9 @@ const Payroll = () => {
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Allowances</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Deductions</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Bonus</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Employee Contribution</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Employer Contribution</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Working Days</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Net Salary</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Status</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
@@ -3037,13 +3718,13 @@ const Payroll = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={isAdmin ? 12 : 11} className="px-6 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : filteredPayrolls.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center">
+                  <td colSpan={isAdmin ? 12 : 11} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <p className="text-gray-500 font-medium">No payroll records found</p>
                       {isEmployee && payrolls.length > 0 && (
@@ -3064,15 +3745,36 @@ const Payroll = () => {
                 filteredPayrolls.map((payroll) => {
                   const employee = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
                   const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
-                  // Calculate net salary correctly: baseSalary + allowances + bonus - deductions
+                  // Calculate net salary with attendance-based proration
                   const baseSalary = parseFloat(payroll.baseSalary) || 0
                   const allowances = parseFloat(payroll.allowances) || 0
                   const bonus = parseFloat(payroll.bonus) || 0
                   const deductions = parseFloat(payroll.deductions) || 0
-                  const calculatedNetSalary = baseSalary + allowances + bonus - deductions
-                  // Use stored netSalary if available and correct, otherwise use calculated value
-                  const storedNetSalary = payroll.netSalary != null ? parseFloat(payroll.netSalary) : null
-                  const netSalary = (storedNetSalary != null && storedNetSalary > 0 ? storedNetSalary : calculatedNetSalary).toFixed(2)
+                  
+                  // Get attendance details
+                  const attendanceDetails = calculateAttendanceDetails(payroll)
+                  const prorationFactor = parseFloat(attendanceDetails.prorationFactor) || 1.0
+                  
+                  // Calculate full net salary (before proration)
+                  const fullNetSalary = baseSalary + allowances + bonus - deductions
+                  
+                  // If payroll has startDate/endDate, it was processed with attendance - use prorated value
+                  // Otherwise, use full calculation
+                  let netSalary
+                  if (payroll.startDate && payroll.endDate && payroll.netSalary != null) {
+                    // Use backend's prorated netSalary and add bonus (bonus is typically not prorated)
+                    const proratedBase = (baseSalary + allowances - deductions) * prorationFactor
+                    netSalary = (proratedBase + bonus).toFixed(2)
+                  } else {
+                    // No attendance data - use full calculation
+                    netSalary = Math.max(0, fullNetSalary).toFixed(2)
+                  }
+                  
+                  // Get salary structure for this employee to calculate contributions
+                  const salaryStructure = salaryStructures.find(s => 
+                    (s.employeeId === payroll.employeeId || s.employeeId === parseInt(payroll.employeeId)) && s.active
+                  )
+                  const contributions = calculateContributions(payroll, salaryStructure)
                   
                   return (
                     <tr key={payroll.id} className="hover:bg-gray-50 transition-colors">
@@ -3097,6 +3799,20 @@ const Payroll = () => {
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-green-600">
                         +₹{payroll.bonus?.toFixed(2) || '0.00'}
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-orange-600 font-medium">
+                        ₹{contributions.employeeContribution}
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                        ₹{contributions.employerContribution}
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-700">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{attendanceDetails.payableDays}/{attendanceDetails.totalDays}</span>
+                          {attendanceDetails.prorationFactor !== '1.0000' && (
+                            <span className="text-xs text-gray-500">({(parseFloat(attendanceDetails.prorationFactor) * 100).toFixed(1)}%)</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                         ₹{netSalary}
@@ -3740,7 +4456,7 @@ const Payroll = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right pr-8">
-                          <div className="relative inline-block dropdown-menu-container flex items-center justify-end">
+                          <div className="relative inline-block dropdown-menu-container">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -3748,7 +4464,7 @@ const Payroll = () => {
                                 const rect = button.getBoundingClientRect()
                                 const spaceBelow = window.innerHeight - rect.bottom
                                 const spaceAbove = rect.top
-                                const dropdownHeight = 180
+                                const dropdownHeight = 120
                                 
                                 // Determine position: show below if enough space, otherwise above
                                 const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
@@ -3771,7 +4487,7 @@ const Payroll = () => {
                             
                             {openCtcTemplateDropdownId === template.id && dropdownPosition[`ctc-${template.id}`] && (
                               <div 
-                                className="fixed w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
+                                className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
                                 style={{ 
                                   zIndex: 9999,
                                   top: `${dropdownPosition[`ctc-${template.id}`].top}px`,
@@ -3941,49 +4657,107 @@ const Payroll = () => {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                            <div className="relative inline-block dropdown-menu-container">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const button = e.currentTarget
+                                  const rect = button.getBoundingClientRect()
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const spaceAbove = rect.top
+                                  const dropdownHeight = 200
+                                  
+                                  // Determine position: show below if enough space, otherwise above
+                                  const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                  
+                                  setDropdownPosition(prev => ({
+                                    ...prev,
+                                    [`gratuity-${gratuity.id}`]: {
+                                      showAbove,
+                                      top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                      right: window.innerWidth - rect.right
+                                    }
+                                  }))
+                                  setOpenGratuityDropdownId(openGratuityDropdownId === gratuity.id ? null : gratuity.id)
+                                }}
+                                className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Actions"
+                              >
+                                <MoreVertical size={18} />
+                              </button>
+                              
+                              {openGratuityDropdownId === gratuity.id && dropdownPosition[`gratuity-${gratuity.id}`] && (
+                                <div 
+                                  className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                                  style={{ 
+                                    zIndex: 9999,
+                                    top: `${dropdownPosition[`gratuity-${gratuity.id}`].top}px`,
+                                    right: `${dropdownPosition[`gratuity-${gratuity.id}`].right}px`
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                               {gratuity.status === 'PENDING' && (
                                 <>
                                   <button
-                                    onClick={() => handleApproveGratuity(gratuity.id)}
-                                    className="text-green-600 hover:text-green-800 p-1 rounded-lg hover:bg-green-50 transition-colors"
-                                    title="Approve"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleApproveGratuity(gratuity.id)
+                                          setOpenGratuityDropdownId(null)
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                                   >
-                                    <CheckCircle size={18} />
+                                        <CheckCircle size={16} className="text-green-600" />
+                                        Approve
                                   </button>
                                   <button
-                                    onClick={() => handleRejectGratuity(gratuity.id)}
-                                    className="text-red-600 hover:text-red-800 p-1 rounded-lg hover:bg-red-50 transition-colors"
-                                    title="Reject"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleRejectGratuity(gratuity.id)
+                                          setOpenGratuityDropdownId(null)
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                                   >
-                                    <XCircle size={18} />
+                                        <XCircle size={16} className="text-red-600" />
+                                        Reject
                                   </button>
                                 </>
                               )}
                               {gratuity.status === 'APPROVED' && (
                                 <button
-                                  onClick={() => handleMarkGratuityAsPaid(gratuity.id)}
-                                  className="text-purple-600 hover:text-purple-800 p-1 rounded-lg hover:bg-purple-50 transition-colors"
-                                  title="Mark as Paid"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleMarkGratuityAsPaid(gratuity.id)
+                                        setOpenGratuityDropdownId(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                                 >
-                                  <CheckCircle size={18} />
+                                      <CheckCircle size={16} className="text-purple-600" />
+                                      Mark as Paid
                                 </button>
                               )}
                               <button
-                                onClick={() => handleOpenGratuityModal(gratuity)}
-                                className="text-blue-600 hover:text-blue-800 p-1 rounded-lg hover:bg-blue-50 transition-colors"
-                                title="Edit"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenGratuityModal(gratuity)
+                                      setOpenGratuityDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                               >
-                                <Edit size={18} />
+                                    <Edit size={16} className="text-blue-600" />
+                                    Edit
                               </button>
-                              {gratuity.status !== 'PAID' && (
                                 <button
-                                  onClick={() => handleDeleteGratuity(gratuity.id)}
-                                  className="text-red-600 hover:text-red-800 p-1 rounded-lg hover:bg-red-50 transition-colors"
-                                  title="Delete"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteGratuity(gratuity.id)
+                                      setOpenGratuityDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                                 >
-                                  <Trash2 size={18} />
+                                    <Trash2 size={16} />
+                                    Delete
                                 </button>
+                                </div>
                               )}
                             </div>
                           </td>
