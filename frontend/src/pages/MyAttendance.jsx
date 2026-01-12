@@ -19,8 +19,13 @@ const MyAttendance = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [calendarAttendance, setCalendarAttendance] = useState([])
   
+  // View toggle: 'attendance' or 'myLeaves' (for HR_ADMIN)
+  const [activeView, setActiveView] = useState('attendance')
+  
   // Leave application modal state
   const [showLeaveModal, setShowLeaveModal] = useState(false)
+  const [myLeaves, setMyLeaves] = useState([])
+  const [leaveFilter, setLeaveFilter] = useState('All')
   const [leaveTypes, setLeaveTypes] = useState([])
   const [leaveBalances, setLeaveBalances] = useState([])
   const [leaveFormData, setLeaveFormData] = useState({
@@ -350,24 +355,246 @@ const MyAttendance = () => {
   const userName = localStorage.getItem('userName') || 'User'
   const userEmail = localStorage.getItem('userEmail') || ''
 
-  const handleApplyLeave = () => {
-    // Navigate to leave management page
-    navigate('/leave')
+  // Load leave data (types and balances)
+  const loadLeaveData = async () => {
+    if (!currentUserId) return
+    
+    try {
+      const [types, balances] = await Promise.all([
+        api.getActiveLeaveTypes(),
+        api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+      ])
+      
+      setLeaveTypes(Array.isArray(types) ? types : [])
+      setLeaveBalances(Array.isArray(balances) ? balances : [])
+    } catch (error) {
+      console.error('Error loading leave data:', error)
+      setLeaveTypes([])
+      setLeaveBalances([])
+    }
   }
+
+  // Get leave balance for a specific leave type
+  const getLeaveBalance = (leaveTypeId) => {
+    if (!leaveTypeId) return 0
+    const balance = leaveBalances.find(b => {
+      const balanceTypeId = typeof b.leaveTypeId === 'string' ? parseInt(b.leaveTypeId) : b.leaveTypeId
+      const typeId = typeof leaveTypeId === 'string' ? parseInt(leaveTypeId) : leaveTypeId
+      return balanceTypeId === typeId
+    })
+    return balance?.balance || 0
+  }
+
+  // Calculate total leave days
+  const calculateLeaveDays = () => {
+    if (!leaveFormData.startDate || !leaveFormData.endDate) {
+      setCalculatedDays(0)
+      return
+    }
+
+    const start = parseISO(leaveFormData.startDate)
+    const end = parseISO(leaveFormData.endDate)
+
+    if (isAfter(start, end)) {
+      setCalculatedDays(0)
+      return
+    }
+
+    if (leaveFormData.halfDay) {
+      setCalculatedDays(0.5)
+    } else {
+      const days = differenceInDays(end, start) + 1
+      setCalculatedDays(days)
+    }
+  }
+
+  // Validate leave form
+  const validateLeaveForm = () => {
+    setValidationError('')
+
+    if (!leaveFormData.leaveTypeId) {
+      setValidationError('Please select a leave type')
+      return false
+    }
+
+    if (!leaveFormData.startDate || !leaveFormData.endDate) {
+      setValidationError('Please select both start and end dates')
+      return false
+    }
+
+    const start = parseISO(leaveFormData.startDate)
+    const end = parseISO(leaveFormData.endDate)
+    const today = startOfToday()
+
+    if (isBefore(start, today)) {
+      setValidationError('Start date cannot be in the past')
+      return false
+    }
+
+    if (isAfter(start, end)) {
+      setValidationError('End date must be after start date')
+      return false
+    }
+
+    // Check leave balance
+    const balance = getLeaveBalance(parseInt(leaveFormData.leaveTypeId))
+    const requiredDays = leaveFormData.halfDay ? 0.5 : calculatedDays
+
+    if (balance < requiredDays) {
+      const selectedType = leaveTypes.find(t => t.id === parseInt(leaveFormData.leaveTypeId))
+      const maxDays = selectedType?.maxDays || 0
+      
+      if (balance === 0) {
+        if (maxDays > 0) {
+          setValidationError(`Leave balance not assigned. Available: ${balance.toFixed(1)} days, Required: ${requiredDays} days. This leave type allows up to ${maxDays} days. Please contact your administrator to assign leave balance.`)
+        } else {
+          setValidationError(`Leave balance not assigned. Available: ${balance.toFixed(1)} days, Required: ${requiredDays} days. Please contact your administrator to assign leave balance for this leave type.`)
+        }
+      } else {
+        setValidationError(`Insufficient leave balance. Available: ${balance.toFixed(1)} days, Required: ${requiredDays} days. Please contact HR for additional leave.`)
+      }
+      return false
+    }
+
+    // Check max days for leave type
+    const selectedType = leaveTypes.find(t => t.id === parseInt(leaveFormData.leaveTypeId))
+    if (selectedType && selectedType.maxDays && requiredDays > selectedType.maxDays) {
+      setValidationError(`Leave duration exceeds maximum allowed days (${selectedType.maxDays} days)`)
+      return false
+    }
+
+    return true
+  }
+
+  // Handle leave form submission
+  const handleLeaveSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!validateLeaveForm()) {
+      return
+    }
+
+    setLoading(true)
+    setValidationError('')
+    
+    try {
+      const leaveData = {
+        employeeId: parseInt(currentUserId),
+        leaveTypeId: parseInt(leaveFormData.leaveTypeId),
+        startDate: leaveFormData.startDate,
+        endDate: leaveFormData.endDate,
+        reason: leaveFormData.reason,
+        halfDay: leaveFormData.halfDay,
+        halfDayType: leaveFormData.halfDay ? leaveFormData.halfDayType : null
+      }
+
+      await api.createLeave(leaveData)
+      setSuccessMessage('Leave application submitted successfully!')
+      setTimeout(() => setSuccessMessage(null), 5000)
+      
+      // Reset form and close modal
+      resetLeaveForm()
+      setShowLeaveModal(false)
+      
+      // Reload leave balances and my leaves
+      await loadLeaveData()
+      await loadMyLeaves()
+    } catch (error) {
+      console.error('Error submitting leave application:', error)
+      setValidationError(error.message || 'Failed to submit leave application. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Reset leave form
+  const resetLeaveForm = () => {
+    setLeaveFormData({
+      leaveTypeId: '',
+      startDate: '',
+      endDate: '',
+      reason: '',
+      halfDay: false,
+      halfDayType: 'FIRST_HALF'
+    })
+    setCalculatedDays(0)
+    setValidationError('')
+  }
+
+  // Load My Leaves data
+  const loadMyLeaves = async () => {
+    if (!currentUserId) return
+    try {
+      const leavesData = await api.getLeavesByEmployee(parseInt(currentUserId))
+      setMyLeaves(Array.isArray(leavesData) ? leavesData : [])
+    } catch (error) {
+      console.error('Error loading my leaves:', error)
+      setMyLeaves([])
+    }
+  }
+
+  // Handle Apply Leave button click - Switch to My Leaves view
+  const handleApplyLeave = async () => {
+    try {
+      setActiveView('myLeaves')
+      // Load data in parallel for better performance
+      await Promise.all([
+        loadLeaveData(),
+        loadMyLeaves()
+      ])
+    } catch (error) {
+      console.error('Error loading leave data:', error)
+      setError('Failed to load leave data. Please try again.')
+    }
+  }
+
+  // Calculate days when dates change
+  useEffect(() => {
+    if (leaveFormData.startDate && leaveFormData.endDate) {
+      calculateLeaveDays()
+    } else {
+      setCalculatedDays(0)
+    }
+  }, [leaveFormData.startDate, leaveFormData.endDate, leaveFormData.halfDay])
+
+  // Get leave type name
+  const getLeaveTypeName = (leaveTypeId) => {
+    const type = leaveTypes.find(t => t.id === parseInt(leaveTypeId))
+    return type ? type.name : 'Unknown'
+  }
+
+  // Filter leaves
+  const filteredMyLeaves = myLeaves.filter(leave => {
+    if (leaveFilter === 'All') return true
+    return leave.status?.toUpperCase() === leaveFilter.toUpperCase()
+  })
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">My Attendance</h1>
-        {isHrAdmin && (
-          <button
-            onClick={handleApplyLeave}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-          >
-            <FileText className="w-4 h-4" />
-            Apply Leave
-          </button>
-        )}
+        <h1 className="text-xl font-bold text-gray-800">
+          {activeView === 'myLeaves' ? 'My Leaves' : 'My Attendance'}
+        </h1>
+        <div className="flex items-center gap-2">
+          {activeView === 'myLeaves' && (
+            <button
+              onClick={() => setActiveView('attendance')}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium text-sm"
+            >
+              <X className="w-4 h-4" />
+              Back to Attendance
+            </button>
+          )}
+          {(isHrAdmin || userRole === 'FINANCE') && (
+            <button
+              onClick={activeView === 'myLeaves' ? () => setShowLeaveModal(true) : handleApplyLeave}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+            >
+              <FileText className="w-4 h-4" />
+              {activeView === 'myLeaves' ? 'Apply Leave' : 'My Leaves'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Success/Error Messages */}
@@ -384,6 +611,126 @@ const MyAttendance = () => {
         </div>
       )}
 
+      {/* My Leaves View */}
+      {activeView === 'myLeaves' && (
+        <div className="space-y-4">
+          {/* Leave Balances */}
+          <div className="bg-white rounded-xl shadow-md p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">Your Leave Balance</h2>
+                <p className="text-sm text-gray-600">Year {new Date().getFullYear()}</p>
+              </div>
+              <button
+                onClick={loadLeaveData}
+                className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                title="Refresh Leave Balances"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {leaveTypes.filter(lt => lt.active).map(type => {
+                const balance = getLeaveBalance(type.id)
+                const used = leaveBalances.find(b => b.leaveTypeId === type.id)?.used || 0
+                const total = leaveBalances.find(b => b.leaveTypeId === type.id)?.totalDays || type.maxDays || 0
+                const percentage = total > 0 ? (used / total) * 100 : 0
+                
+                return (
+                  <div key={type.id} className="border-2 border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-800">{type.name}</h3>
+                        <p className="text-xs text-gray-500">ID: {type.code}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-blue-600">{balance.toFixed(1)} days</div>
+                        <p className="text-xs text-gray-500">AVAILABLE BALANCE</p>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-600">Used: {used.toFixed(1)} / {total.toFixed(1)} days</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all"
+                          style={{ width: `${Math.min(percentage, 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Leave List */}
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-800">My Leave Applications</h2>
+              <select
+                value={leaveFilter}
+                onChange={(e) => setLeaveFilter(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="All">All Leaves</option>
+                <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+            <div className="overflow-x-auto">
+              {filteredMyLeaves.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No leave applications found</div>
+              ) : (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-blue-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">S.No</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Leave Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Dates</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Days</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Reason</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredMyLeaves.map((leave, index) => (
+                      <tr key={leave.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{getLeaveTypeName(leave.leaveTypeId)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {format(new Date(leave.startDate), 'MMM dd, yyyy')} - {format(new Date(leave.endDate), 'MMM dd, yyyy')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{leave.totalDays} days</td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{leave.reason || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            leave.status === 'APPROVED' || leave.status === 'Approved' 
+                              ? 'bg-green-100 text-green-800'
+                              : leave.status === 'REJECTED' || leave.status === 'Rejected'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {leave.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attendance View */}
+      {activeView === 'attendance' && (
+        <>
       {/* Filters and Today's Attendance Row */}
       <div className="flex flex-col lg:flex-row gap-4">
         {/* View Type Toggle and Date Navigation */}
@@ -813,9 +1160,11 @@ const MyAttendance = () => {
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* Apply Leave Modal */}
-      {showLeaveModal && isHrAdmin && (
+      {showLeaveModal && (isHrAdmin || userRole === 'FINANCE') && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">

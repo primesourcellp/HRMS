@@ -2367,6 +2367,152 @@ const api = {
       console.error('Error converting CTC to salary structure:', error)
       throw error
     }
+  },
+
+  // Team Management
+  getTeams: async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch teams (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching teams:', error)
+      throw error
+    }
+  },
+
+  getTeamById: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams/${id}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch team (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching team:', error)
+      throw error
+    }
+  },
+
+  createTeam: async (team) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(team)
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to create team')
+      }
+      return data.team || data
+    } catch (error) {
+      console.error('Error creating team:', error)
+      throw error
+    }
+  },
+
+  updateTeam: async (id, team) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(team)
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to update team')
+      }
+      return data.team || data
+    } catch (error) {
+      console.error('Error updating team:', error)
+      throw error
+    }
+  },
+
+  deleteTeam: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams/${id}`, {
+        method: 'DELETE'
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to delete team')
+      }
+      return data
+    } catch (error) {
+      console.error('Error deleting team:', error)
+      throw error
+    }
+  },
+
+  getTeamMembers: async (teamId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams/${teamId}/members`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to fetch team members (${response.status})`)
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching team members:', error)
+      throw error
+    }
+  },
+
+  addTeamMember: async (teamId, member) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams/${teamId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(member)
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to add team member')
+      }
+      return data.member || data
+    } catch (error) {
+      console.error('Error adding team member:', error)
+      throw error
+    }
+  },
+
+  removeTeamMember: async (teamId, employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams/${teamId}/members/${employeeId}`, {
+        method: 'DELETE'
+      })
+      const data = await response.json()
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to remove team member')
+      }
+      return data
+    } catch (error) {
+      console.error('Error removing team member:', error)
+      throw error
+    }
+  },
+
+  getApproverForEmployee: async (employeeId) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/teams/approver/${employeeId}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to find approver (${response.status})`)
+      }
+      const data = await response.json()
+      return data.approverId || null
+    } catch (error) {
+      console.error('Error finding approver:', error)
+      throw error
+    }
   }
 }
 

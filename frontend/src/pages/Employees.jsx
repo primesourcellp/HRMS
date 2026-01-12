@@ -131,7 +131,47 @@ const [openDropdownId, setOpenDropdownId] = useState(null)
 const [dropdownPosition, setDropdownPosition] = useState({})
 const userRole = localStorage.getItem('userRole') 
 const isHrAdmin = userRole === 'HR_ADMIN'
-const currentUserId = localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null 
+const currentUserId = localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null
+const [teamMemberIds, setTeamMemberIds] = useState([]) 
+
+// Load team member IDs for HR_ADMIN
+useEffect(() => {
+  const loadTeamMembers = async () => {
+    if (isHrAdmin && currentUserId) {
+      try {
+        const allTeams = await api.getTeams()
+        // Find teams where HR_ADMIN is a member
+        const hrAdminTeams = allTeams.filter(team => {
+          if (!team.members || !Array.isArray(team.members)) return false
+          return team.members.some(member => 
+            member.employeeId === currentUserId || 
+            parseInt(member.employeeId) === currentUserId
+          )
+        })
+        
+        // Get all employee IDs from HR_ADMIN's teams
+        const memberIds = new Set()
+        hrAdminTeams.forEach(team => {
+          if (team.members && Array.isArray(team.members)) {
+            team.members.forEach(member => {
+              const empId = member.employeeId ? parseInt(member.employeeId) : null
+              if (empId && empId !== currentUserId) {
+                memberIds.add(empId)
+              }
+            })
+          }
+        })
+        
+        setTeamMemberIds(Array.from(memberIds))
+      } catch (error) {
+        console.error('Error loading team members:', error)
+        setTeamMemberIds([])
+      }
+    }
+  }
+  
+  loadTeamMembers()
+}, [isHrAdmin, currentUserId])
 
 // Close dropdown when clicking outside
 useEffect(() => {
@@ -152,7 +192,7 @@ loadEmployees()
   ;(async () => {
     try {
       const list = await api.getUsers()
-      // Filter based on role: HR_ADMIN sees only MANAGER, FINANCE, EMPLOYEE (exclude HR_ADMIN and SUPER_ADMIN)
+      // Filter based on role: HR_ADMIN sees MANAGER, FINANCE, EMPLOYEE from assigned teams
       const filtered = Array.isArray(list) ? list.filter(u => {
         const role = (u.role || '').toUpperCase()
         const userId = u.id || u.userId
@@ -160,12 +200,19 @@ loadEmployees()
         // Exclude SUPER_ADMIN for everyone
         if (role === 'SUPER_ADMIN') return false
         
-        // For HR_ADMIN: exclude HR_ADMIN role and exclude HR_ADMIN's own record
+        // For HR_ADMIN: show only employees from assigned teams
         if (isHrAdmin) {
           if (role === 'HR_ADMIN') return false
           if (currentUserId && (userId === currentUserId || parseInt(userId) === currentUserId)) return false
-          // Only include MANAGER, FINANCE, EMPLOYEE
-          return role === 'MANAGER' || role === 'FINANCE' || role === 'EMPLOYEE'
+          // Only include MANAGER, FINANCE, and EMPLOYEE roles
+          if (role !== 'MANAGER' && role !== 'FINANCE' && role !== 'EMPLOYEE') return false
+          // Only show employees from assigned teams
+          if (teamMemberIds.length > 0) {
+            const empId = userId ? parseInt(userId) : null
+            return empId && teamMemberIds.includes(empId)
+          }
+          // If no teams assigned, show nothing
+          return false
         }
         
         // For other roles, include all except SUPER_ADMIN
@@ -177,7 +224,7 @@ loadEmployees()
       setUsers([])
     }
   })()
-}, []) 
+}, [teamMemberIds, isHrAdmin, currentUserId]) 
 
 // Auto-view employee when navigated from Users page
 // Check immediately on mount and show loading state
@@ -534,7 +581,7 @@ useEffect(() => {
   }
 }, [employees, users, navigate, isAutoViewing]) 
 // Combine employees and (non-superadmin) users into a single list
-// Filter employees based on role: HR_ADMIN sees only MANAGER, FINANCE, EMPLOYEE (exclude HR_ADMIN and SUPER_ADMIN)
+// Filter employees based on role: HR_ADMIN sees only employees from assigned teams
 const employeeRecords = Array.isArray(employees) ? employees
   .filter(e => {
     const role = (e.role || e.designation || '').toUpperCase()
@@ -543,12 +590,19 @@ const employeeRecords = Array.isArray(employees) ? employees
     // Exclude SUPER_ADMIN for everyone
     if (role === 'SUPER_ADMIN') return false
     
-    // For HR_ADMIN: exclude HR_ADMIN role and exclude HR_ADMIN's own record
+    // For HR_ADMIN: show only employees from assigned teams
     if (isHrAdmin) {
       if (role === 'HR_ADMIN') return false
       if (currentUserId && (empId === currentUserId || parseInt(empId) === currentUserId)) return false
-      // Only include MANAGER, FINANCE, EMPLOYEE
-      return role === 'MANAGER' || role === 'FINANCE' || role === 'EMPLOYEE'
+      // Only include MANAGER, FINANCE, and EMPLOYEE roles
+      if (role !== 'MANAGER' && role !== 'FINANCE' && role !== 'EMPLOYEE') return false
+      // Only show employees from assigned teams
+      if (teamMemberIds.length > 0) {
+        const employeeId = empId ? parseInt(empId) : null
+        return employeeId && teamMemberIds.includes(employeeId)
+      }
+      // If no teams assigned, show nothing
+      return false
     }
     
     // For other roles, include all except SUPER_ADMIN
@@ -556,7 +610,7 @@ const employeeRecords = Array.isArray(employees) ? employees
   })
   .map(e => ({ ...e, type: 'employee' })) : []
 
-// Filter users based on role: HR_ADMIN sees only MANAGER, FINANCE, EMPLOYEE (exclude HR_ADMIN and SUPER_ADMIN)
+// Filter users based on role: HR_ADMIN sees only employees from assigned teams
 const userRecords = Array.isArray(users) ? users
   .filter(u => {
     const role = (u.role || '').toUpperCase()
@@ -565,12 +619,19 @@ const userRecords = Array.isArray(users) ? users
     // Exclude SUPER_ADMIN for everyone
     if (role === 'SUPER_ADMIN') return false
     
-    // For HR_ADMIN: exclude HR_ADMIN role and exclude HR_ADMIN's own record
+    // For HR_ADMIN: show only employees from assigned teams
     if (isHrAdmin) {
       if (role === 'HR_ADMIN') return false
       if (currentUserId && (userId === currentUserId || parseInt(userId) === currentUserId)) return false
-      // Only include MANAGER, FINANCE, EMPLOYEE
-      return role === 'MANAGER' || role === 'FINANCE' || role === 'EMPLOYEE'
+      // Only include MANAGER, FINANCE, and EMPLOYEE roles
+      if (role !== 'MANAGER' && role !== 'FINANCE' && role !== 'EMPLOYEE') return false
+      // Only show employees from assigned teams
+      if (teamMemberIds.length > 0) {
+        const empId = userId ? parseInt(userId) : null
+        return empId && teamMemberIds.includes(empId)
+      }
+      // If no teams assigned, show nothing
+      return false
     }
     
     // For other roles, include all except SUPER_ADMIN

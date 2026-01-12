@@ -64,7 +64,47 @@ const LeaveManagement = () => {
   const isHrAdmin = userRole === 'HR_ADMIN'
   const isManager = userRole === 'MANAGER'
   const isFinance = userRole === 'FINANCE'
-  const canApplyLeave = isEmployee || isManager || isFinance // HR_ADMIN removed - they apply leave from My Attendance page
+  const canApplyLeave = isEmployee || isManager || isFinance // HR_ADMIN applies leave from My Attendance page only
+  const [teamMemberIds, setTeamMemberIds] = useState([])
+
+  // Load team member IDs for HR_ADMIN
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (isHrAdmin && currentUserId) {
+        try {
+          const allTeams = await api.getTeams()
+          // Find teams where HR_ADMIN is a member
+          const hrAdminTeams = allTeams.filter(team => {
+            if (!team.members || !Array.isArray(team.members)) return false
+            return team.members.some(member => 
+              member.employeeId === parseInt(currentUserId) || 
+              parseInt(member.employeeId) === parseInt(currentUserId)
+            )
+          })
+          
+          // Get all employee IDs from HR_ADMIN's teams
+          const memberIds = new Set()
+          hrAdminTeams.forEach(team => {
+            if (team.members && Array.isArray(team.members)) {
+              team.members.forEach(member => {
+                const empId = member.employeeId ? parseInt(member.employeeId) : null
+                if (empId && empId !== parseInt(currentUserId)) {
+                  memberIds.add(empId)
+                }
+              })
+            }
+          })
+          
+          setTeamMemberIds(Array.from(memberIds))
+        } catch (error) {
+          console.error('Error loading team members:', error)
+          setTeamMemberIds([])
+        }
+      }
+    }
+    
+    loadTeamMembers()
+  }, [isHrAdmin, currentUserId])
 
   useEffect(() => {
     // Validate that currentUserId exists for employees who can apply leave
@@ -73,10 +113,12 @@ const LeaveManagement = () => {
       return
     }
     loadData()
-  }, [filter, canApplyLeave, currentUserId])
+    
+    // HR_ADMIN should not apply leave from Leave Management - they use My Attendance page
+  }, [filter, canApplyLeave, currentUserId, teamMemberIds])
 
   useEffect(() => {
-    // Auto-set employeeId for employees, managers, and finance (HR_ADMIN applies leave from My Attendance page)
+    // Auto-set employeeId for employees, managers, and finance (HR_ADMIN applies leave from My Attendance)
     if (canApplyLeave && currentUserId && !formData.employeeId) {
       setFormData(prev => ({ ...prev, employeeId: currentUserId.toString() }))
     }
@@ -121,7 +163,7 @@ const LeaveManagement = () => {
       } else if (isAdmin || isHrAdmin) {
         // Admins and HR_ADMIN see all leaves for management
         leavesData = filter === 'All' ? await api.getLeaves() : await api.getLeaves(filter)
-        // For HR_ADMIN, filter to only show MANAGER, EMPLOYEE, and FINANCE leaves (exclude HR_ADMIN's own leaves)
+        // For HR_ADMIN, filter to show leaves from MANAGER, FINANCE, and EMPLOYEE in assigned teams
         if (isHrAdmin && currentUserId) {
           const allEmployees = await api.getEmployees()
           const allEmployeesList = Array.isArray(allEmployees) ? allEmployees : []
@@ -130,6 +172,11 @@ const LeaveManagement = () => {
           leavesData = leavesData.filter(leave => {
             const empId = leave.employeeId ? parseInt(leave.employeeId) : null
             if (!empId) return false
+            
+            // Exclude HR_ADMIN's own leaves
+            if (empId === currentId || parseInt(empId) === currentId || empId.toString() === currentUserId) {
+              return false
+            }
             
             // Find the employee to check their role
             const employee = allEmployeesList.find(emp => {
@@ -141,14 +188,22 @@ const LeaveManagement = () => {
             
             const empRole = (employee.role || '').toUpperCase()
             
-            // Exclude HR_ADMIN's own leaves
-            if (empId === currentId || parseInt(empId) === currentId || empId.toString() === currentUserId) {
-              return false
-            }
+            // Only include MANAGER, FINANCE, and EMPLOYEE roles
+            if (empRole !== 'MANAGER' && empRole !== 'FINANCE' && empRole !== 'EMPLOYEE') return false
             
-            // Only include MANAGER, EMPLOYEE, and FINANCE roles
-            return empRole === 'MANAGER' || empRole === 'EMPLOYEE' || empRole === 'FINANCE'
+            // Only show leaves from assigned team members
+            if (teamMemberIds.length > 0) {
+              return teamMemberIds.includes(empId)
+            }
+            // If no teams assigned, show nothing
+            return false
           })
+        }
+      } else if (isFinance && currentUserId) {
+        // Finance sees only their own leaves
+        leavesData = await api.getLeavesByEmployee(parseInt(currentUserId))
+        if (filter !== 'All') {
+          leavesData = leavesData.filter(l => l.status === filter)
         }
       } else if (canApplyLeave && currentUserId) {
         // Other roles that can apply leave see only their own
@@ -509,8 +564,31 @@ const LeaveManagement = () => {
         halfDay: false,
         halfDayType: 'FIRST_HALF'
       })
-    setCalculatedDays(0)
-    setValidationError('')
+      setCalculatedDays(0)
+      setValidationError('')
+    }
+
+  const handleOpenModal = async () => {
+    resetForm()
+    // Refresh balances before opening modal to ensure they're up to date
+    if (currentUserId) {
+      try {
+        const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+        setLeaveBalances(Array.isArray(balances) ? balances : [])
+        // If balances are empty or all 0, try to initialize
+        const balancesArray = Array.isArray(balances) ? balances : []
+        if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
+          if (leaveTypes.length > 0) {
+            await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+            const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+            setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
+          }
+        }
+      } catch (error) {
+        console.error('Error loading leave balances:', error)
+      }
+    }
+    setShowModal(true)
   }
 
   const handleCancelLeave = async (leaveId) => {
@@ -693,6 +771,49 @@ const LeaveManagement = () => {
     }
     
     return `Employee #${empId}`
+  }
+
+  const getEmployeeRole = (employeeId) => {
+    if (employeeId === null || employeeId === undefined) return 'Unknown'
+    
+    // Handle type conversion for comparison
+    const empId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId
+    if (isNaN(empId)) return 'Unknown'
+    
+    // Try to find in employees array - check both id and employeeId fields
+    const employee = employees.find(emp => {
+      if (!emp) return false
+      // Check id field
+      if (emp.id !== null && emp.id !== undefined) {
+        const empIdNum = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+        if (!isNaN(empIdNum) && empIdNum === empId) return true
+      }
+      // Check employeeId field as fallback
+      if (emp.employeeId !== null && emp.employeeId !== undefined) {
+        const empIdStr = String(emp.employeeId)
+        const empIdNum = parseInt(empIdStr)
+        if (!isNaN(empIdNum) && empIdNum === empId) return true
+      }
+      return false
+    })
+    
+    if (employee) {
+      return employee.role || 'EMPLOYEE'
+    }
+    
+    // Fallback: try users array
+    const user = users.find(u => {
+      if (!u) return false
+      const userId = typeof u.id === 'string' ? parseInt(u.id) : u.id
+      const userEmployeeId = typeof u.employeeId === 'string' ? parseInt(u.employeeId) : u.employeeId
+      return (!isNaN(userId) && userId === empId) || (!isNaN(userEmployeeId) && userEmployeeId === empId)
+    })
+    
+    if (user) {
+      return user.role || 'EMPLOYEE'
+    }
+    
+    return 'EMPLOYEE'
   }
 
   const getApproverName = (approverId) => {
@@ -927,37 +1048,21 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Page Header with Apply Leave Button for Employees */}
+      {/* Page Header for Employees, Finance (HR_ADMIN uses management view like Super Admin) */}
       {((isEmployee || userRole === 'EMPLOYEE') || isManager || isFinance) && (
         <div className="bg-white rounded-lg shadow-md p-4 md:p-6 border-2 border-blue-200">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-1">My Leaves</h1>
-              <p className="text-sm text-gray-600">View and manage your leave applications</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-1">
+                {isFinance ? 'My Leaves' : 'My Leaves'}
+              </h1>
+              <p className="text-sm text-gray-600">
+                View and manage your leave applications
+              </p>
             </div>
+            {/* Apply Leave button - For Employees, Managers, and Finance */}
             <button
-              onClick={async () => {
-                resetForm()
-                // Refresh balances before opening modal to ensure they're up to date
-                if (currentUserId) {
-                  try {
-                    const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                    setLeaveBalances(Array.isArray(balances) ? balances : [])
-                    // If balances are empty or all 0, try to initialize
-                    const balancesArray = Array.isArray(balances) ? balances : []
-                    if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
-                      if (leaveTypes.length > 0) {
-                        await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                        const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                        setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Error refreshing balances:', error)
-                  }
-                }
-                setShowModal(true)
-              }}
+              onClick={handleOpenModal}
               className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
             >
               <Calendar size={20} />
@@ -987,8 +1092,8 @@ const LeaveManagement = () => {
         </div>
       </div>
 
-      {/* Toggle Buttons for Leave Applications and Leave Types - Admin and HR_ADMIN */}
-      {(isAdmin || isHrAdmin) && (
+      {/* Toggle Buttons for Leave Applications and Leave Types - Admin and HR_ADMIN (not Finance) */}
+      {(isAdmin || isHrAdmin) && !isFinance && (
         <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex items-center gap-4">
             <button
@@ -1017,8 +1122,8 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Filters and Actions - Only show for Leave Applications view */}
-      {activeView === 'applications' && (
+      {/* Filters and Actions - Only show for Leave Applications view (not for Finance) */}
+      {activeView === 'applications' && !isFinance && (
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
@@ -1068,7 +1173,7 @@ const LeaveManagement = () => {
                     return empId !== currentId && parseInt(empId) !== currentId && empId.toString() !== currentUserId
                   }
                   
-                  // For HR_ADMIN, only show MANAGER and FINANCE roles, exclude SUPER_ADMIN and HR_ADMIN
+                  // For HR_ADMIN, show MANAGER, FINANCE, and EMPLOYEE from assigned teams
                   if (isHrAdmin) {
                     // Exclude SUPER_ADMIN and HR_ADMIN roles
                     if (empRole === 'SUPER_ADMIN' || empRole === 'HR_ADMIN') {
@@ -1081,8 +1186,15 @@ const LeaveManagement = () => {
                         return false
                       }
                     }
-                    // Only include MANAGER and FINANCE roles
-                    return empRole === 'MANAGER' || empRole === 'FINANCE'
+                    // Only include MANAGER, FINANCE, and EMPLOYEE roles
+                    if (empRole !== 'MANAGER' && empRole !== 'FINANCE' && empRole !== 'EMPLOYEE') return false
+                    // Only show employees from assigned teams
+                    if (teamMemberIds.length > 0) {
+                      const employeeIdNum = empId ? parseInt(empId) : null
+                      return employeeIdNum && teamMemberIds.includes(employeeIdNum)
+                    }
+                    // If no teams assigned, show nothing
+                    return false
                   }
                   
                   return true
@@ -1104,33 +1216,13 @@ const LeaveManagement = () => {
               Add Leave Type
             </button>
           )}
-          {canApplyLeave && (
+          {/* Apply Leave button - Only for Employees, Managers, and Finance (not HR_ADMIN) */}
+          {canApplyLeave && !isHrAdmin && (
             <button
-              onClick={async () => {
-                resetForm()
-                // Refresh balances before opening modal to ensure they're up to date
-                if (currentUserId) {
-                  try {
-                    const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                    setLeaveBalances(Array.isArray(balances) ? balances : [])
-                    // If balances are empty or all 0, try to initialize
-                    const balancesArray = Array.isArray(balances) ? balances : []
-                    if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
-                      if (leaveTypes.length > 0) {
-                        await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                        const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
-                        setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Error refreshing balances:', error)
-                  }
-                }
-                setShowModal(true)
-              }}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+              onClick={handleOpenModal}
+              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
             >
-                <Calendar size={20} />
+              <Calendar size={20} />
               Apply Leave
             </button>
           )}
@@ -1147,8 +1239,8 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Leave Balances - Only visible to employees and HR_ADMIN (in Applications view) */}
-      {activeView === 'applications' && canApplyLeave && (() => {
+      {/* Leave Balances - Only visible to employees and Finance (not HR_ADMIN - they use My Attendance) */}
+      {activeView === 'applications' && (canApplyLeave || isFinance) && !isHrAdmin && (() => {
         // Remove duplicates by grouping by leaveTypeId (keep the one with highest totalDays or most recent)
         const uniqueBalances = leaveBalances.reduce((acc, balance) => {
           const typeId = balance.leaveTypeId
@@ -1365,6 +1457,7 @@ const LeaveManagement = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">S.No</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Employee</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Leave Type</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Dates</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Days</th>
@@ -1376,7 +1469,7 @@ const LeaveManagement = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredLeaves.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center">
+                  <td colSpan="9" className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center justify-center py-8">
                       <Search className="text-gray-400 mb-3" size={48} />
                       <p className="text-gray-500 font-medium mb-1">
@@ -1412,6 +1505,17 @@ const LeaveManagement = () => {
                       </div>
                       <span className="text-sm font-bold text-gray-900">{getEmployeeName(leave.employeeId)}</span>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      getEmployeeRole(leave.employeeId) === 'MANAGER' ? 'bg-blue-100 text-blue-800' :
+                      getEmployeeRole(leave.employeeId) === 'HR_ADMIN' ? 'bg-purple-100 text-purple-800' :
+                      getEmployeeRole(leave.employeeId) === 'FINANCE' ? 'bg-green-100 text-green-800' :
+                      getEmployeeRole(leave.employeeId) === 'SUPER_ADMIN' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {getEmployeeRole(leave.employeeId)}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900">{getLeaveTypeName(leave.leaveTypeId)}</span>
@@ -1564,8 +1668,8 @@ const LeaveManagement = () => {
       </div>
       )}
 
-      {/* Leave Types View - Admin and HR_ADMIN */}
-      {activeView === 'types' && (isAdmin || isHrAdmin) && (
+      {/* Leave Types View - Admin and HR_ADMIN (not Finance) */}
+      {activeView === 'types' && (isAdmin || isHrAdmin) && !isFinance && (
         <>
           {/* Filters and Actions for Leave Types */}
           <div className="bg-white rounded-lg shadow-md p-4">
