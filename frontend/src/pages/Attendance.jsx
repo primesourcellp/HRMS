@@ -40,6 +40,46 @@ const Attendance = () => {
   // Calendar view available for HR_ADMIN, SUPER_ADMIN, and MANAGER
   const canViewCalendar = isSuperAdmin || isHrAdmin || isManager
   const currentUserId = localStorage.getItem('userId')
+  const [teamMemberIds, setTeamMemberIds] = useState([])
+
+  // Load team member IDs for HR_ADMIN
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (isHrAdmin && currentUserId) {
+        try {
+          const allTeams = await api.getTeams()
+          // Find teams where HR_ADMIN is a member
+          const hrAdminTeams = allTeams.filter(team => {
+            if (!team.members || !Array.isArray(team.members)) return false
+            return team.members.some(member => 
+              member.employeeId === parseInt(currentUserId) || 
+              parseInt(member.employeeId) === parseInt(currentUserId)
+            )
+          })
+          
+          // Get all employee IDs from HR_ADMIN's teams
+          const memberIds = new Set()
+          hrAdminTeams.forEach(team => {
+            if (team.members && Array.isArray(team.members)) {
+              team.members.forEach(member => {
+                const empId = member.employeeId ? parseInt(member.employeeId) : null
+                if (empId && empId !== parseInt(currentUserId)) {
+                  memberIds.add(empId)
+                }
+              })
+            }
+          })
+          
+          setTeamMemberIds(Array.from(memberIds))
+        } catch (error) {
+          console.error('Error loading team members:', error)
+          setTeamMemberIds([])
+        }
+      }
+    }
+    
+    loadTeamMembers()
+  }, [isHrAdmin, currentUserId])
 
   useEffect(() => {
     // Don't load data if calendar view is active (it has its own loader)
@@ -57,13 +97,13 @@ const Attendance = () => {
     setIsEmployee(isEmp)
     setEmployeeId(empId)
     loadData(isEmp, empId)
-  }, [selectedDate, viewType])
+  }, [selectedDate, viewType, teamMemberIds])
 
   useEffect(() => {
     if (viewType === 'calendar' && canViewCalendar) {
       loadCalendarData()
     }
-  }, [selectedMonth, selectedYear, employeeNameFilter, viewType])
+  }, [selectedMonth, selectedYear, employeeNameFilter, viewType, teamMemberIds])
 
   const loadData = async (isEmp = null, empId = null) => {
     try {
@@ -105,9 +145,9 @@ const Attendance = () => {
       // Check if user is an employee role (not admin) - HR_ADMIN, MANAGER, FINANCE, EMPLOYEE should see their own attendance
       const isEmployeeUser = userIsEmployee || (!isAdmin && isEmployeeRole && userEmployeeId)
       
-      // Special handling for HR_ADMIN: show only MANAGER and EMPLOYEE attendance (not their own)
+      // Special handling for HR_ADMIN: show MANAGER, FINANCE, and EMPLOYEE from assigned teams
       if (isHrAdmin && userEmployeeId) {
-        // Load all MANAGER/EMPLOYEE attendance (excluding HR_ADMIN's own)
+        // Load all employees and attendance
         const [allEmpData, allAttData] = await Promise.all([
           api.getEmployees(),
           viewType === 'daily'
@@ -115,9 +155,10 @@ const Attendance = () => {
             : api.getAttendanceByDateRange(startDate, endDate)
         ])
         
-        // Filter to get all MANAGER and EMPLOYEE records (exclude HR_ADMIN's own record)
-        const managerAndEmployeeData = Array.isArray(allEmpData) ? allEmpData.filter(emp => {
+        // Filter to get MANAGER, FINANCE, and EMPLOYEE from HR_ADMIN's assigned teams
+        const teamEmployeeData = Array.isArray(allEmpData) ? allEmpData.filter(emp => {
           const empId = emp.id || emp.employeeId
+          const role = (emp.role || emp.designation || '').toUpperCase()
           const isHrAdminSelf = empId === userEmployeeId || 
                                parseInt(empId) === userEmployeeId || 
                                empId === userEmployeeId.toString() ||
@@ -125,24 +166,37 @@ const Attendance = () => {
           // Exclude HR_ADMIN's own record
           if (isHrAdminSelf) return false
           
-          const role = (emp.role || emp.designation || '').toUpperCase()
-          return role === 'MANAGER' || role === 'EMPLOYEE'
+          // Only include MANAGER, FINANCE, and EMPLOYEE roles
+          if (role !== 'MANAGER' && role !== 'FINANCE' && role !== 'EMPLOYEE') return false
+          
+          // Only show employees from assigned teams
+          if (teamMemberIds.length > 0) {
+            const employeeId = empId ? parseInt(empId) : null
+            return employeeId && teamMemberIds.includes(employeeId)
+          }
+          // If no teams assigned, show nothing
+          return false
         }) : []
         
-        // Set only MANAGER and EMPLOYEE records (no HR_ADMIN's own)
-        setEmployees(managerAndEmployeeData)
+        // Set only team member records
+        setEmployees(teamEmployeeData)
         
-        // Filter attendance to get only MANAGER and EMPLOYEE attendance (exclude HR_ADMIN's own)
-        const managerAndEmployeeIds = new Set(managerAndEmployeeData.map(emp => emp.id || emp.employeeId))
-        const managerAndEmployeeAttendance = Array.isArray(allAttData) ? allAttData.filter(att => 
-          managerAndEmployeeIds.has(att.employeeId) && att.employeeId !== userEmployeeId
-        ) : []
+        // Filter attendance to get only team members' attendance
+        // Use teamMemberIds directly to ensure we match all team members' attendance
+        const teamMemberIdsSet = new Set(teamMemberIds.map(id => parseInt(id)))
+        const teamAttendance = Array.isArray(allAttData) ? allAttData.filter(att => {
+          const attEmpId = att.employeeId ? parseInt(att.employeeId) : null
+          const userEmpId = userEmployeeId ? parseInt(userEmployeeId) : null
+          if (!attEmpId) return false
+          // Include attendance if employee is in team members list and not HR_ADMIN's own
+          return teamMemberIdsSet.has(attEmpId) && attEmpId !== userEmpId
+        }) : []
         
-        // Set only MANAGER and EMPLOYEE attendance (no HR_ADMIN's own)
-        setAllAttendance(managerAndEmployeeAttendance)
+        // Set only team members' attendance
+        setAllAttendance(teamAttendance)
         
         if (viewType === 'daily') {
-          const dateAttendance = managerAndEmployeeAttendance.filter(a => {
+          const dateAttendance = teamAttendance.filter(a => {
             let recordDate
             if (typeof a.date === 'string') {
               recordDate = a.date.split('T')[0]
@@ -157,7 +211,7 @@ const Attendance = () => {
           })
           setAttendance(dateAttendance)
         } else {
-          setAttendance(managerAndEmployeeAttendance)
+          setAttendance(teamAttendance)
         }
       } else if (isEmployeeUser && userEmployeeId) {
         // For other employees (EMPLOYEE, MANAGER, FINANCE), ONLY load their own data - real-time attendance for logged-in user only
@@ -300,6 +354,7 @@ const Attendance = () => {
         const hrAdminId = employeeId ? parseInt(employeeId) : null
         filteredEmpData = filteredEmpData.filter(emp => {
           const empId = emp.id || emp.employeeId
+          const role = (emp.role || emp.designation || '').toUpperCase()
           // Exclude HR_ADMIN's own record
           const isHrAdminSelf = empId === hrAdminId || 
                                parseInt(empId) === hrAdminId || 
@@ -307,8 +362,16 @@ const Attendance = () => {
                                parseInt(empId) === parseInt(hrAdminId)
           if (isHrAdminSelf) return false
           
-          const role = (emp.role || emp.designation || '').toUpperCase()
-          return role === 'MANAGER' || role === 'EMPLOYEE'
+          // Only include MANAGER, FINANCE, and EMPLOYEE roles
+          if (role !== 'MANAGER' && role !== 'FINANCE' && role !== 'EMPLOYEE') return false
+          
+          // Only show employees from assigned teams
+          if (teamMemberIds.length > 0) {
+            const employeeIdNum = empId ? parseInt(empId) : null
+            return employeeIdNum && teamMemberIds.includes(employeeIdNum)
+          }
+          // If no teams assigned, show nothing
+          return false
         })
       } else if (isManager) {
         // Manager sees only employees they manage (for now, show all EMPLOYEE role)
@@ -498,7 +561,7 @@ const Attendance = () => {
   }
 
   const filteredEmployees = employees.filter(emp => {
-    // Special handling for HR_ADMIN: show only MANAGER and EMPLOYEE records (exclude HR_ADMIN's own)
+    // Special handling for HR_ADMIN: show MANAGER, FINANCE, and EMPLOYEE from assigned teams
     if (isHrAdmin && employeeId) {
       const empId = emp.id || emp.employeeId
       const role = (emp.role || emp.designation || '').toUpperCase()
@@ -510,11 +573,15 @@ const Attendance = () => {
       if (isHrAdminSelf) {
         return false // Exclude HR_ADMIN's own record
       }
-      // Include only MANAGER/EMPLOYEE records
-      const isManagerOrEmployee = role === 'MANAGER' || role === 'EMPLOYEE'
-      if (!isManagerOrEmployee) {
-        return false // Exclude records that are not MANAGER/EMPLOYEE
+      // Only include MANAGER, FINANCE, and EMPLOYEE roles
+      if (role !== 'MANAGER' && role !== 'FINANCE' && role !== 'EMPLOYEE') return false
+      // Only show employees from assigned teams
+      if (teamMemberIds.length > 0) {
+        const employeeIdNum = empId ? parseInt(empId) : null
+        return employeeIdNum && teamMemberIds.includes(employeeIdNum)
       }
+      // If no teams assigned, show nothing
+      return false
     }
     // If logged in as other employee roles (EMPLOYEE, MANAGER, FINANCE), ONLY show their own record - strict filtering
     else if ((isEmployee || isEmployeeRole) && !isHrAdmin && employeeId) {
