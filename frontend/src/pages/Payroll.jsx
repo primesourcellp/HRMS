@@ -44,6 +44,7 @@ const Payroll = () => {
   const [openSalaryDropdownId, setOpenSalaryDropdownId] = useState(null)
   const [openPayrollDropdownId, setOpenPayrollDropdownId] = useState(null)
   const [openCtcTemplateDropdownId, setOpenCtcTemplateDropdownId] = useState(null)
+  const [dropdownPosition, setDropdownPosition] = useState({})
   const [processingBulk, setProcessingBulk] = useState(false)
   const [bulkProcessData, setBulkProcessData] = useState({
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -1293,7 +1294,7 @@ const Payroll = () => {
                       >
                         <option value="">Select Employee</option>
                         {employees
-                          .filter(emp => emp.role !== 'SUPER_ADMIN')
+                          .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
                           .map(emp => (
                             <option key={emp.id} value={emp.id}>
                               {emp.name || `Employee ${emp.id}`} {emp.employeeId ? `(${emp.employeeId})` : ''} {emp.client ? `- ${emp.client}` : ''}
@@ -2821,10 +2822,27 @@ const Payroll = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
-                          <div className="relative dropdown-menu-container">
+                          <div className="relative inline-block dropdown-menu-container">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
+                                const button = e.currentTarget
+                                const rect = button.getBoundingClientRect()
+                                const spaceBelow = window.innerHeight - rect.bottom
+                                const spaceAbove = rect.top
+                                const dropdownHeight = 120
+                                
+                                // Determine position: show below if enough space, otherwise above
+                                const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                
+                                setDropdownPosition(prev => ({
+                                  ...prev,
+                                  [`salary-${salary.id}`]: {
+                                    showAbove,
+                                    top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                    right: window.innerWidth - rect.right
+                                  }
+                                }))
                                 setOpenSalaryDropdownId(openSalaryDropdownId === salary.id ? null : salary.id)
                               }}
                               className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -2833,8 +2851,16 @@ const Payroll = () => {
                               <MoreVertical size={18} />
                             </button>
                             
-                            {openSalaryDropdownId === salary.id && (
-                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                            {openSalaryDropdownId === salary.id && dropdownPosition[`salary-${salary.id}`] && (
+                              <div 
+                                className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                                style={{ 
+                                  zIndex: 9999,
+                                  top: `${dropdownPosition[`salary-${salary.id}`].top}px`,
+                                  right: `${dropdownPosition[`salary-${salary.id}`].right}px`
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
@@ -3081,11 +3107,28 @@ const Payroll = () => {
                         </span>
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
-                        <div className="relative dropdown-menu-container flex items-center justify-end gap-2">
+                        <div className="relative inline-block dropdown-menu-container flex items-center justify-end gap-2">
                           {getStatusIcon(payroll.status || 'DRAFT')}
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              const button = e.currentTarget
+                              const rect = button.getBoundingClientRect()
+                              const spaceBelow = window.innerHeight - rect.bottom
+                              const spaceAbove = rect.top
+                              const dropdownHeight = 280
+                              
+                              // Determine position: show below if enough space, otherwise above
+                              const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                              
+                              setDropdownPosition(prev => ({
+                                ...prev,
+                                [`payroll-${payroll.id}`]: {
+                                  showAbove,
+                                  top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                  right: window.innerWidth - rect.right
+                                }
+                              }))
                               setOpenPayrollDropdownId(openPayrollDropdownId === payroll.id ? null : payroll.id)
                             }}
                             className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -3094,8 +3137,16 @@ const Payroll = () => {
                             <MoreVertical size={18} />
                           </button>
                           
-                          {openPayrollDropdownId === payroll.id && (
-                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                          {openPayrollDropdownId === payroll.id && dropdownPosition[`payroll-${payroll.id}`] && (
+                              <div 
+                                className="fixed w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
+                                style={{ 
+                                  zIndex: 9999,
+                                  top: `${dropdownPosition[`payroll-${payroll.id}`].top}px`,
+                                  right: `${dropdownPosition[`payroll-${payroll.id}`].right}px`
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
                               {/* View Payslip Button - Available for all users (ESS) */}
                               <button
                                 onClick={(e) => {
@@ -3118,9 +3169,9 @@ const Payroll = () => {
                               >
                                 <Download size={16} className="text-blue-600" />
                                 Download PDF
-                          </button>
-                          {isAdmin && (
-                            <>
+                              </button>
+                              {isAdmin && (
+                                <>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
@@ -3210,10 +3261,10 @@ const Payroll = () => {
                                       Mark as Paid
                                 </button>
                               )}
-                            </>
+                                </>
                               )}
-                            </div>
-                          )}
+                              </div>
+                            )}
                         </div>
                       </td>
                     </tr>
@@ -3260,7 +3311,7 @@ const Payroll = () => {
                 >
                   <option value="">Select Employee</option>
                       {employees
-                        .filter(emp => emp.role !== 'SUPER_ADMIN')
+                        .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
                         .map((emp) => {
                           const employeeName = emp.name || 'Unnamed Employee'
                     return (
@@ -3449,7 +3500,7 @@ const Payroll = () => {
                 >
                   <option value="">Select Employee</option>
                   {employees
-                    .filter(emp => emp.role !== 'SUPER_ADMIN')
+                    .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
                     .map((emp) => {
                       const employeeName = emp.name || 'Unnamed Employee'
                       return (
@@ -3689,10 +3740,27 @@ const Payroll = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right pr-8">
-                          <div className="relative dropdown-menu-container flex items-center justify-end">
+                          <div className="relative inline-block dropdown-menu-container flex items-center justify-end">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
+                                const button = e.currentTarget
+                                const rect = button.getBoundingClientRect()
+                                const spaceBelow = window.innerHeight - rect.bottom
+                                const spaceAbove = rect.top
+                                const dropdownHeight = 180
+                                
+                                // Determine position: show below if enough space, otherwise above
+                                const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                
+                                setDropdownPosition(prev => ({
+                                  ...prev,
+                                  [`ctc-${template.id}`]: {
+                                    showAbove,
+                                    top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                    right: window.innerWidth - rect.right
+                                  }
+                                }))
                                 setOpenCtcTemplateDropdownId(openCtcTemplateDropdownId === template.id ? null : template.id)
                               }}
                               className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -3701,8 +3769,16 @@ const Payroll = () => {
                               <MoreVertical size={18} />
                             </button>
                             
-                            {openCtcTemplateDropdownId === template.id && (
-                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                            {openCtcTemplateDropdownId === template.id && dropdownPosition[`ctc-${template.id}`] && (
+                              <div 
+                                className="fixed w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
+                                style={{ 
+                                  zIndex: 9999,
+                                  top: `${dropdownPosition[`ctc-${template.id}`].top}px`,
+                                  right: `${dropdownPosition[`ctc-${template.id}`].right}px`
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
@@ -3953,7 +4029,7 @@ const Payroll = () => {
                 >
                   <option value="">Select Employee</option>
                   {employees
-                    .filter(emp => emp.role !== 'SUPER_ADMIN')
+                    .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
                     .map(emp => {
                       const employeeName = emp.name || `Employee ${emp.id}`
                       return (

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon } from 'lucide-react'
+import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon, MoreVertical } from 'lucide-react'
 import api from '../services/api'
 import { format, differenceInDays, parseISO, isAfter, isBefore, startOfToday } from 'date-fns'
 
@@ -53,6 +53,8 @@ const LeaveManagement = () => {
   })
   const [rejectionReason, setRejectionReason] = useState('')
   const [validationError, setValidationError] = useState('')
+  const [openDropdownId, setOpenDropdownId] = useState(null)
+  const [dropdownPosition, setDropdownPosition] = useState({})
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
   const currentUserId = localStorage.getItem('userId')
@@ -65,8 +67,13 @@ const LeaveManagement = () => {
   const canApplyLeave = isEmployee || isManager || isFinance // HR_ADMIN removed - they apply leave from My Attendance page
 
   useEffect(() => {
+    // Validate that currentUserId exists for employees who can apply leave
+    if (canApplyLeave && !currentUserId) {
+      setError('Employee ID not found. Please log in again.')
+      return
+    }
     loadData()
-  }, [filter])
+  }, [filter, canApplyLeave, currentUserId])
 
   useEffect(() => {
     // Auto-set employeeId for employees, managers, and finance (HR_ADMIN applies leave from My Attendance page)
@@ -83,6 +90,21 @@ const LeaveManagement = () => {
       setCalculatedDays(0)
     }
   }, [formData.startDate, formData.endDate, formData.halfDay])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenDropdownId(null)
+      }
+    }
+    if (openDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openDropdownId])
 
   const loadData = async () => {
     try {
@@ -381,12 +403,70 @@ const LeaveManagement = () => {
         }
       }
       
-      const submitData = {
-        ...formData,
-        employeeId: canApplyLeave ? parseInt(currentUserId) : parseInt(formData.employeeId),
-        leaveTypeId: parseInt(formData.leaveTypeId),
-        type: leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))?.name || 'Leave'
+      // Prepare submit data with all required fields
+      const selectedLeaveType = leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))
+      
+      // Validate employeeId
+      let employeeIdValue
+      
+      // If user has a currentUserId and is not an admin, treat them as an employee
+      // This handles cases where userType might not be set correctly
+      const shouldUseOwnId = canApplyLeave || (currentUserId && !isAdmin && !isHrAdmin)
+      
+      // Debug logging
+      console.log('Validation check:', { 
+        canApplyLeave, 
+        currentUserId, 
+        userType, 
+        userRole, 
+        isAdmin,
+        isHrAdmin,
+        shouldUseOwnId,
+        formDataEmployeeId: formData.employeeId 
+      })
+      
+      if (shouldUseOwnId) {
+        // For employees, managers, and finance - use their own ID
+        if (!currentUserId) {
+          console.error('currentUserId is missing:', { currentUserId, userType, userRole })
+          throw new Error('Employee ID not found. Please log in again.')
+        }
+        employeeIdValue = parseInt(currentUserId)
+        if (isNaN(employeeIdValue) || employeeIdValue <= 0) {
+          console.error('Invalid currentUserId:', currentUserId)
+          throw new Error('Invalid employee ID. Please log in again.')
+        }
+      } else {
+        // For admins - they need to select an employee
+        if (!formData.employeeId) {
+          throw new Error('Please select an employee')
+        }
+        employeeIdValue = parseInt(formData.employeeId)
+        if (isNaN(employeeIdValue) || employeeIdValue <= 0) {
+          throw new Error('Invalid employee selected')
+        }
       }
+      
+      // Validate leaveTypeId
+      const leaveTypeIdValue = parseInt(formData.leaveTypeId)
+      if (isNaN(leaveTypeIdValue)) {
+        throw new Error('Please select a valid leave type')
+      }
+      
+      const submitData = {
+        employeeId: employeeIdValue,
+        leaveTypeId: leaveTypeIdValue,
+        type: selectedLeaveType?.name || 'Leave',
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        reason: formData.reason || '',
+        halfDay: formData.halfDay || false,
+        halfDayType: formData.halfDay ? (formData.halfDayType || 'FIRST_HALF') : null,
+        status: 'PENDING'
+      }
+
+      // Log the data being sent for debugging
+      console.log('Submitting leave data:', submitData)
 
       const response = await api.createLeave(submitData)
       
@@ -399,7 +479,20 @@ const LeaveManagement = () => {
       resetForm()
       alert('Leave application submitted successfully')
     } catch (error) {
-      setValidationError(error.message || 'Error submitting leave application')
+      // Ensure we always display a string, not an object
+      let errorMessage = 'Error submitting leave application'
+      if (error) {
+        if (typeof error === 'string') {
+          errorMessage = error
+        } else if (error.message) {
+          errorMessage = typeof error.message === 'string' ? error.message : String(error.message)
+        } else if (error.response?.data?.message) {
+          errorMessage = typeof error.response.data.message === 'string' ? error.response.data.message : String(error.response.data.message)
+        } else {
+          errorMessage = String(error)
+        }
+      }
+      setValidationError(errorMessage)
       console.error('Error submitting leave:', error)
     } finally {
       setLoading(false)
@@ -496,7 +589,20 @@ const LeaveManagement = () => {
       setShowEditModal(false)
       resetForm()
     } catch (error) {
-      setValidationError(error.message || 'Error updating leave application')
+      // Ensure we always display a string, not an object
+      let errorMessage = 'Error updating leave application'
+      if (error) {
+        if (typeof error === 'string') {
+          errorMessage = error
+        } else if (error.message) {
+          errorMessage = typeof error.message === 'string' ? error.message : String(error.message)
+        } else if (error.response?.data?.message) {
+          errorMessage = typeof error.response.data.message === 'string' ? error.response.data.message : String(error.response.data.message)
+        } else {
+          errorMessage = String(error)
+        }
+      }
+      setValidationError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -818,6 +924,46 @@ const LeaveManagement = () => {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
           <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
+      {/* Page Header with Apply Leave Button for Employees */}
+      {((isEmployee || userRole === 'EMPLOYEE') || isManager || isFinance) && (
+        <div className="bg-white rounded-lg shadow-md p-4 md:p-6 border-2 border-blue-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-1">My Leaves</h1>
+              <p className="text-sm text-gray-600">View and manage your leave applications</p>
+            </div>
+            <button
+              onClick={async () => {
+                resetForm()
+                // Refresh balances before opening modal to ensure they're up to date
+                if (currentUserId) {
+                  try {
+                    const balances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                    setLeaveBalances(Array.isArray(balances) ? balances : [])
+                    // If balances are empty or all 0, try to initialize
+                    const balancesArray = Array.isArray(balances) ? balances : []
+                    if (balancesArray.length === 0 || balancesArray.every(b => !b.totalDays || b.totalDays === 0)) {
+                      if (leaveTypes.length > 0) {
+                        await api.initializeLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                        const updatedBalances = await api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+                        setLeaveBalances(Array.isArray(updatedBalances) ? updatedBalances : [])
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error refreshing balances:', error)
+                  }
+                }
+                setShowModal(true)
+              }}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+            >
+              <Calendar size={20} />
+              Apply Leave
+            </button>
+          </div>
         </div>
       )}
 
@@ -1295,61 +1441,119 @@ const LeaveManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedLeave(leave)
-                          setShowDetailsModal(true)
-                        }}
-                        className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                        title="View Details"
-                      >
-                        <Eye size={18} />
-                      </button>
-                    {(isAdmin || isHrAdmin) && leave.status === 'PENDING' && (
-                        <>
+                      {leave.rejectionReason && (
+                        <div className="text-xs text-red-600" title={leave.rejectionReason}>
+                          <AlertCircle size={16} />
+                        </div>
+                      )}
+                      <div className="relative inline-block dropdown-menu-container">
                         <button
-                          onClick={() => {
-                            setSelectedLeave(leave)
-                            setShowApprovalModal(true)
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const button = e.currentTarget
+                            const rect = button.getBoundingClientRect()
+                            const spaceBelow = window.innerHeight - rect.bottom
+                            const spaceAbove = rect.top
+                            const dropdownHeight = 200
+                            
+                            // Determine position: show below if enough space, otherwise above
+                            const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                            
+                            setDropdownPosition(prev => ({
+                              ...prev,
+                              [leave.id]: {
+                                showAbove,
+                                top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                right: window.innerWidth - rect.right
+                              }
+                            }))
+                            setOpenDropdownId(openDropdownId === leave.id ? null : leave.id)
                           }}
-                            className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors"
-                            title="Review"
+                          className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                          title="Actions"
                         >
-                            <CheckCircle size={18} />
+                          <MoreVertical size={18} />
                         </button>
-                          <button
-                            onClick={() => openEditModal(leave)}
-                            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="Edit"
+                        
+                        {openDropdownId === leave.id && dropdownPosition[leave.id] && (
+                          <div 
+                            className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                            style={{ 
+                              zIndex: 9999,
+                              top: `${dropdownPosition[leave.id].top}px`,
+                              right: `${dropdownPosition[leave.id].right}px`
+                            }}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <Edit size={18} />
-                          </button>
-                        </>
-                      )}
-                      {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && 
-                       leave.status === 'PENDING' && (
-                        <button
-                          onClick={() => handleCancelLeave(leave.id)}
-                          className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-                          title="Cancel"
-                        >
-                          <X size={18} />
-                        </button>
-                      )}
-                      {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && leave.status !== 'APPROVED' && (
-                        <button
-                          onClick={() => handleDeleteLeave(leave.id)}
-                          className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                    )}
-                    {leave.rejectionReason && (
-                      <div className="text-xs text-red-600" title={leave.rejectionReason}>
-                        <AlertCircle size={16} />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedLeave(leave)
+                                setShowDetailsModal(true)
+                                setOpenDropdownId(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <Eye size={16} className="text-blue-600" />
+                              View Details
+                            </button>
+                            {(isAdmin || isHrAdmin) && leave.status === 'PENDING' && (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedLeave(leave)
+                                    setShowApprovalModal(true)
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <CheckCircle size={16} className="text-green-600" />
+                                  Review
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openEditModal(leave)
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <Edit size={16} className="text-blue-600" />
+                                  Edit
+                                </button>
+                              </>
+                            )}
+                            {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && 
+                             leave.status === 'PENDING' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCancelLeave(leave.id)
+                                  setOpenDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <X size={16} className="text-gray-600" />
+                                Cancel
+                              </button>
+                            )}
+                            {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && leave.status !== 'APPROVED' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteLeave(leave.id)
+                                  setOpenDropdownId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <Trash2 size={16} />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
                     </div>
                   </td>
                 </tr>
@@ -1462,20 +1666,70 @@ const LeaveManagement = () => {
                               />
                               <span className="text-xs text-gray-600">{type.active ? 'On' : 'Off'}</span>
                             </label>
-                            <button
-                              onClick={() => handleOpenLeaveTypeModal(type)}
-                              className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteLeaveType(type.id)}
-                              className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            <div className="relative inline-block dropdown-menu-container">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const button = e.currentTarget
+                                  const rect = button.getBoundingClientRect()
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const spaceAbove = rect.top
+                                  const dropdownHeight = 120
+                                  
+                                  // Determine position: show below if enough space, otherwise above
+                                  const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                  
+                                  setDropdownPosition(prev => ({
+                                    ...prev,
+                                    [`type-${type.id}`]: {
+                                      showAbove,
+                                      top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                      right: window.innerWidth - rect.right
+                                    }
+                                  }))
+                                  setOpenDropdownId(openDropdownId === `type-${type.id}` ? null : `type-${type.id}`)
+                                }}
+                                className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Actions"
+                              >
+                                <MoreVertical size={18} />
+                              </button>
+                              
+                              {openDropdownId === `type-${type.id}` && dropdownPosition[`type-${type.id}`] && (
+                                <div 
+                                  className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                                  style={{ 
+                                    zIndex: 9999,
+                                    top: `${dropdownPosition[`type-${type.id}`].top}px`,
+                                    right: `${dropdownPosition[`type-${type.id}`].right}px`
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenLeaveTypeModal(type)
+                                      setOpenDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  >
+                                    <Edit size={16} className="text-blue-600" />
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteLeaveType(type.id)
+                                      setOpenDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 size={16} />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -1509,7 +1763,9 @@ const LeaveManagement = () => {
             </div>
             {validationError && (
               <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-800 text-sm">{validationError}</p>
+                <p className="text-red-800 text-sm">
+                  {typeof validationError === 'string' ? validationError : String(validationError)}
+                </p>
               </div>
             )}
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -1758,7 +2014,9 @@ const LeaveManagement = () => {
             </div>
             {validationError && (
               <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-800 text-sm">{validationError}</p>
+                <p className="text-red-800 text-sm">
+                  {typeof validationError === 'string' ? validationError : String(validationError)}
+                </p>
               </div>
             )}
             <form onSubmit={handleEditSubmit} className="space-y-4">
