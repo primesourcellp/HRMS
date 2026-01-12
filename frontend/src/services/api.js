@@ -773,7 +773,63 @@ const api = {
       })
       if (!response.ok) {
         const body = await readResponseBody(response)
-        throw new Error(body?.message || body || `Failed to create leave (${response.status})`)
+        // Extract error message properly
+        let errorMessage = `Failed to create leave (${response.status})`
+        if (body) {
+          if (typeof body === 'string') {
+            errorMessage = body
+          } else if (body.message && body.message !== null && body.message !== 'null') {
+            // Check if message exists and is not null
+            errorMessage = typeof body.message === 'string' ? body.message : String(body.message)
+          } else if (body.error) {
+            errorMessage = typeof body.error === 'string' ? body.error : String(body.error)
+          } else if (body.errors) {
+            // Handle validation errors array
+            if (Array.isArray(body.errors)) {
+              errorMessage = body.errors.map(err => {
+                if (typeof err === 'string') return err
+                if (err.defaultMessage) return err.defaultMessage
+                if (err.message) return err.message
+                return JSON.stringify(err)
+              }).join(', ')
+            } else if (typeof body.errors === 'object') {
+              // Handle object with field errors
+              const errorParts = []
+              for (const key in body.errors) {
+                if (body.errors.hasOwnProperty(key)) {
+                  const value = body.errors[key]
+                  if (Array.isArray(value)) {
+                    errorParts.push(`${key}: ${value.join(', ')}`)
+                  } else if (typeof value === 'string') {
+                    errorParts.push(`${key}: ${value}`)
+                  }
+                }
+              }
+              errorMessage = errorParts.length > 0 ? errorParts.join('; ') : 'Validation failed'
+            }
+          } else if (Array.isArray(body)) {
+            errorMessage = body.map(err => typeof err === 'string' ? err : err.message || String(err)).join(', ')
+          } else if (typeof body === 'object' && body !== null) {
+            // Extract meaningful fields from the error object
+            const errorParts = []
+            for (const key in body) {
+              if (body.hasOwnProperty(key) && key !== 'success') {
+                const value = body[key]
+                if (value !== null && value !== undefined) {
+                  if (typeof value === 'string' && value !== 'null') {
+                    errorParts.push(`${key}: ${value}`)
+                  } else if (Array.isArray(value) && value.length > 0) {
+                    errorParts.push(`${key}: ${value.join(', ')}`)
+                  } else if (typeof value === 'object' && Object.keys(value).length > 0) {
+                    errorParts.push(`${key}: ${JSON.stringify(value)}`)
+                  }
+                }
+              }
+            }
+            errorMessage = errorParts.length > 0 ? errorParts.join('; ') : 'An error occurred while creating leave. Please check all required fields are filled correctly.'
+          }
+        }
+        throw new Error(errorMessage)
       }
       return await response.json()
     } catch (error) {

@@ -128,7 +128,8 @@ const [designations, setDesignations] = useState([])
 const [roles, setRoles] = useState([])
 const [employmentTypes, setEmploymentTypes] = useState([])
 const [openDropdownId, setOpenDropdownId] = useState(null)
-const userRole = localStorage.getItem('userRole')
+const [dropdownPosition, setDropdownPosition] = useState({})
+const userRole = localStorage.getItem('userRole') 
 const isHrAdmin = userRole === 'HR_ADMIN'
 const currentUserId = localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null 
 
@@ -1192,17 +1193,16 @@ return (
               <Eye size={28} className="text-blue-600" />
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <span>{selectedEmployee.name || 'N/A'}</span>
-                  <span className="text-lg font-normal text-gray-600">
-                    - {selectedEmployee.role === 'HR_ADMIN' ? 'HR Admin' 
+                  <span>Employee Details</span>
+          </div>
+                <span className="text-sm font-normal text-gray-500">
+                  {selectedEmployee.name || 'N/A'} - {selectedEmployee.role === 'HR_ADMIN' ? 'HR Admin' 
                       : selectedEmployee.role === 'MANAGER' ? 'Manager'
                       : selectedEmployee.role === 'FINANCE' ? 'Finance'
                       : selectedEmployee.role === 'EMPLOYEE' ? 'Employee'
                       : selectedEmployee.role === 'SUPER_ADMIN' ? 'Super Admin'
-                      : selectedEmployee.role || 'User'}
-                  </span>
-          </div>
-                <span className="text-sm font-normal text-gray-500">ID: {selectedEmployee.id || selectedEmployee.employeeId || 'N/A'}</span>
+                      : selectedEmployee.role || 'User'} (ID: {selectedEmployee.id || selectedEmployee.employeeId || 'N/A'})
+                </span>
 </div> 
             </h3>
 	<div className="flex items-center gap-2"> 
@@ -1227,222 +1227,156 @@ onClick={() => {
                 ×
 </button> 
 </div> 
-          </div>
-          <div className="space-y-5">
+</div> 
+          <div className="space-y-6">
 {/* Basic Information */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<div className="bg-gray-50 rounded-xl p-5 border border-gray-200"> 
 <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-<div> 
+		<div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Employee ID</label>
-<input 
-type="text" 
-                    value={selectedEmployee.employeeId || selectedEmployee.id || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
-</div> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.employeeId || selectedEmployee.id || 'N/A'}
+		</div> 
+	</div> 
 <div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
-<input 
-type="text" 
-                    value={selectedEmployee.name || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.name || 'N/A'}
+	</div> 
 </div> 
 <div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
-<input 
-type="text" 
-                    value={selectedEmployee.email || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.email || 'N/A'}
+                  </div>
 </div> 
 <div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-<input 
-                    type="password"
-                    value="••••••••"
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    ••••••••
+                  </div>
                   <p className="mt-1 text-xs text-gray-500">Password is hidden for security</p>
 </div>
 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
-<input 
-                    type="text"
-                    value={selectedEmployee.workPhoneNumber || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.workPhoneNumber || 'N/A'}
+                  </div>
 </div> 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Personal Mobile Number</label>
-                  <input
-                    type="text"
-                    value={selectedEmployee.personalMobileNumber || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.personalMobileNumber || 'N/A'}
+                  </div>
                 </div>
 </div> 
 </div> 
 {/* Work Information */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<div className="bg-gray-50 rounded-xl p-5 border border-gray-200"> 
 <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
-  <input
-    type="text"
-                    value={selectedEmployee.department || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.department || 'N/A'}
+                  </div>
 </div>
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label> 
-                  <input
-                    type="text"
-                    value={selectedEmployee.role || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.role || 'N/A'}
+                  </div>
 </div> 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type</label> 
-                  <input
-type="text" 
-                    value={selectedEmployee.employmentType || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.employmentType || 'N/A'}
+                  </div>
 </div> 
 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Client</label>
-  <input
-    type="text"
-                    value={selectedEmployee.client || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.client || 'N/A'}
+                  </div>
 </div>
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Status</label> 
-                  <input
-                    type="text"
-                    value={selectedEmployee.employeeStatus || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.employeeStatus || 'N/A'}
+                  </div>
 </div> 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Source of Hire</label> 
-                  <input
-type="text" 
-                    value={selectedEmployee.sourceOfHire || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.sourceOfHire || 'N/A'}
+                  </div>
 </div>
 <div>
 <label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
-<div className="relative">
-  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
-  <input 
-                      type="text"
-                      value={selectedEmployee.salary ? parseFloat(selectedEmployee.salary).toLocaleString() : 'N/A'}
-                      readOnly
-                      className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-  />
-</div>
+                  <div className="text-lg font-bold text-gray-900">
+                    {selectedEmployee.salary ? `₹${parseFloat(selectedEmployee.salary).toLocaleString()}` : 'N/A'}
+                  </div>
 </div> 
 <div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Offered Date</label>
-<input 
-                    type="text"
-                    value={selectedEmployee.dateOfJoining ? formatDate(selectedEmployee.dateOfJoining) : 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.dateOfJoining ? formatDate(selectedEmployee.dateOfJoining) : 'N/A'}
+                  </div>
 </div> 
 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
-  <input
-    type="text"
-                    value={selectedEmployee.location || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.location || 'N/A'}
+                  </div>
 </div>
 </div> 
 </div> 
 {/* Personal Details */} 
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<div className="bg-gray-50 rounded-xl p-5 border border-gray-200"> 
 <h4 className="text-xl font-bold text-gray-800 mb-4">Personal Details</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label> 
-<input 
-                    type="text"
-                    value={selectedEmployee.dateOfBirth ? formatDate(selectedEmployee.dateOfBirth) : 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.dateOfBirth ? formatDate(selectedEmployee.dateOfBirth) : 'N/A'}
+                  </div>
 </div> 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label> 
-<input 
-type="text" 
-                    value={selectedEmployee.dateOfBirth ? calculateAge(selectedEmployee.dateOfBirth) || 'N/A' : 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.dateOfBirth ? calculateAge(selectedEmployee.dateOfBirth) || 'N/A' : 'N/A'}
+                  </div>
 </div> 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label> 
-                  <input
-                    type="text"
-                    value={selectedEmployee.gender || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.gender || 'N/A'}
+                  </div>
 </div> 
 <div> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">Marital Status</label> 
-                  <input
-                    type="text"
-                    value={selectedEmployee.maritalStatus || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.maritalStatus || 'N/A'}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Source of Hire</label>
-                  <input
-                    type="text"
-                    value={selectedEmployee.sourceOfHire || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-                  />
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.sourceOfHire || 'N/A'}
+                  </div>
 </div> 
 <div className="col-span-2"> 
 <label className="block text-sm font-semibold text-gray-700 mb-2">About Me</label> 
-<textarea 
-                    value={selectedEmployee.aboutMe || 'N/A'}
-                    readOnly
-rows="3" 
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-></textarea> 
+                  <div className="text-base text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
+                    {selectedEmployee.aboutMe || 'N/A'}
+                  </div>
 </div> 
 </div> 
 </div> 
             {/* Work Experience */}
             {selectedEmployee.workExperiences && selectedEmployee.workExperiences.length > 0 && (
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<div className="bg-gray-50 rounded-xl p-5 border border-gray-200"> 
                 <h4 className="text-xl font-bold text-gray-800 mb-4">Work Experience</h4>
                 <div className="space-y-4">
                   {selectedEmployee.workExperiences.map((exp, index) => (
@@ -1469,7 +1403,7 @@ rows="3"
             )}
             {/* Education Details */}
             {selectedEmployee.educationDetails && selectedEmployee.educationDetails.length > 0 && (
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<div className="bg-gray-50 rounded-xl p-5 border border-gray-200"> 
                 <h4 className="text-xl font-bold text-gray-800 mb-4">Education Details</h4>
                 <div className="space-y-4">
                   {selectedEmployee.educationDetails.map((edu, index) => (
@@ -1486,7 +1420,7 @@ rows="3"
             )}
             {/* Dependent Details */}
             {selectedEmployee.dependentDetails && selectedEmployee.dependentDetails.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                 <h4 className="text-xl font-bold text-gray-800 mb-4">Dependent Details</h4>
                 <div className="space-y-4">
                   {selectedEmployee.dependentDetails.map((dep, index) => (
@@ -1504,50 +1438,38 @@ rows="3"
               </div>
             )}
             {/* Additional Information */}
-            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
               <h4 className="text-xl font-bold text-gray-800 mb-4">Additional Information</h4>
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">PAN Card Number</label>
-<input 
-type="text" 
-                    value={selectedEmployee.pan || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.pan || 'N/A'}
+                  </div>
 </div> 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Aadhaar Card Number</label>
-<input 
-type="text" 
-                    value={selectedEmployee.aadhaar || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.aadhaar || 'N/A'}
+                  </div>
 </div> 
 <div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">UAN Number</label>
-<input 
-type="text" 
-                    value={selectedEmployee.uan || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.uan || 'N/A'}
+                  </div>
 </div> 
 <div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Bank Account Number</label>
-<input 
-type="text" 
-                    value={selectedEmployee.bankAccountNumber || 'N/A'}
-                    readOnly
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50"
-/> 
+                  <div className="text-base text-gray-900 font-medium">
+                    {selectedEmployee.bankAccountNumber || 'N/A'}
+                  </div>
 </div> 
               </div>
             </div>
             {/* Address Information */}
             {(selectedEmployee.presentAddressLine1 || selectedEmployee.permanentAddressLine1) && (
-              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                 <h4 className="text-xl font-bold text-gray-800 mb-4">Address Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedEmployee.presentAddressLine1 && (
@@ -1586,7 +1508,7 @@ type="text"
               </div>
             )}
             {/* Documents Section */}
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<div className="bg-gray-50 rounded-xl p-5 border border-gray-200"> 
               <h4 className="text-xl font-bold text-gray-800 mb-4">Documents</h4>
               {documents[selectedEmployee.id] && documents[selectedEmployee.id].length > 0 ? (
                 <div className="space-y-3">
@@ -1604,32 +1526,32 @@ type="text"
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
+<div className="flex items-center gap-2"> 
+	<button 
                           onClick={(e) => handleViewDocument(doc.id, doc.fileName, e)}
                           className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                           title="View Document"
                         >
                           <Eye size={18} />
-                        </button>
-                        <button
+	</button> 
+	<button 
                           onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Download Document"
                         >
                           <Download size={18} />
-                        </button>
-                      </div>
+	</button> 
+</div> 
                     </div>
-                  ))}
-                </div>
+))} 
+</div>
               ) : (
                 <p className="text-center text-gray-500 py-4">No documents uploaded</p>
               )}
             </div>
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-              <button
+<button 
                 onClick={() => {
                   setShowViewModal(false)
                   setSelectedEmployee(null)
@@ -1637,10 +1559,10 @@ type="text"
                 className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold shadow-md hover:shadow-lg transition-all"
               >
                 Close
-              </button>
-            </div>
-          </div>
-        </div>
+</button> 
+</div> 
+</div> 
+</div> 
       </div>
     </div>
     </>
@@ -1668,81 +1590,81 @@ if ((isNewEmployeePage && showModal) || (showModal && editingEmployee) || (showM
                   Add New User
                 </>
               )}
-            </h3>
-            <button
-              onClick={() => {
-                setShowModal(false)
+</h3> 
+<button 
+onClick={() => { 
+setShowModal(false) 
                 if (isNewEmployeePage) {
                   navigate('/employees')
                 }
-                setEditingEmployee(null)
-                setFormData({
-                  employeeId: '',
+setEditingEmployee(null) 
+setFormData({ 
+employeeId: '', 
                   name: '',
-                  client: '',
-                  email: '',
-                  password: '',
-                  role: '',
-                  department: '',
-                  location: '',
-                  employmentType: '',
-                  employeeStatus: 'Active',
-                  sourceOfHire: '',
-                  dateOfJoining: '',
-                  dateOfBirth: '',
-                  age: '',
-                  gender: '',
-                  maritalStatus: '',
-                  aboutMe: '',
-                  expertise: '',
-                  pan: '',
-                  aadhaar: '',
-                  workPhoneNumber: '',
-                  personalMobileNumber: '',
-                  extension: '',
-                  personalEmailAddress: '',
-                  seatingLocation: '',
-                  tags: '',
-                  presentAddressLine1: '',
-                  presentAddressLine2: '',
-                  presentCity: '',
-                  presentCountry: '',
-                  presentState: '',
-                  presentPostalCode: '',
-                  sameAsPresentAddress: false,
+client: '', 
+email: '', 
+password: '', 
+role: '', 
+department: '', 
+location: '', 
+employmentType: '', 
+employeeStatus: 'Active', 
+sourceOfHire: '', 
+dateOfJoining: '', 
+dateOfBirth: '', 
+age: '', 
+gender: '', 
+maritalStatus: '', 
+aboutMe: '', 
+expertise: '', 
+pan: '', 
+aadhaar: '', 
+workPhoneNumber: '', 
+personalMobileNumber: '', 
+extension: '', 
+personalEmailAddress: '', 
+seatingLocation: '', 
+tags: '', 
+presentAddressLine1: '', 
+presentAddressLine2: '', 
+presentCity: '', 
+presentCountry: '', 
+presentState: '', 
+presentPostalCode: '', 
+sameAsPresentAddress: false, 
 permanentAddressLine1: '', 
 permanentAddressLine2: '', 
 permanentCity: '', 
 permanentCountry: '', 
 permanentState: '', 
 permanentPostalCode: '', 
-                  dateOfExit: '',
+dateOfExit: '', 
                   salary: '',
-                })
+}) 
                 setWorkExperiences([])
                 setEducationDetails([])
-              }}
+}} 
               className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
-            >
+> 
               ×
-            </button>
+</button> 
 </div> 
           {/* Form content - simplified to match Users.jsx structure */}
           <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
-            {/* Basic Information */}
-            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-              <h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4>
+{/* Basic Information */} 
+<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<h4 className="text-xl font-bold text-gray-800 mb-4">Basic Information</h4> 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
-                <div>
+<div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Employee ID</label>
 <input 
 type="text" 
-                    value={formData.employeeId}
-                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+value={formData.employeeId} 
+onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })} 
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50" 
 /> 
 </div> 
-                <div>
+<div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
 <input 
 type="text" 
@@ -1750,14 +1672,14 @@ type="text"
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter Full Name"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                    required
+required 
 /> 
 </div> 
 <div> 
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
+<label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label> 
                   {!editingEmployee && (
 <input 
-                      type="email"
+type="email" 
                       name="fake-email"
                       autoComplete="off"
                       tabIndex={-1}
@@ -1771,22 +1693,22 @@ type="text"
                     id={`employee-email-full-${editingEmployee ? editingEmployee.id : 'new'}`}
                     key={`email-full-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
                     value={formData.email || ''}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Enter Email Address"
+onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+placeholder="Enter Email Address"
 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                     autoComplete="off"
                     data-lpignore="true"
                     data-form-type="other"
-                    required
+required 
 /> 
-</div> 
-<div> 
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {editingEmployee ? 'New Password (leave blank to keep current)' : 'Password *'}
-                  </label>
+</div>
+<div>
+<label className="block text-sm font-semibold text-gray-700 mb-2">
+  {editingEmployee ? 'New Password (leave blank to keep current)' : 'Password *'}
+</label>
                   {!editingEmployee && (
 <input 
-                      type="password"
+  type="password" 
                       name="fake-password"
                       autoComplete="off"
                       tabIndex={-1}
@@ -1799,44 +1721,44 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
                     name={`employee-password-full-${editingEmployee ? editingEmployee.id : 'new'}`}
                     id={`employee-password-full-${editingEmployee ? editingEmployee.id : 'new'}`}
                     key={`password-full-${showModal}-${editingEmployee ? editingEmployee.id : 'new'}`}
-                    value={formData.password || ''}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder={editingEmployee ? 'Enter new password (optional)' : 'Enter password'}
-className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+  value={formData.password || ''}
+  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+  placeholder={editingEmployee ? 'Enter new password (optional)' : 'Enter password'}
+  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     autoComplete="new-password"
                     data-lpignore="true"
                     data-form-type="other"
-                    required={!editingEmployee}
-/> 
-                  {editingEmployee && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Only enter a new password if you want to change it
-                    </p>
-                  )}
+  required={!editingEmployee}
+/>
+{editingEmployee && (
+  <p className="mt-1 text-xs text-gray-500">
+    Only enter a new password if you want to change it
+  </p>
+)}
 </div> 
 </div> 
 </div> 
-            {/* Work Information */}
-<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-              <h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
+{/* Work Information */} 
+<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<h4 className="text-xl font-bold text-gray-800 mb-4">Work Information</h4> 
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
+<div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Department *</label>
-        <input
-          type="text"
-                    value={formData.department}
+  <input
+    type="text"
+    value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    placeholder="Enter Department"
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-        />
-      </div>
-      <div>
+    placeholder="Enter Department"
+    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    required
+  />
+</div>
+<div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+<select 
+value={formData.role} 
+onChange={(e) => setFormData({ ...formData, role: e.target.value })} 
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                     required
                   >
                     <option value="">Select Role</option>
@@ -1847,16 +1769,16 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
                     ) : (
                       <option value="EMPLOYEE">EMPLOYEE</option>
                     )}
-                  </select>
-      </div>
-      <div>
+</select> 
+</div> 
+<div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type *</label>
-                  <select
-                    value={formData.employmentType}
-                    onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  >
+<select 
+value={formData.employmentType} 
+onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })} 
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+required 
+>
                     <option value="">Select Employment Type</option>
                     {employmentTypes.length > 0 ? (
                       employmentTypes.map((type) => (
@@ -1871,79 +1793,91 @@ className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 f
                         <option value="Intern">Intern</option>
                       </>
                     )}
-                  </select>
-      </div>
-      <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
-        <input
+</select> 
+</div> 
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">Client *</label>
+  <input
                     list="client-list-full"
-                    type="text"
-                    value={formData.client}
+    type="text"
+    value={formData.client}
                     onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                    placeholder="Enter client name"
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
+    placeholder="Enter client name"
+    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    required
+  />
                   <datalist id="client-list-full">
-                    {clients.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
+    {clients.map((c) => (
+      <option key={c} value={c} />
+    ))}
+  </datalist>
 </div>
-      <div>
+<div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label>
         <input
           type="text"
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     placeholder="Enter location"
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                     required
         />
-      </div>
-      <div>
+</div> 
+<div> 
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Offered Date *</label>
         <input
                     type="date"
                     value={formData.dateOfJoining}
                     onChange={(e) => setFormData({ ...formData, dateOfJoining: e.target.value })}
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                     required
         />
-      </div>
-      <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
-        <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.salary || ''}
-                      onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                      className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="0.00"
-        />
-      </div>
+</div>
+<div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Status *</label>
+                  <select
+                    value={formData.employeeStatus || 'Active'}
+                    onChange={(e) => setFormData({ ...formData, employeeStatus: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    required
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
                 </div>
-              </div>
-            </div>
-            {/* Contact Details */}
-            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-              <h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label>
-        <input
-                    type="tel"
-                    value={formData.workPhoneNumber}
-                    onChange={(e) => setFormData({ ...formData, workPhoneNumber: e.target.value })}
-                    placeholder="Enter Phone Number"
-          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-    </div>
-  </div>
+<div>
+<label className="block text-sm font-semibold text-gray-700 mb-2">Salary</label>
+<div className="relative">
+  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+  <input 
+    type="number" 
+    min="0"
+    step="0.01"
+    value={formData.salary || ''}
+    onChange={(e) => setFormData({ ...formData, salary: e.target.value })} 
+    className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    placeholder="0.00"
+  />
+</div>
+</div> 
+</div> 
+</div>
+{/* Contact Details */} 
+<div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200"> 
+<h4 className="text-xl font-bold text-gray-800 mb-4">Contact Details</h4> 
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
+<div> 
+<label className="block text-sm font-semibold text-gray-700 mb-2">Work Phone Number</label> 
+<input 
+type="tel" 
+value={formData.workPhoneNumber} 
+onChange={(e) => setFormData({ ...formData, workPhoneNumber: e.target.value })} 
+placeholder="Enter Phone Number"
+className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+/> 
+</div> 
+</div> 
+</div> 
 <div className="flex gap-3 justify-end pt-4 border-t border-gray-200"> 
 <button 
 type="button" 
@@ -2150,10 +2084,27 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 	</span> 
 </td> 
 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium"> 
-<div className="relative dropdown-menu-container"> 
+<div className="relative inline-block dropdown-menu-container"> 
 	<button 
 		onClick={(e) => {
 			e.stopPropagation()
+			const button = e.currentTarget
+			const rect = button.getBoundingClientRect()
+			const spaceBelow = window.innerHeight - rect.bottom
+			const spaceAbove = rect.top
+			const dropdownHeight = 220
+			
+			// Determine position: show below if enough space, otherwise above
+			const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+			
+			setDropdownPosition(prev => ({
+				...prev,
+				[employee.id]: {
+					showAbove,
+					top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+					right: window.innerWidth - rect.right
+				}
+			}))
 			setOpenDropdownId(openDropdownId === employee.id ? null : employee.id)
 		}}
 		className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors" 
@@ -2162,8 +2113,16 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 		<MoreVertical size={18} /> 
 	</button> 
 	
-	{openDropdownId === employee.id && (
-		<div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+	{openDropdownId === employee.id && dropdownPosition[employee.id] && (
+		<div 
+			className="fixed w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
+			style={{ 
+				zIndex: 9999,
+				top: `${dropdownPosition[employee.id].top}px`,
+				right: `${dropdownPosition[employee.id].right}px`
+			}}
+			onClick={(e) => e.stopPropagation()}
+		>
 			<button
 				onClick={(e) => {
 					e.stopPropagation()
@@ -2196,7 +2155,7 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 				className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 			>
 				<FileText size={16} className="text-blue-600" />
-				View Documents
+				Add Documents
 			</button>
 			<button
 				onClick={(e) => {
@@ -2209,10 +2168,10 @@ className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring
 				<Trash2 size={16} />
 				Delete
 			</button>
-</div> 
-)} 
-</div> 
-</td> 
+		</div>
+	)}
+</div>
+</td>
 </tr> 
 ))} 
 </tbody> 

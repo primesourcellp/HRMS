@@ -1,5 +1,5 @@
 import { useHRMS } from '../context/HRMSContext'
-import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon, Ticket, AlertCircle } from 'lucide-react'
+import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, LogOut, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon, Ticket, AlertCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { useState, useEffect, useRef } from 'react'
@@ -20,6 +20,9 @@ const Dashboard = () => {
   const [checkInLoading, setCheckInLoading] = useState(false)
   const [checkInMessage, setCheckInMessage] = useState(null)
   const [checkInError, setCheckInError] = useState(null)
+  const [checkOutLoading, setCheckOutLoading] = useState(false)
+  const [checkOutMessage, setCheckOutMessage] = useState(null)
+  const [checkOutError, setCheckOutError] = useState(null)
   const [tickets, setTickets] = useState([])
   const [loadingTickets, setLoadingTickets] = useState(false)
   const [widgetVisibility, setWidgetVisibility] = useState(() => {
@@ -247,6 +250,42 @@ const Dashboard = () => {
       setTimeout(() => setCheckInError(null), 5000)
     } finally {
       setCheckInLoading(false)
+    }
+  }
+
+  const handleCheckOut = async () => {
+    if (!employeeId) return
+    
+    setCheckOutLoading(true)
+    setCheckOutError(null)
+    setCheckOutMessage(null)
+    
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5)
+      
+      const checkOutData = {
+        employeeId,
+        date: today,
+        checkOutTime: currentTime
+      }
+      
+      const response = await api.checkOut(checkOutData)
+      if (response.success === false) {
+        throw new Error(response.message || 'Check-out failed')
+      }
+      
+      setCheckOutMessage('Check-out successful!')
+      setTimeout(() => setCheckOutMessage(null), 3000)
+      
+      // Reload dashboard stats and today's attendance
+      await loadDashboardStats(employeeId)
+      await loadTodayAttendance(employeeId)
+    } catch (error) {
+      setCheckOutError(error.message || 'Error checking out')
+      setTimeout(() => setCheckOutError(null), 5000)
+    } finally {
+      setCheckOutLoading(false)
     }
   }
 
@@ -523,6 +562,9 @@ const Dashboard = () => {
 
   // Check if employee can check in
   const canCheckIn = isEmployee && employeeId && (!todayAttendance || !todayAttendance.checkIn)
+  
+  // Check if employee can check out
+  const canCheckOut = isEmployee && employeeId && todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
 
   // Executive Dashboard KPIs
   const executiveKPIs = executiveData ? [
@@ -573,6 +615,18 @@ const Dashboard = () => {
         <div className="p-3 sm:p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-2">
           <X className="w-5 h-5" />
           {checkInError}
+        </div>
+      )}
+      {checkOutMessage && (
+        <div className="p-3 sm:p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          {checkOutMessage}
+        </div>
+      )}
+      {checkOutError && (
+        <div className="p-3 sm:p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-2">
+          <X className="w-5 h-5" />
+          {checkOutError}
         </div>
       )}
 
@@ -1065,17 +1119,29 @@ const Dashboard = () => {
         })}
       </div>
 
-      {/* Check In Button - Only for employees who can check in */}
-      {canCheckIn && (
-        <div className="flex justify-start">
-          <button
-            onClick={handleCheckIn}
-            disabled={checkInLoading}
-            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl hover:bg-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-green-500 hover:border-green-600"
-          >
-            <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
-            {checkInLoading ? 'Checking In...' : 'Check In'}
-          </button>
+      {/* Check In/Out Buttons - Only for employees */}
+      {(canCheckIn || canCheckOut) && (
+        <div className="flex flex-wrap justify-start gap-3">
+          {canCheckIn && (
+            <button
+              onClick={handleCheckIn}
+              disabled={checkInLoading}
+              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl hover:bg-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-green-500 hover:border-green-600"
+            >
+              <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
+              {checkInLoading ? 'Checking In...' : 'Check In'}
+            </button>
+          )}
+          {canCheckOut && (
+            <button
+              onClick={handleCheckOut}
+              disabled={checkOutLoading}
+              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg sm:rounded-xl hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-blue-500 hover:border-blue-600"
+            >
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+              {checkOutLoading ? 'Checking Out...' : 'Check Out'}
+            </button>
+          )}
         </div>
       )}
 

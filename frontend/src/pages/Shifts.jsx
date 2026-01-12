@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, Plus, Edit, Trash2, Users, Search, Filter, Grid, List, X, Check, UserPlus, UserMinus, Eye, Calendar, Timer, Pencil, Send, ArrowLeftRight, FileText } from 'lucide-react'
+import { Clock, Plus, Edit, Trash2, Users, Search, Filter, Grid, List, X, Check, UserPlus, UserMinus, Eye, Calendar, Timer, Pencil, Send, ArrowLeftRight, FileText, MoreVertical, CheckCircle, XCircle } from 'lucide-react'
 import api from '../services/api'
 
 const Shifts = () => {
@@ -51,6 +51,8 @@ const Shifts = () => {
   const [activeView, setActiveView] = useState('shifts') // 'shifts', 'requests', or 'assignments'
   const [allAssignments, setAllAssignments] = useState([])
   const [loadingAssignments, setLoadingAssignments] = useState(false)
+  const [openDropdownId, setOpenDropdownId] = useState(null)
+  const [dropdownPosition, setDropdownPosition] = useState({})
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
@@ -75,6 +77,21 @@ const Shifts = () => {
       loadAllAssignments()
     }
   }, [activeView, isEmployee, shifts])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenDropdownId(null)
+      }
+    }
+    if (openDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openDropdownId])
 
   const loadEmployeeShift = async () => {
     try {
@@ -985,41 +1002,59 @@ const Shifts = () => {
   // Admin View - Full shift management
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
+      {/* Page Header */}
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6 border-2 border-blue-200">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-1">Shift Management</h1>
+        <p className="text-sm text-gray-600">Manage work shifts, assignments, and shift change requests</p>
+      </div>
+
       {/* Success/Error Messages */}
       {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative">
           <span className="block sm:inline">{successMessage}</span>
         </div>
       )}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative">
           <span className="block sm:inline">{error}</span>
         </div>
       )}
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Total Shifts</div>
-          <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow p-6 border-2 border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-gray-600">Total Shifts</div>
+            <Clock className="text-blue-600" size={20} />
+          </div>
+          <div className="text-3xl font-bold text-gray-800">{stats.total}</div>
         </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Active Shifts</div>
-          <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow p-6 border-2 border-green-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-gray-600">Active Shifts</div>
+            <CheckCircle className="text-green-600" size={20} />
+          </div>
+          <div className="text-3xl font-bold text-green-600">{stats.active}</div>
         </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Inactive Shifts</div>
-          <div className="text-2xl font-bold text-gray-600">{stats.inactive}</div>
+        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow p-6 border-2 border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-gray-600">Inactive Shifts</div>
+            <XCircle className="text-gray-600" size={20} />
+          </div>
+          <div className="text-3xl font-bold text-gray-600">{stats.inactive}</div>
         </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Total Employees</div>
-          <div className="text-2xl font-bold text-blue-600">{stats.totalEmployees}</div>
+        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow p-6 border-2 border-blue-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-gray-600">Total Employees</div>
+            <Users className="text-blue-600" size={20} />
+          </div>
+          <div className="text-3xl font-bold text-blue-600">{stats.totalEmployees}</div>
         </div>
       </div>
 
       {/* Toggle Buttons for Shifts, Assignments, and Requests */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="flex items-center gap-4">
+      <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-200">
+        <div className="flex flex-wrap items-center gap-4">
           <button
             onClick={() => setActiveView('shifts')}
             className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
@@ -1058,22 +1093,23 @@ const Shifts = () => {
 
       {/* Filters and View Toggle - Only show for Shifts view */}
       {activeView === 'shifts' && (
-        <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-200">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
               <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
                   placeholder="Search shifts..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -1082,7 +1118,7 @@ const Shifts = () => {
               {isAdmin && (
                 <button
                   onClick={() => openModal()}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                  className="bg-blue-600 text-white px-6 py-2.5 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
                 >
                   <Plus size={20} />
                   Add Shift
@@ -1092,8 +1128,8 @@ const Shifts = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                className={`p-2.5 rounded-xl transition-all ${
+                  viewMode === 'grid' ? 'bg-blue-100 text-blue-600 shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
                 title="Grid View"
               >
@@ -1101,8 +1137,8 @@ const Shifts = () => {
               </button>
               <button
                 onClick={() => setViewMode('table')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                className={`p-2.5 rounded-xl transition-all ${
+                  viewMode === 'table' ? 'bg-blue-100 text-blue-600 shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
                 title="Table View"
               >
@@ -1131,7 +1167,7 @@ const Shifts = () => {
             </div>
           ) : (
             filteredShifts.map((shift) => (
-              <div key={shift.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+              <div key={shift.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 border-2 border-gray-100">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
@@ -1175,23 +1211,74 @@ const Shifts = () => {
                 <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => openEmployeeModal(shift)}
-                    className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 text-sm"
+                    className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-100 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
                   >
                     <Users size={16} />
                     Employees
                   </button>
-                  <button
-                    onClick={() => openModal(shift)}
-                    className="bg-gray-50 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2 text-sm"
-                  >
-                    <Edit size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(shift.id)}
-                    className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 flex items-center justify-center gap-2 text-sm"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="relative inline-block dropdown-menu-container">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const button = e.currentTarget
+                        const rect = button.getBoundingClientRect()
+                        const spaceBelow = window.innerHeight - rect.bottom
+                        const spaceAbove = rect.top
+                        const dropdownHeight = 120
+                        
+                        const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                        
+                        setDropdownPosition(prev => ({
+                          ...prev,
+                          [`shift-${shift.id}`]: {
+                            showAbove,
+                            top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                            right: window.innerWidth - rect.right
+                          }
+                        }))
+                        setOpenDropdownId(openDropdownId === `shift-${shift.id}` ? null : `shift-${shift.id}`)
+                      }}
+                      className="bg-gray-50 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 flex items-center justify-center gap-2 text-sm transition-colors"
+                      title="Actions"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    
+                    {openDropdownId === `shift-${shift.id}` && dropdownPosition[`shift-${shift.id}`] && (
+                      <div 
+                        className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                        style={{ 
+                          zIndex: 9999,
+                          top: `${dropdownPosition[`shift-${shift.id}`].top}px`,
+                          right: `${dropdownPosition[`shift-${shift.id}`].right}px`
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openModal(shift)
+                            setOpenDropdownId(null)
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          <Edit size={16} className="text-blue-600" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(shift.id)
+                            setOpenDropdownId(null)
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        >
+                          <Trash2 size={16} />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -1201,10 +1288,10 @@ const Shifts = () => {
 
       {/* Table View - Only show when activeView is 'shifts' */}
       {activeView === 'shifts' && viewMode === 'table' && !loading && (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden border-2 border-gray-200">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-blue-600">
+              <thead className="bg-gradient-to-r from-blue-600 to-blue-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Shift Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Time</th>
@@ -1255,29 +1342,78 @@ const Shifts = () => {
                           {shift.active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center gap-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openEmployeeModal(shift)}
-                            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50"
+                            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
                             title="View Employees"
                           >
                             <Users size={18} />
                           </button>
-                          <button
-                            onClick={() => openModal(shift)}
-                            className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-50"
-                            title="Edit"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(shift.id)}
-                            className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50"
-                            title="Delete"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          <div className="relative inline-block dropdown-menu-container">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const button = e.currentTarget
+                                const rect = button.getBoundingClientRect()
+                                const spaceBelow = window.innerHeight - rect.bottom
+                                const spaceAbove = rect.top
+                                const dropdownHeight = 120
+                                
+                                const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                
+                                setDropdownPosition(prev => ({
+                                  ...prev,
+                                  [`shift-table-${shift.id}`]: {
+                                    showAbove,
+                                    top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                    right: window.innerWidth - rect.right
+                                  }
+                                }))
+                                setOpenDropdownId(openDropdownId === `shift-table-${shift.id}` ? null : `shift-table-${shift.id}`)
+                              }}
+                              className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                              title="Actions"
+                            >
+                              <MoreVertical size={18} />
+                            </button>
+                            
+                            {openDropdownId === `shift-table-${shift.id}` && dropdownPosition[`shift-table-${shift.id}`] && (
+                              <div 
+                                className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                                style={{ 
+                                  zIndex: 9999,
+                                  top: `${dropdownPosition[`shift-table-${shift.id}`].top}px`,
+                                  right: `${dropdownPosition[`shift-table-${shift.id}`].right}px`
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openModal(shift)
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <Edit size={16} className="text-blue-600" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDelete(shift.id)
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <Trash2 size={16} />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -1291,7 +1427,7 @@ const Shifts = () => {
 
       {/* Shift Assignments Section - Only show when activeView is 'assignments' */}
       {activeView === 'assignments' && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Users className="text-blue-600" size={20} />
@@ -1321,7 +1457,7 @@ const Shifts = () => {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-blue-600 text-white">
+                <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee ID</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee Name</th>
@@ -1411,7 +1547,7 @@ const Shifts = () => {
 
       {/* Shift Change Requests Section - Only show when activeView is 'requests' */}
       {activeView === 'requests' && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <ArrowLeftRight className="text-blue-600" size={20} />
@@ -1420,7 +1556,7 @@ const Shifts = () => {
             <select
               value={requestStatusFilter}
               onChange={(e) => setRequestStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
@@ -1433,7 +1569,7 @@ const Shifts = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Employee</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Current Shift</th>
@@ -1498,13 +1634,16 @@ const Shifts = () => {
 
       {/* Add/Edit Shift Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">{editingShift ? 'Edit' : 'Add'} Shift</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Clock size={24} className="text-blue-600" />
+                {editingShift ? 'Edit Shift' : 'Add Shift'}
+              </h3>
               <button
                 onClick={() => { setShowModal(false); resetForm() }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <X size={24} />
               </button>
@@ -1512,80 +1651,80 @@ const Shifts = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Shift Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Shift Name *</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                   <select
                     value={formData.active}
                     onChange={(e) => setFormData({ ...formData, active: e.target.value === 'true' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value={true}>Active</option>
                     <option value={false}>Inactive</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
                   <input
                     type="time"
                     value={formData.startTime}
                     onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
                   <input
                     type="time"
                     value={formData.endTime}
                     onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Break Duration (minutes)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Break Duration (minutes)</label>
                   <input
                     type="number"
                     min="0"
                     value={formData.breakDuration}
                     onChange={(e) => setFormData({ ...formData, breakDuration: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    rows={3}
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-3 justify-end pt-4">
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 mt-6">
                 <button
                   type="button"
                   onClick={() => { setShowModal(false); resetForm() }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
                 >
-                  {loading ? 'Saving...' : 'Save'}
+                  {loading ? 'Saving...' : editingShift ? 'Update Shift' : 'Create Shift'}
                 </button>
               </div>
             </form>
