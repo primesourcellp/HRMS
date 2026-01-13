@@ -1545,7 +1545,7 @@ const Performance = () => {
               </h3>
               <button
                 onClick={() => {
-                  setShowViewModal(false)
+                  setShowViewModal(false)  
                   setSelectedPerformance(null)
                 }}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
