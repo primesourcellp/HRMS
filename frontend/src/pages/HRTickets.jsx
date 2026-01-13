@@ -19,10 +19,15 @@ const HRTickets = () => {
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
   const [formData, setFormData] = useState({
-    ticketType: 'SALARY_ISSUE',
+    ticketType: 'PAYROLL',
+    subCategory: '',
     subject: '',
     description: '',
-    priority: 'MEDIUM'
+    priority: 'MEDIUM',
+    employeeId: '',
+    assignedTo: '',
+    assignedRole: '',
+    ticketId: ''
   })
   const [updateData, setUpdateData] = useState({
     status: '',
@@ -36,15 +41,84 @@ const HRTickets = () => {
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
   const isEmployee = userType === 'employee'
 
+  // Ticket Categories and Sub-categories
+  const ticketCategories = {
+    'PAYROLL': ['Salary Delay', 'Payslip Issue', 'Tax Calculation', 'Bonus Issue', 'Deduction Query'],
+    'LEAVE': ['Leave Balance', 'Leave Approval', 'Leave Cancellation', 'Leave Encashment', 'Compensatory Off'],
+    'IT_SUPPORT': ['System Access', 'Hardware Issue', 'Software Installation', 'Network Problem', 'Password Reset'],
+    'GENERAL_QUERY': ['Policy Information', 'HR Process', 'Documentation', 'Benefits Query', 'General Help'],
+    'DOCUMENTS': ['Offer Letter', 'Experience Certificate', 'Salary Certificate', 'Relieving Letter', 'Other Documents']
+  }
+
+  // Priority SLA Configuration
+  const prioritySLA = {
+    'HIGH': '24 hours',
+    'MEDIUM': '48 hours',
+    'LOW': '72 hours',
+    'URGENT': '4 hours'
+  }
+
+  // Generate Auto Ticket ID
+  const generateTicketId = () => {
+    const timestamp = Date.now()
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+    return `TK-${timestamp}-${random}`
+  }
+
+  // Generate and display ticket ID when modal opens
+  const [displayTicketId, setDisplayTicketId] = useState('')
+
+  const openCreateModal = () => {
+    const newTicketId = generateTicketId()
+    setDisplayTicketId(newTicketId)
+    setFormData({
+      ticketType: 'PAYROLL',
+      subCategory: '',
+      subject: '',
+      description: '',
+      priority: 'MEDIUM',
+      employeeId: '',
+      assignedTo: '',
+      assignedRole: '',
+      ticketId: newTicketId
+    })
+    setShowModal(true)
+  }
+
+  // Helper functions to filter users by role
+  const getUsersByRole = (role) => {
+    if (!users || !Array.isArray(users)) return []
+    
+    return users.filter(user => {
+      const userRole = user.role || user.userRole
+      
+      if (role === 'ADMIN') {
+        return userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+      }
+      return userRole === role
+    })
+  }
+
+  const getRoleLabel = (role) => {
+    
+    const labels = {
+      'HR_EXECUTIVE': 'HR Executive',
+      'PAYROLL_TEAM': 'Payroll Team',
+      'ADMIN': 'Admin'
+    }
+    return labels[role] || role
+  }
+
   useEffect(() => {
     loadData()
   }, [filter, priorityFilter, searchTerm, sortBy, sortOrder])
 
   useEffect(() => {
-    if (isAdmin) {
+    // Load users for assignment functionality
+    if (isAdmin || !isEmployee) {
       loadUsers()
     }
-  }, [isAdmin])
+  }, [isAdmin, isEmployee])
 
   const loadUsers = async () => {
     try {
@@ -121,8 +195,8 @@ const HRTickets = () => {
       
       setTickets(filteredTickets)
       
-      // Load employees for admin view
-      if (isAdmin) {
+      // Load employees for admin view and for ticket creation
+      if (isAdmin || !isEmployee) {
         const employeesData = await api.getEmployees()
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
       }
@@ -143,9 +217,12 @@ const HRTickets = () => {
     setSuccessMessage(null)
     
     try {
+      // Use the already generated ticket ID
       const response = await api.createTicket({
         ...formData,
-        employeeId: parseInt(currentUserId)
+        ticketId: displayTicketId,
+        employeeId: formData.employeeId ? parseInt(formData.employeeId) : parseInt(currentUserId),
+        assignedTo: null // Remove assignment from create form
       })
       
       if (response.success === false) {
@@ -154,13 +231,8 @@ const HRTickets = () => {
       
       await loadData()
       setShowModal(false)
-      setFormData({
-        ticketType: 'SALARY_ISSUE',
-        subject: '',
-        description: '',
-        priority: 'MEDIUM'
-      })
-      setSuccessMessage('Ticket created successfully!')
+      setDisplayTicketId('') // Clear display ticket ID
+      setSuccessMessage(`Ticket ${displayTicketId} created successfully!`)
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
       setError(error.message || 'Error creating ticket')
@@ -271,11 +343,11 @@ const HRTickets = () => {
 
   const getTicketTypeLabel = (type) => {
     const labels = {
-      'SALARY_ISSUE': 'Salary Issue',
-      'LEAVE_CORRECTION': 'Leave Correction',
-      'ATTENDANCE_CORRECTION': 'Attendance Correction',
-      'SYSTEM_ACCESS': 'System Access',
-      'HARDWARE_REQUEST': 'Hardware Request'
+      'PAYROLL': 'Payroll',
+      'LEAVE': 'Leave',
+      'IT_SUPPORT': 'IT Support',
+      'GENERAL_QUERY': 'General Query',
+      'DOCUMENTS': 'Documents'
     }
     return labels[type] || type
   }
@@ -430,7 +502,7 @@ const HRTickets = () => {
               </button>
             </div>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={openCreateModal}
               className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
             >
               <Plus size={20} />
@@ -460,7 +532,12 @@ const HRTickets = () => {
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <Ticket className="text-blue-600" size={24} />
-                    <h3 className="text-xl font-bold text-gray-800">{ticket.subject || 'No Subject'}</h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                        {ticket.ticketId || `TK-${ticket.id}`}
+                      </span>
+                      <h3 className="text-xl font-bold text-gray-800">{ticket.subject || 'No Subject'}</h3>
+                    </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getPriorityColor(ticket.priority || 'MEDIUM')}`}>
                       {ticket.priority || 'MEDIUM'}
                     </span>
@@ -545,7 +622,10 @@ const HRTickets = () => {
 
       {/* Create Ticket Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
+          setShowModal(false)
+          setDisplayTicketId('')
+        }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
@@ -553,29 +633,82 @@ const HRTickets = () => {
                 Create New Ticket
               </h3>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false)
+                  setDisplayTicketId('')
+                }}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Auto-generated Ticket ID Display */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-blue-800">Ticket ID:</span>
+                    <span className="ml-2 text-lg font-bold text-blue-600">{displayTicketId}</span>
+                  </div>
+                  <span className="text-xs text-blue-600">Auto-generated</span>
+                </div>
+              </div>
+
+              {(isAdmin || !isEmployee) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee Name *</label>
+                  <select
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required={!isEmployee}
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id.toString()}>
+                        {employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ticket Type *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
                   <select
                     value={formData.ticketType}
-                    onChange={(e) => setFormData({ ...formData, ticketType: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, ticketType: e.target.value, subCategory: '' })}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   >
-                    <option value="SALARY_ISSUE">Salary Issue</option>
-                    <option value="LEAVE_CORRECTION">Leave Correction</option>
-                    <option value="ATTENDANCE_CORRECTION">Attendance Correction</option>
-                    <option value="SYSTEM_ACCESS">System Access</option>
-                    <option value="HARDWARE_REQUEST">Hardware Request</option>
+                    <option value="PAYROLL">Payroll</option>
+                    <option value="LEAVE">Leave</option>
+                    <option value="IT_SUPPORT">IT Support</option>
+                    <option value="GENERAL_QUERY">General Query</option>
+                    <option value="DOCUMENTS">Documents</option>
                   </select>
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sub-category *</label>
+                  <select
+                    value={formData.subCategory}
+                    onChange={(e) => setFormData({ ...formData, subCategory: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Select Sub-category</option>
+                    {ticketCategories[formData.ticketType]?.map((subCat) => (
+                      <option key={subCat} value={subCat}>
+                        {subCat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
                   <select
@@ -584,23 +717,25 @@ const HRTickets = () => {
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
+                    <option value="URGENT">Urgent (4 hours)</option>
+                    <option value="HIGH">High (24 hours)</option>
+                    <option value="MEDIUM">Medium (48 hours)</option>
+                    <option value="LOW">Low (72 hours)</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">SLA: {prioritySLA[formData.priority]}</p>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
-                <input
-                  type="text"
-                  value={formData.subject}
-                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter ticket subject"
-                  required
-                />
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
+                  <input
+                    type="text"
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter ticket subject"
+                    required
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
@@ -616,7 +751,10 @@ const HRTickets = () => {
               <div className="flex gap-3 justify-end pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false)
+                    setDisplayTicketId('')
+                  }}
                   className="px-6 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
                 >
                   Cancel

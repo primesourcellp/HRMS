@@ -50,7 +50,7 @@ public class Performance {
 
     @Column(name = "overall_progress", nullable = false)
     private Integer overallProgress;
-
+ 
     // KPI fields: optional reference to a KPI configuration and KPI results for the review
     @Column(name = "kpi_config_id")
     private Long kpiConfigId;
