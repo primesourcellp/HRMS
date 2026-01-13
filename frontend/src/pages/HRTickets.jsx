@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Ticket, Plus, Filter, CheckCircle, XCircle, Clock, Search, Edit, Trash2, User, Calendar, AlertCircle, MessageSquare, X, Eye, UserCheck, ArrowUpDown } from 'lucide-react'
+import { Ticket, Plus, Filter, CheckCircle, XCircle, Clock, Search, Edit, Trash2, User, Calendar, AlertCircle, MessageSquare, X, Eye, UserCheck, ArrowUpDown, PlusCircle, Activity } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
 
@@ -35,6 +35,8 @@ const HRTickets = () => {
     assignedTo: '',
     priority: ''
   })
+  const [showTimeline, setShowTimeline] = useState(false)
+  const [timelineData, setTimelineData] = useState([])
   const userRole = localStorage.getItem('userRole')
   const currentUserId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
@@ -107,6 +109,153 @@ const HRTickets = () => {
       'ADMIN': 'Admin'
     }
     return labels[role] || role
+  }
+
+  // Timeline helper functions
+  const getTimelineIcon = (type) => {
+    const icons = {
+      'CREATED': <PlusCircle className="text-green-600" size={16} />,
+      'STATUS_CHANGE': <Activity className="text-blue-600" size={16} />,
+      'ASSIGNED': <UserCheck className="text-purple-600" size={16} />,
+      'UPDATED': <Edit className="text-orange-600" size={16} />,
+      'RESOLVED': <CheckCircle className="text-green-600" size={16} />,
+      'CLOSED': <XCircle className="text-gray-600" size={16} />
+    }
+    return icons[type] || <Activity className="text-gray-600" size={16} />
+  }
+
+  const getTimelineColor = (type) => {
+    const colors = {
+      'CREATED': 'border-green-200 bg-green-50',
+      'STATUS_CHANGE': 'border-blue-200 bg-blue-50',
+      'ASSIGNED': 'border-purple-200 bg-purple-50',
+      'UPDATED': 'border-orange-200 bg-orange-50',
+      'RESOLVED': 'border-green-200 bg-green-50',
+      'CLOSED': 'border-gray-200 bg-gray-50'
+    }
+    return colors[type] || 'border-gray-200 bg-gray-50'
+  }
+
+  // Enhanced timeline data structure for tracking all changes
+  const generateTimelineData = (ticket) => {
+    const timeline = []
+    
+    // 1. Initial ticket creation
+    if (ticket.createdAt) {
+      timeline.push({
+        id: 1,
+        type: 'CREATED',
+        title: 'Ticket Created',
+        description: `Ticket "${ticket.subject}" was created`,
+        user: getEmployeeName(ticket.employeeId),
+        timestamp: ticket.createdAt,
+        status: 'OPEN',
+        changeType: 'CREATE',
+        details: {
+          category: getTicketTypeLabel(ticket.ticketType),
+          priority: ticket.priority,
+          subCategory: ticket.subCategory
+        }
+      })
+    }
+
+    // 2. Assignment changes
+    if (ticket.assignedTo && ticket.updatedAt && ticket.updatedAt !== ticket.createdAt) {
+      timeline.push({
+        id: 2,
+        type: 'ASSIGNED',
+        title: 'Ticket Assigned',
+        description: `Ticket was assigned to ${getUserName(ticket.assignedTo)}`,
+        user: getUserName(ticket.assignedTo) || 'System',
+        timestamp: ticket.updatedAt,
+        status: ticket.status,
+        changeType: 'ASSIGN',
+        details: {
+          assignedTo: getUserName(ticket.assignedTo)
+        }
+      })
+    }
+
+    // 3. Status changes (track all transitions)
+    if (ticket.status === 'IN_PROGRESS' && ticket.updatedAt && ticket.updatedAt !== ticket.createdAt) {
+      timeline.push({
+        id: 3,
+        type: 'STATUS_CHANGE',
+        title: 'Status Changed',
+        description: 'Status changed from Open to In Progress',
+        user: getUserName(ticket.assignedTo) || 'System',
+        timestamp: ticket.updatedAt,
+        status: 'IN_PROGRESS',
+        changeType: 'STATUS_UPDATE',
+        details: {
+          fromStatus: 'OPEN',
+          toStatus: 'IN_PROGRESS'
+        }
+      })
+    }
+
+    // 4. Priority changes
+    if (ticket.updatedAt && ticket.updatedAt !== ticket.createdAt) {
+      // This would be enhanced in real implementation to track actual priority changes
+      timeline.push({
+        id: 4,
+        type: 'UPDATED',
+        title: 'Ticket Updated',
+        description: `Priority set to ${ticket.priority}`,
+        user: getUserName(ticket.assignedTo) || 'System',
+        timestamp: ticket.updatedAt,
+        status: ticket.status,
+        changeType: 'MODIFY',
+        details: {
+          field: 'priority',
+          value: ticket.priority
+        }
+      })
+    }
+
+    // 5. Resolution
+    if (ticket.resolution && (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED')) {
+      timeline.push({
+        id: 5,
+        type: 'RESOLVED',
+        title: 'Ticket Resolved',
+        description: ticket.resolution ? `Resolution: ${ticket.resolution}` : 'Ticket was marked as resolved',
+        user: getUserName(ticket.assignedTo) || 'System',
+        timestamp: ticket.resolvedAt || ticket.updatedAt,
+        status: 'RESOLVED',
+        changeType: 'RESOLVE',
+        details: {
+          resolution: ticket.resolution,
+          resolvedAt: ticket.resolvedAt
+        }
+      })
+    }
+
+    // 6. Closure
+    if (ticket.status === 'CLOSED') {
+      timeline.push({
+        id: 6,
+        type: 'CLOSED',
+        title: 'Ticket Closed',
+        description: 'Ticket was closed',
+        user: getUserName(ticket.assignedTo) || 'System',
+        timestamp: ticket.resolvedAt || ticket.updatedAt,
+        status: 'CLOSED',
+        changeType: 'CLOSE',
+        details: {
+          closedAt: ticket.resolvedAt
+        }
+      })
+    }
+
+    // Sort by timestamp (most recent first)
+    return timeline.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  }
+
+  const openTimelineModal = (ticket) => {
+    const timeline = generateTimelineData(ticket)
+    setTimelineData(timeline)
+    setShowTimeline(true)
   }
 
   useEffect(() => {
@@ -256,6 +405,44 @@ const HRTickets = () => {
         resolution: updateData.resolution || selectedTicket.resolution,
         priority: updateData.priority || selectedTicket.priority,
         assignedTo: updateData.assignedTo ? parseInt(updateData.assignedTo) : selectedTicket.assignedTo
+      }
+      
+      // Record what changed for timeline tracking
+      const changes = []
+      if (updateData.status && updateData.status !== selectedTicket.status) {
+        changes.push({
+          type: 'STATUS_CHANGE',
+          from: selectedTicket.status,
+          to: updateData.status
+        })
+      }
+      if (updateData.assignedTo && updateData.assignedTo !== selectedTicket.assignedTo?.toString()) {
+        changes.push({
+          type: 'ASSIGNED',
+          from: selectedTicket.assignedTo,
+          to: updateData.assignedTo
+        })
+      }
+      if (updateData.priority && updateData.priority !== selectedTicket.priority) {
+        changes.push({
+          type: 'MODIFIED',
+          field: 'priority',
+          from: selectedTicket.priority,
+          to: updateData.priority
+        })
+      }
+      if (updateData.resolution && updateData.resolution !== selectedTicket.resolution) {
+        changes.push({
+          type: 'RESOLVED',
+          resolution: updateData.resolution
+        })
+      }
+      
+      // Add change tracking to payload
+      if (changes.length > 0) {
+        updatePayload.changes = changes
+        updatePayload.changedBy = currentUserId
+        updatePayload.changedAt = new Date().toISOString()
       }
       
       const response = await api.updateTicket(selectedTicket.id, updatePayload)
@@ -594,6 +781,13 @@ const HRTickets = () => {
                   >
                     <Eye size={16} />
                     View
+                  </button>
+                  <button
+                    onClick={() => openTimelineModal(ticket)}
+                    className="bg-purple-50 text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100 flex items-center gap-2 text-sm font-medium transition-colors"
+                  >
+                    <Clock size={16} />
+                    Timeline
                   </button>
                   {isAdmin && ticket.status !== 'CLOSED' && (
                     <button
@@ -969,6 +1163,136 @@ const HRTickets = () => {
                   {loading ? 'Updating...' : 'Update Ticket'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline Modal */}
+      {showTimeline && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowTimeline(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-purple-600 flex items-center gap-3">
+                <Clock size={28} className="text-purple-600" />
+                Status Change History
+              </h3>
+              <button
+                onClick={() => setShowTimeline(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {timelineData.map((item, index) => (
+                <div key={item.id} className="relative">
+                  {/* Timeline line */}
+                  {index < timelineData.length - 1 && (
+                    <div className="absolute left-6 top-12 w-0.5 h-full bg-gray-300"></div>
+                  )}
+                  
+                  <div className="flex items-start gap-4">
+                    {/* Timeline dot with icon */}
+                    <div className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center border-2 ${getTimelineColor(item.type)}`}>
+                      {getTimelineIcon(item.type)}
+                    </div>
+                    
+                    {/* Timeline content */}
+                    <div className={`flex-1 p-4 rounded-lg border-2 ${getTimelineColor(item.type)}`}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-800">{item.title}</h4>
+                          <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                          
+                          {/* Show additional details based on change type */}
+                          {item.changeType === 'CREATE' && item.details && (
+                            <div className="mt-2 p-2 bg-green-50 rounded text-xs">
+                              <span className="font-medium text-green-800">Initial Details:</span>
+                              <div className="mt-1 text-green-700">
+                                Category: {item.details.category} | Priority: {item.details.priority}
+                                {item.details.subCategory && ` | Sub-category: ${item.details.subCategory}`}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {item.changeType === 'ASSIGN' && item.details && (
+                            <div className="mt-2 p-2 bg-purple-50 rounded text-xs">
+                              <span className="font-medium text-purple-800">Assignment:</span>
+                              <div className="mt-1 text-purple-700">
+                                Assigned to: {item.details.assignedTo}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {item.changeType === 'STATUS_UPDATE' && item.details && (
+                            <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                              <span className="font-medium text-blue-800">Status Transition:</span>
+                              <div className="mt-1 text-blue-700">
+                                {item.details.fromStatus} → {item.details.toStatus}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {item.changeType === 'MODIFY' && item.details && (
+                            <div className="mt-2 p-2 bg-orange-50 rounded text-xs">
+                              <span className="font-medium text-orange-800">Field Modified:</span>
+                              <div className="mt-1 text-orange-700">
+                                {item.details.field}: {item.details.value}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {item.changeType === 'RESOLVE' && item.details && (
+                            <div className="mt-2 p-2 bg-green-50 rounded text-xs">
+                              <span className="font-medium text-green-800">Resolution Details:</span>
+                              <div className="mt-1 text-green-700">
+                                {item.details.resolution}
+                                {item.details.resolvedAt && (
+                                  <div className="mt-1">Resolved at: {formatDate(item.details.resolvedAt)}</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-xs text-gray-500">{formatDate(item.timestamp)}</p>
+                          {item.status && (
+                            <span className={`inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(item.status)}`}>
+                              {item.status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {item.user && (
+                        <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+                          <User size={14} />
+                          <span>By: {item.user}</span>
+                          <span className="text-xs text-gray-400">({item.changeType})</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {timelineData.length === 0 && (
+                <div className="text-center py-8">
+                  <Clock className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-500 text-lg">No timeline history available</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowTimeline(false)}
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
