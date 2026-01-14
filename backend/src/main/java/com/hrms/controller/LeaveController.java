@@ -18,7 +18,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.entity.Leave;
+import com.hrms.entity.User;
+import com.hrms.repository.UserRepository;
+import com.hrms.service.AuditLogService;
 import com.hrms.service.LeaveService;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/leaves")
@@ -26,6 +31,12 @@ import com.hrms.service.LeaveService;
 public class LeaveController {
     @Autowired
     private LeaveService leaveService;
+
+    @Autowired
+    private AuditLogService auditLogService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @GetMapping
     public ResponseEntity<?> getAllLeaves(@RequestParam(required = false) String status) {
@@ -63,10 +74,28 @@ public class LeaveController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createLeave(@RequestBody Leave leave) {
+    public ResponseEntity<Map<String, Object>> createLeave(@RequestBody Leave leave, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Leave created = leaveService.createLeave(leave);
+            
+            // Log audit event
+            Long userId = getCurrentUserId(request);
+            if (userId != null && created != null) {
+                User employee = userRepository.findById(created.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logEvent(
+                    "LEAVE",
+                    created.getId(),
+                    "CREATE",
+                    userId,
+                    null,
+                    created,
+                    String.format("Created leave request for %s from %s to %s", employeeName, created.getStartDate(), created.getEndDate()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Leave application submitted successfully");
             response.put("leave", created);
@@ -80,11 +109,35 @@ public class LeaveController {
 
     @PostMapping("/{id}/approve")
     public ResponseEntity<Map<String, Object>> approveLeave(
-            @PathVariable Long id, @RequestBody Map<String, Long> request) {
+            @PathVariable Long id, @RequestBody Map<String, Long> requestBody, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Long approvedBy = request.get("approvedBy");
-            Leave approved = leaveService.approveLeave(id, approvedBy);
+            // Get userId from request if not provided
+            Long approvedBy = requestBody.get("approvedBy");
+            Long currentUserId = approvedBy != null ? approvedBy : getCurrentUserId(request);
+            
+            // Get old leave state before approval
+            Optional<Leave> oldLeaveOpt = leaveService.getLeaveById(id);
+            Leave oldLeave = oldLeaveOpt.orElse(null);
+            
+            Leave approved = leaveService.approveLeave(id, currentUserId);
+            
+            // Log audit event
+            if (currentUserId != null && approved != null) {
+                User employee = userRepository.findById(approved.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logEvent(
+                    "LEAVE",
+                    approved.getId(),
+                    "APPROVE",
+                    currentUserId,
+                    oldLeave,
+                    approved,
+                    String.format("Approved leave request for %s from %s to %s", employeeName, approved.getStartDate(), approved.getEndDate()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Leave approved successfully");
             response.put("leave", approved);
@@ -98,12 +151,39 @@ public class LeaveController {
 
     @PostMapping("/{id}/reject")
     public ResponseEntity<Map<String, Object>> rejectLeave(
-            @PathVariable Long id, @RequestBody Map<String, Object> request) {
+            @PathVariable Long id, @RequestBody Map<String, Object> requestBody, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Long approvedBy = Long.valueOf(request.get("approvedBy").toString());
-            String rejectionReason = request.get("rejectionReason").toString();
-            Leave rejected = leaveService.rejectLeave(id, approvedBy, rejectionReason);
+            // Get userId from request if not provided
+            Long approvedBy = null;
+            if (requestBody.containsKey("approvedBy") && requestBody.get("approvedBy") != null) {
+                approvedBy = Long.valueOf(requestBody.get("approvedBy").toString());
+            }
+            Long currentUserId = approvedBy != null ? approvedBy : getCurrentUserId(request);
+            String rejectionReason = requestBody.containsKey("rejectionReason") ? requestBody.get("rejectionReason").toString() : "";
+            
+            // Get old leave state before rejection
+            Optional<Leave> oldLeaveOpt = leaveService.getLeaveById(id);
+            Leave oldLeave = oldLeaveOpt.orElse(null);
+            
+            Leave rejected = leaveService.rejectLeave(id, currentUserId, rejectionReason);
+            
+            // Log audit event
+            if (currentUserId != null && rejected != null) {
+                User employee = userRepository.findById(rejected.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logEvent(
+                    "LEAVE",
+                    rejected.getId(),
+                    "REJECT",
+                    currentUserId,
+                    oldLeave,
+                    rejected,
+                    String.format("Rejected leave request for %s from %s to %s. Reason: %s", employeeName, rejected.getStartDate(), rejected.getEndDate(), rejectionReason),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Leave rejected");
             response.put("leave", rejected);
@@ -116,9 +196,50 @@ public class LeaveController {
     }
 
     @PutMapping("/{id}/status")
-    public ResponseEntity<Leave> updateLeaveStatus(@PathVariable Long id, @RequestBody Map<String, String> request) {
-        String status = request.get("status");
-        return ResponseEntity.ok(leaveService.updateLeaveStatus(id, status));
+    public ResponseEntity<Leave> updateLeaveStatus(@PathVariable Long id, @RequestBody Map<String, String> requestBody, HttpServletRequest request) {
+        String status = requestBody.get("status");
+        
+        // Get old leave state before status update
+        Optional<Leave> oldLeaveOpt = leaveService.getLeaveById(id);
+        Leave oldLeave = oldLeaveOpt.orElse(null);
+        
+        Leave updated = leaveService.updateLeaveStatus(id, status);
+        
+        // Log audit event
+        Long userId = getCurrentUserId(request);
+        if (userId != null && updated != null) {
+            User employee = userRepository.findById(updated.getEmployeeId()).orElse(null);
+            String employeeName = employee != null ? employee.getName() : "Unknown";
+            auditLogService.logEvent(
+                "LEAVE",
+                updated.getId(),
+                "UPDATE_STATUS",
+                userId,
+                oldLeave,
+                updated,
+                String.format("Updated leave status to %s for %s", status, employeeName),
+                request
+            );
+        }
+        
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Get current user ID from request (set by JwtAuthenticationFilter)
+     */
+    private Long getCurrentUserId(HttpServletRequest request) {
+        try {
+            Object userIdObj = request.getAttribute("userId");
+            if (userIdObj instanceof Long) {
+                return (Long) userIdObj;
+            } else if (userIdObj instanceof Number) {
+                return ((Number) userIdObj).longValue();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
 

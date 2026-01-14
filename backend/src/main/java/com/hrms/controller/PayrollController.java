@@ -33,9 +33,12 @@ import com.hrms.entity.User;
 import com.hrms.mapper.DTOMapper;
 import com.hrms.repository.AttendanceRepository;
 import com.hrms.repository.LeaveRepository;
+import com.hrms.repository.UserRepository;
+import com.hrms.service.AuditLogService;
 import com.hrms.service.PayrollService;
 import com.hrms.service.SalaryStructureService;
 import com.hrms.util.PDFGeneratorService;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/payroll")
@@ -56,6 +59,12 @@ public class PayrollController {
 
     @Autowired
     private LeaveRepository leaveRepository;
+
+    @Autowired
+    private AuditLogService auditLogService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @GetMapping
     public ResponseEntity<List<PayrollDTO>> getAllPayrolls() {
@@ -110,7 +119,7 @@ public class PayrollController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createPayroll(@RequestBody PayrollDTO payrollDTO) {
+    public ResponseEntity<Map<String, Object>> createPayroll(@RequestBody PayrollDTO payrollDTO, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Payroll payroll = new Payroll();
@@ -125,6 +134,25 @@ public class PayrollController {
             payroll.setStatus(payrollDTO.getStatus() != null ? payrollDTO.getStatus() : "DRAFT");
             
             Payroll createdPayroll = payrollService.createPayroll(payroll);
+            
+            // Log audit event
+            Long userId = getCurrentUserId(request);
+            if (userId != null && createdPayroll != null) {
+                User employee = userRepository.findById(createdPayroll.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    createdPayroll.getId(),
+                    createdPayroll.getEmployeeId(),
+                    employeeName,
+                    "CREATE",
+                    userId,
+                    null,
+                    createdPayroll,
+                    String.format("Created payroll for %s - %s %d", employeeName, createdPayroll.getMonth(), createdPayroll.getYear()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll created successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(createdPayroll));
@@ -161,12 +189,29 @@ public class PayrollController {
     @PostMapping("/process")
     public ResponseEntity<Map<String, Object>> processPayrollForAllEmployees(
             @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam String endDate,
+            HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = LocalDate.parse(endDate);
             List<Payroll> payrolls = payrollService.processPayrollForAllEmployees(start, end);
+            
+            // Log audit event for bulk processing
+            Long userId = getCurrentUserId(request);
+            if (userId != null) {
+                auditLogService.logEvent(
+                    "PAYROLL",
+                    null,
+                    "BULK_PROCESS",
+                    userId,
+                    null,
+                    Map.of("count", payrolls.size(), "startDate", startDate, "endDate", endDate),
+                    String.format("Bulk processed payroll for %d employees from %s to %s", payrolls.size(), startDate, endDate),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll processed for " + payrolls.size() + " employees");
             response.put("payrolls", DTOMapper.toPayrollDTOList(payrolls));
@@ -187,13 +232,33 @@ public class PayrollController {
     public ResponseEntity<Map<String, Object>> processPayrollForEmployee(
             @PathVariable Long employeeId,
             @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam String endDate,
+            HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = LocalDate.parse(endDate);
             Payroll payroll = payrollService.processEmployeePayroll(employeeId, start, end, 
                 start.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM")), start.getYear());
+            
+            // Log audit event
+            Long userId = getCurrentUserId(request);
+            if (userId != null && payroll != null) {
+                User employee = userRepository.findById(employeeId).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    payroll.getId(),
+                    employeeId,
+                    employeeName,
+                    "PROCESS",
+                    userId,
+                    null,
+                    payroll,
+                    String.format("Processed payroll for %s from %s to %s", employeeName, startDate, endDate),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll processed successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -212,10 +277,36 @@ public class PayrollController {
     @PostMapping("/{id}/submit")
     public ResponseEntity<Map<String, Object>> submitPayrollForApproval(
             @PathVariable Long id,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long userId,
+            HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.submitPayrollForApproval(id, userId);
+            // Get userId from request if not provided
+            Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            
+            // Get old payroll state before submission
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Payroll oldPayroll = oldPayrollOpt.orElse(null);
+            
+            Payroll payroll = payrollService.submitPayrollForApproval(id, currentUserId);
+            
+            // Log audit event
+            if (currentUserId != null && payroll != null) {
+                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    payroll.getId(),
+                    payroll.getEmployeeId(),
+                    employeeName,
+                    "SUBMIT",
+                    currentUserId,
+                    oldPayroll,
+                    payroll,
+                    String.format("Submitted payroll for approval - %s - %s %d", employeeName, payroll.getMonth(), payroll.getYear()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll submitted for approval successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -233,10 +324,36 @@ public class PayrollController {
     @PostMapping("/{id}/approve")
     public ResponseEntity<Map<String, Object>> approvePayroll(
             @PathVariable Long id,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long userId,
+            HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.approvePayroll(id, userId);
+            // Get userId from request if not provided
+            Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            
+            // Get old payroll state before approval
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Payroll oldPayroll = oldPayrollOpt.orElse(null);
+            
+            Payroll payroll = payrollService.approvePayroll(id, currentUserId);
+            
+            // Log audit event
+            if (currentUserId != null && payroll != null) {
+                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    payroll.getId(),
+                    payroll.getEmployeeId(),
+                    employeeName,
+                    "APPROVE",
+                    currentUserId,
+                    oldPayroll,
+                    payroll,
+                    String.format("Approved payroll for %s - %s %d", employeeName, payroll.getMonth(), payroll.getYear()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll approved successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -255,10 +372,36 @@ public class PayrollController {
     public ResponseEntity<Map<String, Object>> rejectPayroll(
             @PathVariable Long id,
             @RequestParam String rejectionReason,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long userId,
+            HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.rejectPayroll(id, rejectionReason, userId);
+            // Get userId from request if not provided
+            Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            
+            // Get old payroll state before rejection
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Payroll oldPayroll = oldPayrollOpt.orElse(null);
+            
+            Payroll payroll = payrollService.rejectPayroll(id, rejectionReason, currentUserId);
+            
+            // Log audit event
+            if (currentUserId != null && payroll != null) {
+                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    payroll.getId(),
+                    payroll.getEmployeeId(),
+                    employeeName,
+                    "REJECT",
+                    currentUserId,
+                    oldPayroll,
+                    payroll,
+                    String.format("Rejected payroll for %s - %s %d. Reason: %s", employeeName, payroll.getMonth(), payroll.getYear(), rejectionReason),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll rejected successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -276,10 +419,36 @@ public class PayrollController {
     @PostMapping("/{id}/finalize")
     public ResponseEntity<Map<String, Object>> finalizePayroll(
             @PathVariable Long id,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long userId,
+            HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.finalizePayroll(id, userId);
+            // Get userId from request if not provided
+            Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            
+            // Get old payroll state before finalization
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Payroll oldPayroll = oldPayrollOpt.orElse(null);
+            
+            Payroll payroll = payrollService.finalizePayroll(id, currentUserId);
+            
+            // Log audit event
+            if (currentUserId != null && payroll != null) {
+                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    payroll.getId(),
+                    payroll.getEmployeeId(),
+                    employeeName,
+                    "FINALIZE",
+                    currentUserId,
+                    oldPayroll,
+                    payroll,
+                    String.format("Finalized payroll for %s - %s %d", employeeName, payroll.getMonth(), payroll.getYear()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll finalized successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -341,10 +510,34 @@ public class PayrollController {
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updatePayroll(
             @PathVariable Long id,
-            @RequestBody PayrollDTO payrollDTO) {
+            @RequestBody PayrollDTO payrollDTO,
+            HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
+            // Get old payroll state before update
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Payroll oldPayroll = oldPayrollOpt.orElse(null);
+            
             Payroll payroll = payrollService.updatePayroll(id, payrollDTO);
+            
+            // Log audit event
+            Long userId = getCurrentUserId(request);
+            if (userId != null && payroll != null) {
+                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    payroll.getId(),
+                    payroll.getEmployeeId(),
+                    employeeName,
+                    "UPDATE",
+                    userId,
+                    oldPayroll,
+                    payroll,
+                    String.format("Updated payroll for %s - %s %d", employeeName, payroll.getMonth(), payroll.getYear()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll updated successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -829,10 +1022,33 @@ public class PayrollController {
      * Delete payroll
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deletePayroll(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deletePayroll(@PathVariable Long id, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
+            // Get payroll before deletion for audit log
+            Optional<Payroll> payrollOpt = payrollService.getPayrollById(id);
+            Payroll payroll = payrollOpt.orElse(null);
+            
             payrollService.deletePayroll(id);
+            
+            // Log audit event
+            Long userId = getCurrentUserId(request);
+            if (userId != null && payroll != null) {
+                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logPayrollEvent(
+                    payroll.getId(),
+                    payroll.getEmployeeId(),
+                    employeeName,
+                    "DELETE",
+                    userId,
+                    payroll,
+                    null,
+                    String.format("Deleted payroll for %s - %s %d", employeeName, payroll.getMonth(), payroll.getYear()),
+                    request
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Payroll deleted successfully");
             return ResponseEntity.ok(response);
@@ -840,6 +1056,23 @@ public class PayrollController {
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+    
+    /**
+     * Get current user ID from request (set by JwtAuthenticationFilter)
+     */
+    private Long getCurrentUserId(HttpServletRequest request) {
+        try {
+            Object userIdObj = request.getAttribute("userId");
+            if (userIdObj instanceof Long) {
+                return (Long) userIdObj;
+            } else if (userIdObj instanceof Number) {
+                return ((Number) userIdObj).longValue();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
         }
     }
     

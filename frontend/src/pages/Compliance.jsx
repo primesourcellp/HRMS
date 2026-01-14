@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileText, Download, Search, Filter, Calendar, Shield, TrendingUp, Users, AlertCircle, CheckCircle, XCircle, Eye } from 'lucide-react'
+import { FileText, Download, Search, Filter, Calendar, Shield, TrendingUp, Users, AlertCircle, CheckCircle, XCircle, Eye, X } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
 
@@ -156,6 +156,44 @@ const Compliance = () => {
     return 'text-blue-600'
   }
 
+  const clearReportFilters = () => {
+    setReportYear(new Date().getFullYear())
+    setReportMonth(new Date().getMonth() + 1)
+    setSelectedEmployeeId('')
+  }
+
+  const clearAuditFilters = async () => {
+    const defaultFilters = {
+      entityType: '',
+      employeeId: '',
+      startDate: format(new Date().setMonth(new Date().getMonth() - 3), 'yyyy-MM-dd'),
+      endDate: format(new Date(), 'yyyy-MM-dd')
+    }
+    setAuditFilters(defaultFilters)
+    
+    // Reload audit logs with cleared filters
+    try {
+      setAuditLoading(true)
+      setError(null)
+      const params = new URLSearchParams()
+      // Only add non-empty filter values
+      if (defaultFilters.startDate) params.append('startDate', defaultFilters.startDate)
+      if (defaultFilters.endDate) params.append('endDate', defaultFilters.endDate)
+
+      const response = await api.getAuditLogs(params.toString())
+      if (response.success) {
+        setAuditLogs(response.auditLogs || [])
+      } else {
+        setError(response.message || 'Failed to load audit logs')
+      }
+    } catch (error) {
+      console.error('Error loading audit logs:', error)
+      setError('Failed to load audit logs: ' + error.message)
+    } finally {
+      setAuditLoading(false)
+    }
+  }
+
   if (!isAdmin) {
     return (
       <div className="p-6">
@@ -224,10 +262,7 @@ const Compliance = () => {
         <div className="space-y-6">
           {/* Filters */}
           <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Filter size={20} />
-              Report Filters
-            </h2>
+    
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
@@ -270,6 +305,15 @@ const Compliance = () => {
                   ))}
                 </select>
               </div>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                onClick={clearReportFilters}
+                className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 transition-colors"
+              >
+                <X size={18} />
+                Clear Filters
+              </button>
             </div>
           </div>
 
@@ -393,10 +437,7 @@ const Compliance = () => {
         <div className="space-y-6">
           {/* Filters */}
           <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Filter size={20} />
-              Audit Log Filters
-            </h2>
+       
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
@@ -447,13 +488,22 @@ const Compliance = () => {
                 />
               </div>
             </div>
-            <button
-              onClick={loadAuditLogs}
-              className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Search size={18} />
-              Search Audit Logs
-            </button>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                onClick={loadAuditLogs}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
+              >
+                <Search size={18} />
+                Search Audit Logs
+              </button>
+              <button
+                onClick={clearAuditFilters}
+                className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 transition-colors"
+              >
+                <X size={18} />
+                Clear Filters
+              </button>
+            </div>
           </div>
 
           {/* Audit Logs Table */}

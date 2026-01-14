@@ -1,21 +1,5 @@
 package com.hrms.controller;
 
-import com.hrms.entity.Payroll;
-import com.hrms.entity.SalaryStructure;
-import com.hrms.entity.User;
-import com.hrms.repository.PayrollRepository;
-import com.hrms.repository.SalaryStructureRepository;
-import com.hrms.repository.UserRepository;
-import com.hrms.service.AuditLogService;
-import com.hrms.util.PDFGeneratorService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -24,6 +8,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.hrms.entity.Payroll;
+import com.hrms.entity.SalaryStructure;
+import com.hrms.entity.User;
+import com.hrms.repository.AuditLogRepository;
+import com.hrms.repository.PayrollRepository;
+import com.hrms.repository.SalaryStructureRepository;
+import com.hrms.repository.UserRepository;
+import com.hrms.service.AuditLogService;
+import com.hrms.util.PDFGeneratorService;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/compliance")
@@ -44,6 +51,9 @@ public class ComplianceController {
 
     @Autowired
     private AuditLogService auditLogService;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
 
     /**
      * Generate PF (Provident Fund) Report
@@ -104,8 +114,23 @@ public class ComplianceController {
             // Log audit
             Long userId = getCurrentUserId(request);
             if (userId != null) {
-                auditLogService.logEvent("COMPLIANCE", null, "GENERATE_PF_REPORT", userId, 
+                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_PF_REPORT", userId, 
                     null, reportData, "Generated PF Report for period: " + startDate + " to " + endDate, request);
+                // Set employee information
+                if (auditLog != null) {
+                    if (employeeId != null) {
+                        // Specific employee selected
+                        User employee = userRepository.findById(employeeId).orElse(null);
+                        if (employee != null) {
+                            auditLog.setEmployeeId(employeeId);
+                            auditLog.setEmployeeName(employee.getName());
+                        }
+                    } else {
+                        // No employee selected - show "All" for all employees
+                        auditLog.setEmployeeName("All");
+                    }
+                    auditLogRepository.save(auditLog);
+                }
             }
 
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
@@ -159,8 +184,23 @@ public class ComplianceController {
             // Log audit
             Long userId = getCurrentUserId(request);
             if (userId != null) {
-                auditLogService.logEvent("COMPLIANCE", null, "GENERATE_ESI_REPORT", userId, 
+                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_ESI_REPORT", userId, 
                     null, reportData, "Generated ESI Report for period: " + startDate + " to " + endDate, request);
+                // Set employee information
+                if (auditLog != null) {
+                    if (employeeId != null) {
+                        // Specific employee selected
+                        User employee = userRepository.findById(employeeId).orElse(null);
+                        if (employee != null) {
+                            auditLog.setEmployeeId(employeeId);
+                            auditLog.setEmployeeName(employee.getName());
+                        }
+                    } else {
+                        // No employee selected - show "All" for all employees
+                        auditLog.setEmployeeName("All");
+                    }
+                    auditLogRepository.save(auditLog);
+                }
             }
 
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
@@ -233,8 +273,23 @@ public class ComplianceController {
             // Log audit
             Long userId = getCurrentUserId(request);
             if (userId != null) {
-                auditLogService.logEvent("COMPLIANCE", null, "GENERATE_PT_REPORT", userId, 
+                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_PT_REPORT", userId, 
                     null, reportData, "Generated PT Report for period: " + startDate + " to " + endDate, request);
+                // Set employee information
+                if (auditLog != null) {
+                    if (employeeId != null) {
+                        // Specific employee selected
+                        User employee = userRepository.findById(employeeId).orElse(null);
+                        if (employee != null) {
+                            auditLog.setEmployeeId(employeeId);
+                            auditLog.setEmployeeName(employee.getName());
+                        }
+                    } else {
+                        // No employee selected - show "All" for all employees
+                        auditLog.setEmployeeName("All");
+                    }
+                    auditLogRepository.save(auditLog);
+                }
             }
 
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
@@ -307,8 +362,23 @@ public class ComplianceController {
             // Log audit
             Long userId = getCurrentUserId(request);
             if (userId != null) {
-                auditLogService.logEvent("COMPLIANCE", null, "GENERATE_TDS_REPORT", userId, 
+                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_TDS_REPORT", userId, 
                     null, reportData, "Generated TDS Report for period: " + startDate + " to " + endDate, request);
+                // Set employee information
+                if (auditLog != null) {
+                    if (employeeId != null) {
+                        // Specific employee selected
+                        User employee = userRepository.findById(employeeId).orElse(null);
+                        if (employee != null) {
+                            auditLog.setEmployeeId(employeeId);
+                            auditLog.setEmployeeName(employee.getName());
+                        }
+                    } else {
+                        // No employee selected - show "All" for all employees
+                        auditLog.setEmployeeName("All");
+                    }
+                    auditLogRepository.save(auditLog);
+                }
             }
 
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
@@ -658,14 +728,23 @@ public class ComplianceController {
         return registerData;
     }
 
+    /**
+     * Get current user ID from request (set by JwtAuthenticationFilter)
+     */
     private Long getCurrentUserId(HttpServletRequest request) {
         try {
-            // Try to get from request header (if passed from frontend)
+            // Get userId from request attribute set by JwtAuthenticationFilter
+            Object userIdObj = request.getAttribute("userId");
+            if (userIdObj instanceof Long) {
+                return (Long) userIdObj;
+            } else if (userIdObj instanceof Number) {
+                return ((Number) userIdObj).longValue();
+            }
+            // Fallback: Try to get from request header (if passed from frontend)
             String userIdHeader = request.getHeader("X-User-Id");
             if (userIdHeader != null && !userIdHeader.isEmpty()) {
                 return Long.parseLong(userIdHeader);
             }
-            // In a real implementation, this would be extracted from JWT token or security context
             return null;
         } catch (Exception e) {
             return null;

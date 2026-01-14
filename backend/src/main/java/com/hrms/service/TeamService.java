@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,13 +57,22 @@ public class TeamService {
         if (teamDTO.getMembers() != null && !teamDTO.getMembers().isEmpty()) {
             List<TeamMember> members = new ArrayList<>();
             for (TeamMemberDTO memberDTO : teamDTO.getMembers()) {
+                // Check for duplicate employee IDs within the same request
+                if (members.stream().anyMatch(m -> m.getEmployeeId().equals(memberDTO.getEmployeeId()))) {
+                    throw new RuntimeException("Duplicate employee found in team members list. Employee ID: " + memberDTO.getEmployeeId());
+                }
+                
                 TeamMember member = new TeamMember();
                 member.setTeamId(team.getId());
                 member.setEmployeeId(memberDTO.getEmployeeId());
-                member.setRole(memberDTO.getRole());
+                member.setRole(memberDTO.getRole() != null ? memberDTO.getRole() : "EMPLOYEE");
                 members.add(member);
             }
-            teamMemberRepository.saveAll(members);
+            try {
+                teamMemberRepository.saveAll(members);
+            } catch (DataIntegrityViolationException e) {
+                throw new RuntimeException("One or more employees are already members of this team. Please check and try again.");
+            }
         }
 
         return convertToDTO(teamRepository.findByIdWithMembers(team.getId()).orElse(team));
@@ -85,17 +95,37 @@ public class TeamService {
 
         // Update team members - remove all existing and add new ones
         teamMemberRepository.deleteByTeamId(id);
+        // Important: ensure deletes are executed before we insert the new set,
+        // otherwise the unique constraint (team_id, employee_id) can fail.
+        teamMemberRepository.flush();
         
         if (teamDTO.getMembers() != null && !teamDTO.getMembers().isEmpty()) {
             List<TeamMember> members = new ArrayList<>();
+            java.util.Set<Long> employeeIds = new java.util.HashSet<>();
+            
             for (TeamMemberDTO memberDTO : teamDTO.getMembers()) {
+                if (memberDTO.getEmployeeId() == null) {
+                    throw new RuntimeException("Employee ID cannot be null");
+                }
+                
+                // Check for duplicate employee IDs within the same request
+                if (employeeIds.contains(memberDTO.getEmployeeId())) {
+                    throw new RuntimeException("Duplicate employee found in team members list. Employee ID: " + memberDTO.getEmployeeId() + " is already in the list.");
+                }
+                employeeIds.add(memberDTO.getEmployeeId());
+                
                 TeamMember member = new TeamMember();
                 member.setTeamId(team.getId());
                 member.setEmployeeId(memberDTO.getEmployeeId());
-                member.setRole(memberDTO.getRole());
+                member.setRole(memberDTO.getRole() != null ? memberDTO.getRole() : "EMPLOYEE");
                 members.add(member);
             }
-            teamMemberRepository.saveAll(members);
+            
+            try {
+                teamMemberRepository.saveAll(members);
+            } catch (DataIntegrityViolationException e) {
+                throw new RuntimeException("One or more employees are already members of this team. Please check and try again.");
+            }
         }
 
         return convertToDTO(teamRepository.findByIdWithMembers(team.getId()).orElse(team));
@@ -121,17 +151,28 @@ public class TeamService {
             throw new RuntimeException("Team not found with id: " + teamId);
         }
 
+        if (memberDTO.getEmployeeId() == null) {
+            throw new RuntimeException("Employee ID is required");
+        }
+
         // Check if employee is already in the team
-        if (teamMemberRepository.findByTeamIdAndEmployeeId(teamId, memberDTO.getEmployeeId()).isPresent()) {
-            throw new RuntimeException("Employee is already a member of this team");
+        Optional<TeamMember> existingMember = teamMemberRepository.findByTeamIdAndEmployeeId(teamId, memberDTO.getEmployeeId());
+        if (existingMember.isPresent()) {
+            throw new RuntimeException("This employee is already a member of this team. Please select a different employee.");
         }
 
         TeamMember member = new TeamMember();
         member.setTeamId(teamId);
         member.setEmployeeId(memberDTO.getEmployeeId());
-        member.setRole(memberDTO.getRole());
+        member.setRole(memberDTO.getRole() != null ? memberDTO.getRole() : "EMPLOYEE");
         
-        member = teamMemberRepository.save(member);
+        try {
+            member = teamMemberRepository.save(member);
+        } catch (DataIntegrityViolationException e) {
+            // Catch database constraint violations
+            throw new RuntimeException("This employee is already a member of this team. Please select a different employee.");
+        }
+        
         return convertMemberToDTO(member);
     }
 

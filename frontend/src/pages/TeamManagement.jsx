@@ -51,14 +51,32 @@ const TeamManagement = () => {
     }
   }
 
-  const handleOpenModal = (team = null) => {
+  const handleOpenModal = async (team = null) => {
     if (team) {
       setEditingTeam(team)
-      setTeamFormData({
-        name: team.name || '',
-        description: team.description || '',
-        members: team.members || []
-      })
+      // Load full team details with members to ensure we have the correct structure
+      try {
+        const fullTeam = await api.getTeamById(team.id)
+        setTeamFormData({
+          name: fullTeam.name || team.name || '',
+          description: fullTeam.description || team.description || '',
+          members: (fullTeam.members || team.members || []).map(member => ({
+            employeeId: member.employeeId ? String(member.employeeId) : '',
+            role: member.role || 'EMPLOYEE'
+          }))
+        })
+      } catch (error) {
+        console.error('Error loading team details:', error)
+        // Fallback to team data if API call fails
+        setTeamFormData({
+          name: team.name || '',
+          description: team.description || '',
+          members: (team.members || []).map(member => ({
+            employeeId: member.employeeId ? String(member.employeeId) : '',
+            role: member.role || 'EMPLOYEE'
+          }))
+        })
+      }
     } else {
       setEditingTeam(null)
       setTeamFormData({
@@ -116,29 +134,34 @@ const TeamManagement = () => {
       }
 
       // Validate members
-      const memberIds = teamFormData.members.map(m => m.employeeId).filter(Boolean)
+      const memberIds = teamFormData.members
+        .map(m => m.employeeId ? String(m.employeeId) : '')
+        .filter(Boolean)
       if (new Set(memberIds).size !== memberIds.length) {
-        throw new Error('Duplicate employees in team members')
+        throw new Error('Duplicate employees found in team members. Please remove duplicates and try again.')
       }
 
       const teamData = {
         name: teamFormData.name.trim(),
         description: teamFormData.description.trim(),
-        createdBy: parseInt(currentUserId),
+        createdBy: editingTeam ? undefined : parseInt(currentUserId), // Don't send createdBy on update
         members: teamFormData.members
           .filter(m => m.employeeId)
           .map(m => {
             // Get the employee's actual role from the employees list
-            const employee = employees.find(emp => emp.id === parseInt(m.employeeId))
+            const employee = employees.find(emp => 
+              emp.id === parseInt(m.employeeId) || 
+              String(emp.id) === String(m.employeeId)
+            )
             return {
               employeeId: parseInt(m.employeeId),
-              role: employee?.role || 'EMPLOYEE' // Use employee's actual role
+              role: m.role || employee?.role || 'EMPLOYEE'
             }
           })
       }
 
       if (editingTeam) {
-        await api.updateTeam(editingTeam.id, teamData)
+        const response = await api.updateTeam(editingTeam.id, teamData)
         setSuccessMessage('Team updated successfully!')
       } else {
         await api.createTeam(teamData)
@@ -150,7 +173,10 @@ const TeamManagement = () => {
       
       setTimeout(() => setSuccessMessage(null), 5000)
     } catch (error) {
-      setError(error.message || 'Failed to save team')
+      // Extract error message
+      const errorMessage = error.message || 'Failed to save team'
+      setError(errorMessage)
+      setTimeout(() => setError(null), 5000)
     } finally {
       setLoading(false)
     }
@@ -437,7 +463,7 @@ const TeamManagement = () => {
                   {teamFormData.members.map((member, index) => (
                     <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       <select
-                        value={member.employeeId}
+                        value={member.employeeId || ''}
                         onChange={(e) => handleMemberChange(index, 'employeeId', e.target.value)}
                         className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                         required
@@ -445,11 +471,12 @@ const TeamManagement = () => {
                         <option value="">Select Employee</option>
                         {employees
                           .filter(emp => {
-                            // Don't show employees already added to the team
+                            // Don't show employees already added to the team (except current member)
                             const existingIds = teamFormData.members
-                              .map(m => m.employeeId)
-                              .filter(id => id && id !== member.employeeId)
-                            return !existingIds.includes(emp.id?.toString()) && !existingIds.includes(emp.id)
+                              .map(m => m.employeeId ? String(m.employeeId) : '')
+                              .filter(id => id && id !== String(member.employeeId))
+                            const empIdStr = emp.id ? String(emp.id) : ''
+                            return !existingIds.includes(empIdStr)
                           })
                           .map(emp => (
                             <option key={emp.id} value={emp.id}>

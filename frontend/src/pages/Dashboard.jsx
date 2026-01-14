@@ -82,6 +82,8 @@ const Dashboard = () => {
     if (empId && (isEmployee || userType === 'employee')) {
       loadEmployeeShift(empId)
       loadTodayAttendance(empId)
+      // Load weekly attendance for employee view
+      loadEmployeeWeeklyAttendance(empId)
     }
 
     // Load weekly attendance data for admin/manager/finance
@@ -286,6 +288,56 @@ const Dashboard = () => {
       setTimeout(() => setCheckOutError(null), 5000)
     } finally {
       setCheckOutLoading(false)
+    }
+  }
+
+  const loadEmployeeWeeklyAttendance = async (empId) => {
+    try {
+      setLoadingWeeklyAttendance(true)
+      const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const weekData = []
+
+      // Fetch attendance for each day of the past week
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today)
+        date.setDate(date.getDate() - i)
+        const dateStr = format(date, 'yyyy-MM-dd')
+        
+        try {
+          const attendanceRecords = await api.getAttendanceByDate(dateStr)
+          const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+          
+          // Find this employee's attendance
+          const employeeAttendance = attendanceArray.find(a => {
+            const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+            return attEmpId === empId
+          })
+          
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: employeeAttendance && (employeeAttendance.status === 'Present' || employeeAttendance.status === 'PRESENT') ? 1 : 0,
+            absent: employeeAttendance && (employeeAttendance.status === 'Absent' || employeeAttendance.status === 'ABSENT') ? 1 : 0
+          })
+        } catch (error) {
+          console.error(`Error fetching attendance for ${dateStr}:`, error)
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setWeeklyAttendanceData(weekData)
+    } catch (error) {
+      console.error('Error loading employee weekly attendance:', error)
+      setWeeklyAttendanceData([])
+    } finally {
+      setLoadingWeeklyAttendance(false)
     }
   }
 
@@ -506,31 +558,47 @@ const Dashboard = () => {
 
   // Generate attendance data for the week
   const getWeeklyAttendanceData = () => {
-    if (isEmployee && dashboardStats?.weekAttendance) {
-      // For employee, show their weekly attendance
-      const weekData = []
-      const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-      const today = new Date()
-      
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today)
-        date.setDate(date.getDate() - i)
-        const dayName = weekDays[date.getDay()]
-        const dateStr = format(date, 'yyyy-MM-dd')
-        
-        const dayAttendance = dashboardStats.weekAttendance.find(a => {
-          const attendanceDate = typeof a.date === 'string' ? a.date : (a.date || '')
-          return attendanceDate === dateStr || attendanceDate.startsWith(dateStr)
-        })
-        
-        weekData.push({
-          name: dayName,
-          present: dayAttendance && dayAttendance.status === 'Present' ? 1 : 0,
-          absent: dayAttendance && dayAttendance.status === 'Absent' ? 1 : 0
-        })
+    // For employee, use loaded weekly attendance data
+    if (isEmployee) {
+      if (weeklyAttendanceData.length > 0) {
+        return weeklyAttendanceData
       }
-      
-      return weekData
+      // Fallback to dashboard stats if available
+      if (dashboardStats?.weekAttendance) {
+        const weekData = []
+        const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        const today = new Date()
+        
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today)
+          date.setDate(date.getDate() - i)
+          const dayName = weekDays[date.getDay()]
+          const dateStr = format(date, 'yyyy-MM-dd')
+          
+          const dayAttendance = dashboardStats.weekAttendance.find(a => {
+            const attendanceDate = typeof a.date === 'string' ? a.date : (a.date || '')
+            return attendanceDate === dateStr || attendanceDate.startsWith(dateStr)
+          })
+          
+          weekData.push({
+            name: dayName,
+            present: dayAttendance && dayAttendance.status === 'Present' ? 1 : 0,
+            absent: dayAttendance && dayAttendance.status === 'Absent' ? 1 : 0
+          })
+        }
+        
+        return weekData
+      }
+      // Return empty data while loading
+      return [
+        { name: 'Sun', present: 0, absent: 0 },
+        { name: 'Mon', present: 0, absent: 0 },
+        { name: 'Tue', present: 0, absent: 0 },
+        { name: 'Wed', present: 0, absent: 0 },
+        { name: 'Thu', present: 0, absent: 0 },
+        { name: 'Fri', present: 0, absent: 0 },
+        { name: 'Sat', present: 0, absent: 0 }
+      ]
     } else {
       // For admin, use dynamically loaded weekly attendance data
       if (weeklyAttendanceData.length > 0) {
@@ -538,13 +606,13 @@ const Dashboard = () => {
       }
       // Return empty data while loading
       return [
+        { name: 'Sun', present: 0, absent: 0 },
         { name: 'Mon', present: 0, absent: 0 },
         { name: 'Tue', present: 0, absent: 0 },
         { name: 'Wed', present: 0, absent: 0 },
         { name: 'Thu', present: 0, absent: 0 },
         { name: 'Fri', present: 0, absent: 0 },
-        { name: 'Sat', present: 0, absent: 0 },
-        { name: 'Sun', present: 0, absent: 0 }
+        { name: 'Sat', present: 0, absent: 0 }
       ]
     }
   }
@@ -1113,60 +1181,86 @@ const Dashboard = () => {
       {!isExecutiveView && (
         <>
           {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon
-          return (
-            <div key={index} className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200 hover:border-blue-300 transform hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-2 sm:mb-3">
-                <div className="bg-blue-600 p-1.5 sm:p-2 md:p-3 rounded-lg sm:rounded-xl shadow-md">
-                  <Icon className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 text-white" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {stats.map((stat, index) => {
+              const Icon = stat.icon
+              const isPresentStatus = isEmployee && stat.title === 'My Status Today'
+              
+              return (
+                <div 
+                  key={index} 
+                  className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-2 border ${
+                    isPresentStatus 
+                      ? (stat.value === 'Present' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white' : 'border-red-300 bg-gradient-to-br from-red-50 to-white')
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className={`p-1 rounded-lg shadow-sm ${
+                      isPresentStatus 
+                        ? (stat.value === 'Present' ? 'bg-green-500' : 'bg-red-500')
+                        : stat.color
+                    }`}>
+                      <Icon className="w-3 h-3 text-white" />
+                    </div>
+                    {!isPresentStatus && (
+                      <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        stat.trend === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {stat.trend === 'up' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                        <span>{stat.change}</span>
+                      </div>
+                    )}
+                    {isPresentStatus && stat.value === 'Present' && (
+                      <div className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                        <ArrowUp size={12} />
+                        <span>Present</span>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className={`text-base font-bold mb-0.5 ${
+                    isPresentStatus 
+                      ? (stat.value === 'Present' ? 'text-green-700' : 'text-red-700')
+                      : 'text-gray-800'
+                  }`}>
+                    {stat.value}
+                  </h3>
+                  <p className="text-xs font-semibold text-gray-700 mb-1">{stat.title}</p>
+                  
+                  {/* Check Out Button - Only for Present Status card */}
+                  {isPresentStatus && canCheckOut && (
+                    <button
+                      onClick={handleCheckOut}
+                      disabled={checkOutLoading}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs shadow-sm hover:shadow-md mt-2"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      {checkOutLoading ? 'Checking Out...' : '→ Check Out'}
+                    </button>
+                  )}
+                  
+                  {/* Check In Button - Only for Absent Status card */}
+                  {isPresentStatus && canCheckIn && (
+                    <button
+                      onClick={handleCheckIn}
+                      disabled={checkInLoading}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs shadow-sm hover:shadow-md mt-2"
+                    >
+                      <LogIn className="w-3 h-3" />
+                      {checkInLoading ? 'Checking In...' : '→ Check In'}
+                    </button>
+                  )}
                 </div>
-                <div className={`flex items-center gap-1 text-xs sm:text-sm font-semibold px-2 sm:px-3 py-1 rounded-full ${
-                  stat.trend === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                }`}>
-                  {stat.trend === 'up' ? <ArrowUp size={12} className="sm:w-4 sm:h-4" /> : <ArrowDown size={12} className="sm:w-4 sm:h-4" />}
-                  <span className="hidden sm:inline">{stat.change}</span>
-                </div>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-1">{stat.value}</h3>
-              <p className="text-xs sm:text-sm text-gray-600">{stat.title}</p>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Check In/Out Buttons - Only for employees */}
-      {(canCheckIn || canCheckOut) && (
-        <div className="flex flex-wrap justify-start gap-3">
-          {canCheckIn && (
-            <button
-              onClick={handleCheckIn}
-              disabled={checkInLoading}
-              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl hover:bg-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-green-500 hover:border-green-600"
-            >
-              <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
-              {checkInLoading ? 'Checking In...' : 'Check In'}
-            </button>
-          )}
-          {canCheckOut && (
-            <button
-              onClick={handleCheckOut}
-              disabled={checkOutLoading}
-              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg sm:rounded-xl hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-blue-500 hover:border-blue-600"
-            >
-              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-              {checkOutLoading ? 'Checking Out...' : 'Check Out'}
-            </button>
-          )}
-        </div>
-      )}
+              )
+            })}
+          </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Attendance Chart */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
-          <h3 className="text-lg sm:text-xl font-bold text-blue-600 mb-2 sm:mb-3">
+        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
+          <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
             {isEmployee ? 'My Weekly Attendance' : 'Weekly Attendance'}
           </h3>
           {loadingWeeklyAttendance && !isEmployee ? (
@@ -1178,14 +1272,44 @@ const Dashboard = () => {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={attendanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="present" fill="#10b981" name="Present" />
-                <Bar dataKey="absent" fill="#ef4444" name="Absent" />
+              <BarChart data={attendanceData} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                  axisLine={{ stroke: '#d1d5db' }}
+                />
+                <YAxis 
+                  domain={isEmployee ? [0, 1] : [0, 'auto']}
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                  axisLine={{ stroke: '#d1d5db' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                  }}
+                />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '20px' }}
+                  iconType="square"
+                />
+                <Bar 
+                  dataKey="present" 
+                  fill="#10b981" 
+                  name="Present" 
+                  radius={[8, 8, 0, 0]}
+                  maxBarSize={60}
+                />
+                <Bar 
+                  dataKey="absent" 
+                  fill="#ef4444" 
+                  name="Absent" 
+                  radius={[8, 8, 0, 0]}
+                  maxBarSize={60}
+                />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -1219,51 +1343,66 @@ const Dashboard = () => {
 
         {/* Employee Info Card - Only show for employee */}
         {isEmployee && dashboardStats && (
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-3">My Information</h3>
+          <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              My Information
+            </h3>
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-600">Department</p>
+              <div className="pb-3 border-b border-gray-200">
+                <p className="text-sm text-gray-600 mb-1">Department</p>
                 <p className="text-lg font-semibold text-gray-800">{dashboardStats.department || 'N/A'}</p>
               </div>
-              {employeeShift && (
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              
+              {employeeShift ? (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-200">
                   <div className="flex items-center gap-2 mb-2">
-                    <Clock className="text-blue-600" size={14} />
-                    <p className="text-sm font-semibold text-blue-800">My Shift</p>
+                    <Clock className="text-blue-600" size={18} />
+                    <p className="text-sm font-semibold text-blue-800">Shift</p>
                   </div>
-                  <p className="text-lg font-bold text-gray-800 mb-1">{employeeShift.name}</p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-xl font-bold text-gray-800 mb-2">{employeeShift.name}</p>
+                  <p className="text-base text-gray-700 font-medium mb-2">
                     {employeeShift.startTime ? employeeShift.startTime.substring(0, 5) : ''} - {employeeShift.endTime ? employeeShift.endTime.substring(0, 5) : ''}
                   </p>
                   {employeeShift.workingHours && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Working Hours: {employeeShift.workingHours.toFixed(2)} hrs
-                      {employeeShift.breakDuration && ` | Break: ${employeeShift.breakDuration} min`}
-                    </p>
+                    <div className="flex items-center gap-4 text-xs text-gray-600 mt-2">
+                      <span className="bg-white px-2 py-1 rounded-md">
+                        {employeeShift.workingHours.toFixed(2)} hrs
+                      </span>
+                      {employeeShift.breakDuration && (
+                        <span className="bg-white px-2 py-1 rounded-md">
+                          Break: {employeeShift.breakDuration} min
+                        </span>
+                      )}
+                    </div>
                   )}
                   {employeeShift.description && (
-                    <p className="text-xs text-gray-600 mt-2">{employeeShift.description}</p>
+                    <p className="text-xs text-gray-600 mt-3 pt-2 border-t border-blue-200">{employeeShift.description}</p>
                   )}
                 </div>
-              )}
-              {!employeeShift && (
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
                   <div className="flex items-center gap-2">
-                    <Clock className="text-gray-400" size={14} />
-                    <p className="text-sm text-gray-600">No shift assigned</p>
+                    <Clock className="text-gray-400" size={18} />
+                    <p className="text-sm text-gray-600 font-medium">No shift assigned</p>
                   </div>
                 </div>
               )}
-              <div>
-                <p className="text-sm text-gray-600">Attendance Rate (Last 30 Days)</p>
-                <p className="text-lg font-semibold text-gray-800">{dashboardStats.attendanceRate?.toFixed(1) || 0}%</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Monthly Payroll</p>
-                <p className="text-lg font-semibold text-gray-800">
-                  ${dashboardStats.monthlyPayroll?.toLocaleString() || '0.00'}
-                </p>
+              
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <p className="text-xs text-gray-600 mb-1">Attendance Rate</p>
+                  <p className="text-lg font-bold text-gray-800">
+                    {dashboardStats.attendanceRate?.toFixed(1) || 0}%
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Last 30 Days</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <p className="text-xs text-gray-600 mb-1">Monthly Payroll</p>
+                  <p className="text-lg font-bold text-gray-800">
+                    ${dashboardStats.monthlyPayroll?.toLocaleString() || '0.00'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

@@ -80,9 +80,27 @@ public class TeamController {
             response.put("message", "Team updated successfully");
             response.put("team", updated);
             return ResponseEntity.ok(response);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            // Handle business logic errors
+            String errorMessage = e.getMessage();
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("error", "Failed to update team");
+            if (errorMessage != null && (errorMessage.contains("Duplicate") || errorMessage.contains("already"))) {
+                response.put("message", errorMessage);
+            } else {
+                response.put("message", errorMessage != null ? errorMessage : "An error occurred while updating the team");
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        } catch (Exception e) {
+            // Handle database constraint violations
+            String errorMessage = e.getMessage();
+            response.put("success", false);
+            response.put("error", "Failed to update team");
+            if (errorMessage != null && (errorMessage.contains("Duplicate entry") || errorMessage.contains("UKgwiekr3b4g6uu8h3v5q03jqxy"))) {
+                response.put("message", "One or more employees are already members of this team. Please remove duplicates and try again.");
+            } else {
+                response.put("message", errorMessage != null ? errorMessage : "An error occurred while updating the team");
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
@@ -124,9 +142,31 @@ public class TeamController {
             response.put("message", "Team member added successfully");
             response.put("member", added);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (RuntimeException e) {
+            // Handle duplicate entry or other business logic errors
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && errorMessage.contains("already")) {
+                response.put("success", false);
+                response.put("error", "Duplicate Entry");
+                response.put("message", errorMessage);
+            } else {
+                response.put("success", false);
+                response.put("error", "Failed to add team member");
+                response.put("message", errorMessage != null ? errorMessage : "An error occurred while adding the team member");
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
+            // Handle database constraint violations
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && (errorMessage.contains("Duplicate entry") || errorMessage.contains("UKgwiekr3b4g6uu8h3v5q03jqxy"))) {
+                response.put("success", false);
+                response.put("error", "Duplicate Entry");
+                response.put("message", "This employee is already a member of this team. Please select a different employee.");
+            } else {
+                response.put("success", false);
+                response.put("error", "Failed to add team member");
+                response.put("message", errorMessage != null ? errorMessage : "An error occurred while adding the team member");
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }

@@ -2499,11 +2499,27 @@ const api = {
       })
       const data = await response.json()
       if (!response.ok || data.success === false) {
-        throw new Error(data.message || 'Failed to update team')
+        const errorMessage = data.message || data.error || 'Failed to update team'
+        const error = new Error(errorMessage)
+        error.response = response
+        throw error
       }
       return data.team || data
     } catch (error) {
       console.error('Error updating team:', error)
+      // If error already has a message, re-throw it
+      if (error.message) {
+        throw error
+      }
+      // Otherwise, try to extract from response
+      if (error.response) {
+        try {
+          const errorData = await error.response.json()
+          throw new Error(errorData.message || errorData.error || 'Failed to update team')
+        } catch (e) {
+          throw new Error('Failed to update team')
+        }
+      }
       throw error
     }
   },

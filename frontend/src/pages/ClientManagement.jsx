@@ -420,6 +420,22 @@ const ClientManagement = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            const button = e.currentTarget
+                            const rect = button.getBoundingClientRect()
+                            const dropdownHeight = 60
+                            const spaceBelow = window.innerHeight - rect.bottom
+                            const spaceAbove = rect.top
+                            const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+
+                            setDropdownPosition(prev => ({
+                              ...prev,
+                              [`client-${client}`]: {
+                                showAbove,
+                                top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                right: window.innerWidth - rect.right
+                              }
+                            }))
+
                             setOpenDropdownId(openDropdownId === client ? null : client)
                           }}
                           className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -428,8 +444,16 @@ const ClientManagement = () => {
                           <MoreVertical size={18} />
                         </button>
                         
-                        {openDropdownId === client && (
-                          <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                        {openDropdownId === client && dropdownPosition[`client-${client}`] && (
+                          <div
+                            className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-56"
+                            style={{
+                              zIndex: 9999,
+                              top: `${dropdownPosition[`client-${client}`].top}px`,
+                              right: `${dropdownPosition[`client-${client}`].right}px`
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -466,6 +490,22 @@ const ClientManagement = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
+                      const button = e.currentTarget
+                      const rect = button.getBoundingClientRect()
+                      const dropdownHeight = 60
+                      const spaceBelow = window.innerHeight - rect.bottom
+                      const spaceAbove = rect.top
+                      const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+
+                      setDropdownPosition(prev => ({
+                        ...prev,
+                        [`client-unassigned`]: {
+                          showAbove,
+                          top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                          right: window.innerWidth - rect.right
+                        }
+                      }))
+
                       setOpenDropdownId(openDropdownId === 'unassigned' ? null : 'unassigned')
                     }}
                     className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -474,8 +514,16 @@ const ClientManagement = () => {
                     <MoreVertical size={18} />
                   </button>
                   
-                  {openDropdownId === 'unassigned' && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                  {openDropdownId === 'unassigned' && dropdownPosition[`client-unassigned`] && (
+                    <div
+                      className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-56"
+                      style={{
+                        zIndex: 9999,
+                        top: `${dropdownPosition[`client-unassigned`].top}px`,
+                        right: `${dropdownPosition[`client-unassigned`].right}px`
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

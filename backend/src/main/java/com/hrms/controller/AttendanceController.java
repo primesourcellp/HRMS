@@ -18,6 +18,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.entity.Attendance;
+import com.hrms.entity.User;
+import com.hrms.repository.UserRepository;
+import com.hrms.service.AuditLogService;
 import com.hrms.service.AttendanceService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,6 +31,12 @@ import jakarta.servlet.http.HttpServletRequest;
 public class AttendanceController {
     @Autowired
     private AttendanceService attendanceService;
+
+    @Autowired
+    private AuditLogService auditLogService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @GetMapping
     public ResponseEntity<?> getAllAttendance() {
@@ -130,6 +139,24 @@ public class AttendanceController {
             
             Attendance attendance = attendanceService.checkIn(employeeId, date, checkInTime, 
                 shiftId, latitude, longitude, location, ipAddress, method);
+            
+            // Log audit event
+            Long userId = getCurrentUserId(httpRequest);
+            if (userId != null && attendance != null) {
+                User employee = userRepository.findById(employeeId).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logEvent(
+                    "ATTENDANCE",
+                    attendance.getId(),
+                    "CHECK_IN",
+                    userId,
+                    null,
+                    attendance,
+                    String.format("Check-in for %s on %s at %s", employeeName, date, checkInTime),
+                    httpRequest
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Check-in successful");
             response.put("attendance", attendance);
@@ -196,6 +223,24 @@ public class AttendanceController {
             
             Attendance attendance = attendanceService.checkOut(employeeId, date, checkOutTime, 
                 latitude, longitude, location, ipAddress, method);
+            
+            // Log audit event
+            Long userId = getCurrentUserId(httpRequest);
+            if (userId != null && attendance != null) {
+                User employee = userRepository.findById(employeeId).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logEvent(
+                    "ATTENDANCE",
+                    attendance.getId(),
+                    "CHECK_OUT",
+                    userId,
+                    null,
+                    attendance,
+                    String.format("Check-out for %s on %s at %s", employeeName, date, checkOutTime),
+                    httpRequest
+                );
+            }
+            
             response.put("success", true);
             response.put("message", "Check-out successful");
             response.put("attendance", attendance);
@@ -204,6 +249,23 @@ public class AttendanceController {
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Get current user ID from request (set by JwtAuthenticationFilter)
+     */
+    private Long getCurrentUserId(HttpServletRequest request) {
+        try {
+            Object userIdObj = request.getAttribute("userId");
+            if (userIdObj instanceof Long) {
+                return (Long) userIdObj;
+            } else if (userIdObj instanceof Number) {
+                return ((Number) userIdObj).longValue();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
         }
     }
 
