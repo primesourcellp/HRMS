@@ -13,13 +13,16 @@ const Payroll = () => {
     const userType = localStorage.getItem('userType')
     return userType === 'employee' ? '' : format(new Date(), 'yyyy-MM')
   })
+  const [selectedAnnualCtcYear, setSelectedAnnualCtcYear] = useState(() => {
+    return format(new Date(), 'yyyy')
+  })
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
   // Set default view based on user type
   const [activeView, setActiveView] = useState(() => {
     const userType = localStorage.getItem('userType')
     return userType === 'employee' ? 'processedPayrolls' : 'salaryDetails'
-  }) // 'salaryDetails', 'processedPayrolls', 'ctcTemplates', or 'gratuity'
+  }) // 'salaryDetails', 'processedPayrolls', 'ctcTemplates', 'gratuity', or 'annualCTC'
   const [showPayrollModal, setShowPayrollModal] = useState(false)
   const [showSalaryModal, setShowSalaryModal] = useState(false)
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
@@ -39,17 +42,30 @@ const Payroll = () => {
   const [showESSPayslipModal, setShowESSPayslipModal] = useState(false)
   const [viewingESSPayslip, setViewingESSPayslip] = useState(null)
   const [payslipDetails, setPayslipDetails] = useState(null)
+  const [isPayslipFromAnnualCTC, setIsPayslipFromAnnualCTC] = useState(false)
   const [editingPayroll, setEditingPayroll] = useState(null)
   const [editingSalary, setEditingSalary] = useState(null)
   const [openSalaryDropdownId, setOpenSalaryDropdownId] = useState(null)
   const [openPayrollDropdownId, setOpenPayrollDropdownId] = useState(null)
   const [openCtcTemplateDropdownId, setOpenCtcTemplateDropdownId] = useState(null)
   const [openGratuityDropdownId, setOpenGratuityDropdownId] = useState(null)
+  const [openAnnualCtcDropdownId, setOpenAnnualCtcDropdownId] = useState(null)
   const [dropdownPosition, setDropdownPosition] = useState({})
   const [processingBulk, setProcessingBulk] = useState(false)
   const [bulkProcessData, setBulkProcessData] = useState({
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd')
+  })
+  const [showIndividualAnnualCtcModal, setShowIndividualAnnualCtcModal] = useState(false)
+  const [showBulkAnnualCtcModal, setShowBulkAnnualCtcModal] = useState(false)
+  const [processingIndividualAnnualCtc, setProcessingIndividualAnnualCtc] = useState(false)
+  const [processingBulkAnnualCtc, setProcessingBulkAnnualCtc] = useState(false)
+  const [individualAnnualCtcData, setIndividualAnnualCtcData] = useState({
+    employeeId: '',
+    year: new Date().getFullYear().toString()
+  })
+  const [bulkAnnualCtcData, setBulkAnnualCtcData] = useState({
+    year: new Date().getFullYear().toString()
   })
   const [payrollFormData, setPayrollFormData] = useState({
     employeeId: '',
@@ -130,6 +146,9 @@ const Payroll = () => {
   const userId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'MANAGER' || userRole === 'FINANCE'
+  const isSuperAdmin = userRole === 'SUPER_ADMIN'
+  const isHRAdmin = userRole === 'HR_ADMIN'
+  const canAccessCTCTemplates = isSuperAdmin || isHRAdmin
   // Check if employee: userType === 'employee' OR userRole === 'EMPLOYEE' OR not admin
   const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && userType !== 'admin')
 
@@ -196,6 +215,21 @@ const Payroll = () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [openGratuityDropdownId])
+
+  // Close dropdown when clicking outside (for Annual CTC)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openAnnualCtcDropdownId && !event.target.closest('.dropdown-menu-container')) {
+        setOpenAnnualCtcDropdownId(null)
+      }
+    }
+    if (openAnnualCtcDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openAnnualCtcDropdownId])
 
   const loadData = async () => {
     try {
@@ -588,9 +622,10 @@ const Payroll = () => {
     }
   }
 
-  const handleViewESSPayslip = async (payrollId) => {
+  const handleViewESSPayslip = async (payrollId, fromAnnualCTC = false) => {
     try {
       setLoading(true)
+      setIsPayslipFromAnnualCTC(fromAnnualCTC)
       const payroll = await api.getPayrollById(payrollId)
       const employee = employees.find(emp => emp.id === payroll.employeeId)
       
@@ -832,7 +867,16 @@ const Payroll = () => {
 
   const handleDownloadPayslip = async (payrollId) => {
     try {
-      // Get employee ID for password protection
+      // If opened from Annual CTC view, download Annual CTC PDF instead
+      if (isPayslipFromAnnualCTC) {
+        const payroll = payrolls.find(p => p.id === payrollId) || viewingESSPayslip
+        if (payroll) {
+          await handleDownloadAnnualCTC(payroll)
+        }
+        return
+      }
+      
+      // Get employee ID for password protection (regular payslip download)
       const payroll = payrolls.find(p => p.id === payrollId) || viewingESSPayslip
       const employee = employees.find(emp => emp.id === payroll?.employeeId)
       const employeeId = employee?.employeeId || employee?.id || userId || 'EMP001'
@@ -854,303 +898,87 @@ const Payroll = () => {
     }
   }
 
-  const handleDownloadAnnualCTC = (payroll) => {
+  const handleDownloadAnnualCTC = async (payroll) => {
     try {
+      setLoading(true)
       const employee = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
       const employeeName = employee?.name || `Employee ID: ${payroll.employeeId}`
       
-      // Get salary structure for contributions
-      const salaryStructure = salaryStructures.find(s => 
-        (s.employeeId === payroll.employeeId || s.employeeId === parseInt(payroll.employeeId)) && s.active
-      )
-      const contributions = calculateContributions(payroll, salaryStructure)
-      
-      // Calculate values
-      const baseSalary = parseFloat(payroll.baseSalary) || 0
-      const allowances = parseFloat(payroll.allowances) || 0
-      const deductions = parseFloat(payroll.deductions) || 0
-      const bonus = parseFloat(payroll.bonus) || 0
-      const monthlyGross = baseSalary + allowances
-      const monthlyEmployerContribution = parseFloat(contributions.employerContribution) || 0
-      const monthlyCTC = monthlyGross + monthlyEmployerContribution
-      const annualCTC = monthlyCTC * 12
-      
-      // Get attendance details
-      const attendanceDetails = calculateAttendanceDetails(payroll)
-      
-      // Create HTML content for PDF
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Annual CTC - ${employeeName}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              padding: 40px;
-              color: #333;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 3px solid #4F46E5;
-              padding-bottom: 20px;
-              margin-bottom: 30px;
-            }
-            .header h1 {
-              color: #4F46E5;
-              margin: 0;
-              font-size: 28px;
-            }
-            .header h2 {
-              color: #666;
-              margin: 5px 0;
-              font-size: 18px;
-              font-weight: normal;
-            }
-            .section {
-              margin-bottom: 30px;
-            }
-            .section-title {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              padding: 12px 20px;
-              font-size: 18px;
-              font-weight: bold;
-              margin-bottom: 15px;
-              border-radius: 5px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            table th {
-              background-color: #f3f4f6;
-              padding: 12px;
-              text-align: left;
-              border: 1px solid #ddd;
-              font-weight: bold;
-            }
-            table td {
-              padding: 12px;
-              border: 1px solid #ddd;
-            }
-            .highlight {
-              background-color: #fef3c7;
-              font-weight: bold;
-            }
-            .annual-ctc {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              padding: 25px;
-              text-align: center;
-              border-radius: 10px;
-              margin-top: 30px;
-            }
-            .annual-ctc h3 {
-              margin: 0 0 10px 0;
-              font-size: 20px;
-            }
-            .annual-ctc .amount {
-              font-size: 36px;
-              font-weight: bold;
-              margin: 10px 0;
-            }
-            .info-box {
-              background-color: #f9fafb;
-              padding: 15px;
-              border-left: 4px solid #4F46E5;
-              margin: 15px 0;
-            }
-            .footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 2px solid #ddd;
-              text-align: center;
-              color: #666;
-              font-size: 12px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>ANNUAL CTC STATEMENT</h1>
-            <h2>Cost to Company</h2>
-            <p style="margin: 10px 0; color: #666;">${employeeName} - ${payroll.month || 'N/A'}/${payroll.year || 'N/A'}</p>
-            <p style="margin: 5px 0; color: #666;">Generated on: ${format(new Date(), 'MMMM dd, yyyy')}</p>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Employee Information</div>
-            <table>
-              <tr>
-                <th>Employee Name</th>
-                <td>${employeeName}</td>
-                <th>Employee ID</th>
-                <td>${employee?.employeeId || employee?.id || payroll.employeeId || 'N/A'}</td>
-              </tr>
-              <tr>
-                <th>Department</th>
-                <td>${employee?.department || 'N/A'}</td>
-                <th>Period</th>
-                <td>${payroll.month || 'N/A'}/${payroll.year || 'N/A'}</td>
-              </tr>
-              ${payroll.startDate && payroll.endDate ? `
-              <tr>
-                <th>Payroll Period</th>
-                <td colspan="3">${format(parseISO(payroll.startDate), 'MMMM dd, yyyy')} - ${format(parseISO(payroll.endDate), 'MMMM dd, yyyy')}</td>
-              </tr>
-              ` : ''}
-            </table>
-          </div>
-
-          ${payroll.startDate && payroll.endDate ? `
-          <div class="section">
-            <div class="section-title">Attendance Details</div>
-            <table>
-              <tr>
-                <th>Total Days</th>
-                <td>${attendanceDetails.totalDays} days</td>
-                <th>Present Days</th>
-                <td>${attendanceDetails.presentDays} days</td>
-              </tr>
-              <tr>
-                <th>Leave Days</th>
-                <td>${attendanceDetails.leaveDays} days</td>
-                <th>Payable Days</th>
-                <td>${attendanceDetails.payableDays} days</td>
-              </tr>
-              <tr>
-                <th>Proration Factor</th>
-                <td colspan="3">${(parseFloat(attendanceDetails.prorationFactor) * 100).toFixed(2)}%</td>
-              </tr>
-            </table>
-          </div>
-          ` : ''}
-
-          <div class="section">
-            <div class="section-title">Monthly Salary Breakdown</div>
-            <table>
-              <tr>
-                <th>Component</th>
-                <th style="text-align: right;">Amount (₹)</th>
-              </tr>
-              <tr>
-                <td>Base Salary</td>
-                <td style="text-align: right;">${baseSalary.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td>Allowances</td>
-                <td style="text-align: right;">${allowances.toFixed(2)}</td>
-              </tr>
-              <tr class="highlight">
-                <td><strong>Gross Salary</strong></td>
-                <td style="text-align: right;"><strong>${monthlyGross.toFixed(2)}</strong></td>
-              </tr>
-              <tr>
-                <td>Deductions</td>
-                <td style="text-align: right;">-${deductions.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td>Bonus</td>
-                <td style="text-align: right;">+${bonus.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td><strong>Net Salary</strong></td>
-                <td style="text-align: right;"><strong>${(baseSalary + allowances + bonus - deductions).toFixed(2)}</strong></td>
-              </tr>
-            </table>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Contributions</div>
-            <table>
-              <tr>
-                <th>Contribution Type</th>
-                <th style="text-align: right;">Monthly Amount (₹)</th>
-                <th style="text-align: right;">Annual Amount (₹)</th>
-              </tr>
-              <tr>
-                <td>Employee Contribution (PF + ESI)</td>
-                <td style="text-align: right;">${contributions.employeeContribution}</td>
-                <td style="text-align: right;">${(parseFloat(contributions.employeeContribution) * 12).toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td>Employer Contribution (PF + ESI)</td>
-                <td style="text-align: right;">${contributions.employerContribution}</td>
-                <td style="text-align: right;">${(monthlyEmployerContribution * 12).toFixed(2)}</td>
-              </tr>
-            </table>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Monthly CTC Calculation</div>
-            <table>
-              <tr>
-                <th>Component</th>
-                <th style="text-align: right;">Amount (₹)</th>
-              </tr>
-              <tr>
-                <td>Monthly Gross Salary</td>
-                <td style="text-align: right;">${monthlyGross.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td>Monthly Employer Contribution</td>
-                <td style="text-align: right;">${monthlyEmployerContribution.toFixed(2)}</td>
-              </tr>
-              <tr class="highlight">
-                <td><strong>Monthly CTC</strong></td>
-                <td style="text-align: right;"><strong>${monthlyCTC.toFixed(2)}</strong></td>
-              </tr>
-            </table>
-          </div>
-
-          <div class="annual-ctc">
-            <h3>ANNUAL CTC (COST TO COMPANY)</h3>
-            <div class="amount">₹${annualCTC.toFixed(2)}</div>
-            <p style="margin: 10px 0 0 0; font-size: 14px;">Monthly CTC × 12 months</p>
-          </div>
-
-          <div class="info-box">
-            <strong>Note:</strong> Annual CTC includes monthly gross salary and employer contributions (PF + ESI). 
-            This represents the total cost to the company for employing this individual for one year.
-          </div>
-
-          <div class="footer">
-            <p>This is a system-generated document. For any discrepancies, please contact HR.</p>
-            <p>Generated on ${format(new Date(), 'MMMM dd, yyyy')} at ${format(new Date(), 'hh:mm a')}</p>
-          </div>
-        </body>
-        </html>
-      `
-      
-      // Create blob and download
-      const blob = new Blob([htmlContent], { type: 'text/html' })
+      const blob = await api.downloadAnnualCTC(payroll.id)
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `Annual_CTC_${employeeName.replace(/\s+/g, '_')}_${payroll.year || new Date().getFullYear()}.html`
+      link.download = `Annual_CTC_${employeeName.replace(/\s+/g, '_')}_${payroll.year || new Date().getFullYear()}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
       
-      // For PDF, we'll use browser's print to PDF
-      const printWindow = window.open('', '_blank')
-      printWindow.document.write(htmlContent)
-      printWindow.document.close()
-      printWindow.focus()
-      
-      // Wait a bit for content to load, then trigger print dialog
-      setTimeout(() => {
-        printWindow.print()
-        // After print dialog, user can save as PDF
-      }, 250)
-      
+      alert('Annual CTC PDF downloaded successfully!')
     } catch (error) {
-      console.error('Error generating Annual CTC document:', error)
-      alert('Error generating Annual CTC document: ' + error.message)
+      console.error('Error downloading Annual CTC PDF:', error)
+      alert('Error downloading Annual CTC PDF: ' + (error.message || 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleIndividualAnnualCTC = async () => {
+    if (!individualAnnualCtcData.employeeId) {
+      alert('Please select an employee')
+      return
+    }
+    
+    const employee = employees.find(e => e.id === parseInt(individualAnnualCtcData.employeeId))
+    const employeeName = employee?.name || `Employee ID: ${individualAnnualCtcData.employeeId}`
+    
+    if (!window.confirm(`Calculate Annual CTC for ${employeeName} for year ${individualAnnualCtcData.year}?`)) return
+    
+    try {
+      setProcessingIndividualAnnualCtc(true)
+      // Filter to show only this employee's payroll for the selected year
+      setSearchTerm(employeeName)
+      // Set year filter for Annual CTC view
+      setSelectedAnnualCtcYear(individualAnnualCtcData.year)
+      
+      // Reload data to ensure we have the latest payroll records
+      await loadData()
+      
+      alert(`Annual CTC calculation view filtered for ${employeeName} - Year ${individualAnnualCtcData.year}`)
+      setShowIndividualAnnualCtcModal(false)
+      setIndividualAnnualCtcData({ employeeId: '', year: new Date().getFullYear().toString() })
+    } catch (error) {
+      alert('Error calculating Annual CTC: ' + error.message)
+    } finally {
+      setProcessingIndividualAnnualCtc(false)
+    }
+  }
+
+  const handleBulkAnnualCTC = async () => {
+    if (!bulkAnnualCtcData.year) {
+      alert('Please select a year')
+      return
+    }
+    
+    if (!window.confirm(`Calculate Annual CTC for all employees for year ${bulkAnnualCtcData.year}?`)) return
+    
+    try {
+      setProcessingBulkAnnualCtc(true)
+      // Clear search to show all employees
+      setSearchTerm('')
+      // Set year filter for Annual CTC view
+      setSelectedAnnualCtcYear(bulkAnnualCtcData.year)
+      
+      // Reload data to ensure we have the latest payroll records
+      await loadData()
+      
+      alert(`Annual CTC calculation view filtered for all employees - Year ${bulkAnnualCtcData.year}`)
+      setShowBulkAnnualCtcModal(false)
+      setBulkAnnualCtcData({ year: new Date().getFullYear().toString() })
+    } catch (error) {
+      alert('Error calculating Annual CTC: ' + error.message)
+    } finally {
+      setProcessingBulkAnnualCtc(false)
     }
   }
 
@@ -1485,6 +1313,63 @@ const Payroll = () => {
     window.URL.revokeObjectURL(url)
   }
 
+  const handleExportAnnualCTCCSV = () => {
+    const csvData = filteredPayrolls.map(p => {
+      const employee = employees.find(emp => emp.id === p.employeeId || emp.id === parseInt(p.employeeId))
+      const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
+      
+      const baseSalary = parseFloat(p.baseSalary) || 0
+      const allowances = parseFloat(p.allowances) || 0
+      const monthlyGross = baseSalary + allowances
+      
+      const salaryStructure = salaryStructures.find(s => 
+        (s.employeeId === p.employeeId || s.employeeId === parseInt(p.employeeId)) && s.active
+      )
+      const contributions = calculateContributions(p, salaryStructure)
+      const monthlyEmployerContribution = parseFloat(contributions.employerContribution) || 0
+      const monthlyCTC = monthlyGross + monthlyEmployerContribution
+      const annualCTC = monthlyCTC * 12
+      
+      return {
+        Employee: employeeName,
+        'Employee ID': employee?.employeeId || employee?.id || 'N/A',
+        'Month/Year': p.month && p.year ? `${p.month}/${p.year}` : p.month || 'N/A',
+        'Monthly Gross Salary': monthlyGross.toFixed(2),
+        'Employer Contribution': monthlyEmployerContribution.toFixed(2),
+        'Monthly CTC': monthlyCTC.toFixed(2),
+        'Annual CTC': annualCTC.toFixed(2),
+        'Base Salary': baseSalary.toFixed(2),
+        Allowances: allowances.toFixed(2),
+        'Bonus': (parseFloat(p.bonus) || 0).toFixed(2),
+        'Deductions': (parseFloat(p.deductions) || 0).toFixed(2),
+        'Net Salary': (parseFloat(p.netSalary) || parseFloat(p.amount) || 0).toFixed(2),
+        Status: p.status || 'DRAFT'
+      }
+    })
+
+    if (csvData.length === 0) {
+      alert('No data to export')
+      return
+    }
+
+    const headers = Object.keys(csvData[0])
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => headers.map(header => `"${row[header]}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `annual_ctc_${selectedAnnualCtcYear || 'all'}_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  }
+
   const calculateNetSalary = () => {
     const base = parseFloat(payrollFormData.baseSalary) || 0
     const allowances = parseFloat(payrollFormData.allowances) || 0
@@ -1495,9 +1380,20 @@ const Payroll = () => {
 
   const filteredPayrolls = payrolls.filter(payroll => {
     const matchesStatus = statusFilter === 'All' || payroll.status === statusFilter
-    // Match month exactly (format: yyyy-MM)
-    // For employees, if no month is selected, show all payrolls
-    const matchesMonth = !selectedMonth || (payroll.month && payroll.month === selectedMonth)
+    // Use different month filter based on active view
+    // For Annual CTC view, filter by year; otherwise filter by month
+    let matchesMonth = true
+    if (activeView === 'annualCTC') {
+      // Match year from payroll.month (format: yyyy-MM) or payroll.year
+      if (selectedAnnualCtcYear) {
+        const payrollYear = payroll.year || (payroll.month ? payroll.month.split('-')[0] : null)
+        matchesMonth = payrollYear === selectedAnnualCtcYear
+      }
+    } else {
+      // Match month exactly (format: yyyy-MM)
+      const monthFilter = selectedMonth
+      matchesMonth = !monthFilter || (payroll.month && payroll.month === monthFilter)
+    }
     const matchesSearch = !searchTerm || 
       (isAdmin && (() => {
         const emp = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
@@ -2763,51 +2659,79 @@ const Payroll = () => {
                 </div>
 
                 {/* Attendance Details */}
-                {viewingPayroll.startDate && viewingPayroll.endDate && (
-                  <div className="bg-blue-50 rounded-xl p-5 border-2 border-blue-200">
-                    <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <Clock size={24} className="text-blue-600" />
-                      Attendance Details
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div className="bg-white rounded-lg p-3 border border-blue-100">
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Total Days</label>
-                        <div className="text-lg font-bold text-gray-900">
-                          {attendanceDetails.totalDays} days
+                {viewingPayroll.startDate && viewingPayroll.endDate && (() => {
+                  const lopDays = Math.max(0, attendanceDetails.totalDays - attendanceDetails.payableDays)
+                  return (
+                    <div className="bg-blue-50 rounded-xl p-5 border-2 border-blue-200">
+                      <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Clock size={24} className="text-blue-600" />
+                        Attendance & Payroll Calculation
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+                        <div className="bg-white rounded-lg p-3 border border-blue-100">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Total Working Days</label>
+                          <div className="text-lg font-bold text-gray-900">
+                            {attendanceDetails.totalDays} days
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Days in period</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-green-100">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Present Days</label>
+                          <div className="text-lg font-bold text-green-600">
+                            {attendanceDetails.presentDays} days
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Actual attendance</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-yellow-100">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Approved Leave Days</label>
+                          <div className="text-lg font-bold text-yellow-600">
+                            {attendanceDetails.leaveDays} days
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Manager approved</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-blue-100">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Payable Days</label>
+                          <div className="text-lg font-bold text-blue-600">
+                            {attendanceDetails.payableDays} days
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Present + Leave</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-red-100">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">LOP Days</label>
+                          <div className="text-lg font-bold text-red-600">
+                            {lopDays.toFixed(1)} days
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Loss of Pay</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-purple-100">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Proration Factor</label>
+                          <div className="text-lg font-bold text-purple-600">
+                            {(parseFloat(attendanceDetails.prorationFactor) * 100).toFixed(2)}%
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Payable/Total</p>
                         </div>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-green-100">
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Present Days</label>
-                        <div className="text-lg font-bold text-green-600">
-                          {attendanceDetails.presentDays} days
-                        </div>
+                      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-gray-700">
+                          <strong>Calculation:</strong> Payable Days = Present Days ({attendanceDetails.presentDays}) + Approved Leave Days ({attendanceDetails.leaveDays}) = {attendanceDetails.payableDays} days
+                        </p>
+                        {lopDays > 0 && (
+                          <p className="text-sm text-red-700 mt-2">
+                            <strong>LOP:</strong> Total Working Days ({attendanceDetails.totalDays}) - Payable Days ({attendanceDetails.payableDays}) = {lopDays.toFixed(1)} days (Loss of Pay)
+                          </p>
+                        )}
+                        <p className="text-sm text-gray-600 mt-2">
+                          <strong>Salary Impact:</strong> Net Salary is calculated as (Base Salary + Allowances - Deductions) × Proration Factor ({attendanceDetails.prorationFactor}) + Bonus
+                        </p>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-yellow-100">
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Leave Days</label>
-                        <div className="text-lg font-bold text-yellow-600">
-                          {attendanceDetails.leaveDays} days
+                      {viewingPayroll.startDate && viewingPayroll.endDate && (
+                        <div className="mt-3 text-sm text-gray-600">
+                          <span className="font-semibold">Period:</span> {format(parseISO(viewingPayroll.startDate), 'MMM dd, yyyy')} - {format(parseISO(viewingPayroll.endDate), 'MMM dd, yyyy')}
                         </div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-blue-100">
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Payable Days</label>
-                        <div className="text-lg font-bold text-blue-600">
-                          {attendanceDetails.payableDays} days
-                        </div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-purple-100">
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Proration Factor</label>
-                        <div className="text-lg font-bold text-purple-600">
-                          {(parseFloat(attendanceDetails.prorationFactor) * 100).toFixed(2)}%
-                        </div>
-                      </div>
+                      )}
                     </div>
-                    {viewingPayroll.startDate && viewingPayroll.endDate && (
-                      <div className="mt-3 text-sm text-gray-600">
-                        <span className="font-semibold">Period:</span> {format(parseISO(viewingPayroll.startDate), 'MMM dd, yyyy')} - {format(parseISO(viewingPayroll.endDate), 'MMM dd, yyyy')}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )
+                })()}
 
                 {/* Salary Details */}
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
@@ -2879,66 +2803,6 @@ const Payroll = () => {
                         ₹{contributions.employerContribution}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">PF + ESI (employer's share)</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Annual CTC Calculation Section */}
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-5 border-2 border-purple-200">
-                  <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <TrendingUp size={24} className="text-purple-600" />
-                    Annual CTC (Cost to Company)
-                  </h4>
-                  <div className="space-y-4">
-                    {/* Monthly Breakdown */}
-                    <div className="bg-white rounded-lg p-4 border border-purple-100">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Gross Salary</label>
-                          <div className="text-base font-semibold text-gray-900">
-                            ₹{(baseSalary + allowances).toFixed(2)}
-                          </div>
-                          <p className="text-xs text-gray-500">Base + Allowances</p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Employer Contribution</label>
-                          <div className="text-base font-semibold text-blue-600">
-                            ₹{contributions.employerContribution}
-                          </div>
-                          <p className="text-xs text-gray-500">PF + ESI (employer)</p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly CTC</label>
-                          <div className="text-lg font-bold text-purple-600">
-                            ₹{(parseFloat(baseSalary + allowances) + parseFloat(contributions.employerContribution)).toFixed(2)}
-                          </div>
-                          <p className="text-xs text-gray-500">Gross + Employer Contribution</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Annual CTC */}
-                    <div className="bg-gradient-to-r from-purple-100 to-indigo-100 rounded-lg p-4 border-2 border-purple-300">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Annual CTC</label>
-                          <p className="text-xs text-gray-600">Monthly CTC × 12 months</p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-3xl font-bold text-purple-700">
-                            ₹{((parseFloat(baseSalary + allowances) + parseFloat(contributions.employerContribution)) * 12).toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-4 pt-4 border-t border-purple-200">
-                        <button
-                          onClick={() => handleDownloadAnnualCTC(viewingPayroll)}
-                          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
-                        >
-                          <Download size={18} />
-                          Download Annual CTC PDF
-                        </button>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -3272,53 +3136,53 @@ const Payroll = () => {
 
   return (
     <div className="space-y-4 sm:space-y-5 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
-      {/* Toggle Buttons for Salary Details, Processed Payrolls, and CTC Templates - Admin Only */}
+      {/* Toggle Buttons for Salary Details, Processed Payrolls, CTC Templates, Gratuity, and Annual CTC - Admin Only */}
       {isAdmin && (
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center gap-4 flex-wrap">
+        <div className="bg-white rounded-xl shadow-md p-3 sm:p-4">
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 flex-wrap">
             <button
               onClick={() => setActiveView('salaryDetails')}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
                 activeView === 'salaryDetails'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <span className="text-lg font-bold">₹</span>
+              <span className="text-base font-bold">₹</span>
               Salary Details
             </button>
             <button
               onClick={() => setActiveView('processedPayrolls')}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
                 activeView === 'processedPayrolls'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <FileText size={20} />
+              <FileText size={18} />
               Processed Payrolls
             </button>
             <button
-              onClick={() => setActiveView('ctcTemplates')}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
-                activeView === 'ctcTemplates'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              onClick={() => setActiveView('gratuity')}
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                activeView === 'gratuity'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <Receipt size={20} />
-              CTC Templates
+              <Gift size={18} />
+              Gratuity
             </button>
             <button
-              onClick={() => setActiveView('gratuity')}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
-                activeView === 'gratuity'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              onClick={() => setActiveView('annualCTC')}
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                activeView === 'annualCTC'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <Gift size={20} />
-              Gratuity
+              <TrendingUp size={18} />
+              Annual CTC Calculation
             </button>
           </div>
         </div>
@@ -4343,204 +4207,6 @@ const Payroll = () => {
       )}
 
 
-      {/* CTC Templates View */}
-      {isAdmin && activeView === 'ctcTemplates' && (
-        <>
-          {/* Filters and Actions for CTC Templates */}
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    placeholder="Search templates by name, client, or description..."
-                    value={ctcTemplateSearchTerm}
-                    onChange={(e) => setCtcTemplateSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {ctcTemplateSearchTerm && (
-                    <button
-                      onClick={() => setCtcTemplateSearchTerm('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={18} />
-                    </button>
-                  )}
-                </div>
-                <select
-                  value={ctcTemplateClientFilter}
-                  onChange={(e) => setCtcTemplateClientFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All Clients</option>
-                  {ctcTemplateClients.map(client => (
-                    <option key={client} value={client}>{client}</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                onClick={() => handleOpenCtcTemplateModal()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-              >
-                <Plus size={20} />
-                Create Template
-              </button>
-            </div>
-          </div>
-
-          {/* CTC Templates Table */}
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
-            <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gray-50">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
-                <Receipt size={24} className="text-blue-600" />
-                CTC Templates ({filteredCtcTemplates.length})
-              </h3>
-            </div>
-            {loading && filteredCtcTemplates.length === 0 ? (
-              <div className="p-8 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-                <p className="text-gray-600">Loading templates...</p>
-              </div>
-            ) : filteredCtcTemplates.length === 0 ? (
-              <div className="p-8 text-center">
-                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Templates Found</h3>
-                <p className="text-gray-500 mb-4">
-                  {ctcTemplates.length === 0 
-                    ? 'Create your first CTC template to get started'
-                    : 'No templates match your search criteria'}
-                </p>
-                {ctcTemplates.length === 0 && (
-                  <button
-                    onClick={() => handleOpenCtcTemplateModal()}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-                  >
-                    Create Template
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b-2 border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Template Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Client</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Basic %</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">HRA %</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">PF %</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredCtcTemplates.map(template => (
-                      <tr key={template.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{template.templateName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{template.clientName || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{template.basicSalaryPercentage}%</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{template.hraPercentage}%</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{template.pfPercentage}%</td>
-                        <td className="px-4 py-3">
-                          {template.active ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              <CheckCircle size={12} className="mr-1" />
-                              Active
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              <XCircle size={12} className="mr-1" />
-                              Inactive
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right pr-8">
-                          <div className="relative inline-block dropdown-menu-container">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const button = e.currentTarget
-                                const rect = button.getBoundingClientRect()
-                                const spaceBelow = window.innerHeight - rect.bottom
-                                const spaceAbove = rect.top
-                                const dropdownHeight = 120
-                                
-                                // Determine position: show below if enough space, otherwise above
-                                const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
-                                
-                                setDropdownPosition(prev => ({
-                                  ...prev,
-                                  [`ctc-${template.id}`]: {
-                                    showAbove,
-                                    top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
-                                    right: window.innerWidth - rect.right
-                                  }
-                                }))
-                                setOpenCtcTemplateDropdownId(openCtcTemplateDropdownId === template.id ? null : template.id)
-                              }}
-                              className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                              title="Actions"
-                            >
-                              <MoreVertical size={18} />
-                            </button>
-                            
-                            {openCtcTemplateDropdownId === template.id && dropdownPosition[`ctc-${template.id}`] && (
-                              <div 
-                                className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
-                                style={{ 
-                                  zIndex: 9999,
-                                  top: `${dropdownPosition[`ctc-${template.id}`].top}px`,
-                                  right: `${dropdownPosition[`ctc-${template.id}`].right}px`
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleViewCtcTemplate(template)
-                                    setOpenCtcTemplateDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                >
-                                  <Eye size={16} className="text-green-600" />
-                                  View Details
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleOpenCtcTemplateModal(template)
-                                    setOpenCtcTemplateDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                >
-                                  <Edit size={16} className="text-blue-600" />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDeleteCtcTemplate(template.id)
-                                    setOpenCtcTemplateDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                  <Trash2 size={16} />
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
-      )}
 
       {/* Gratuity Management View */}
       {isAdmin && activeView === 'gratuity' && (
@@ -4772,6 +4438,240 @@ const Payroll = () => {
         </>
       )}
 
+      {/* Annual CTC Calculation View */}
+      {isAdmin && activeView === 'annualCTC' && (
+        <>
+        
+
+          {/* Filters, Search, and Action Buttons */}
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search by employee name, ID, or department..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    value={selectedAnnualCtcYear}
+                    onChange={(e) => setSelectedAnnualCtcYear(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Select Year"
+                  />
+                </div>
+              </div>
+              {isAdmin && (
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => setShowIndividualAnnualCtcModal(true)}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+                  >
+                    <Users size={20} />
+                    Calculate Individual
+                  </button>
+                  <button
+                    onClick={() => setShowBulkAnnualCtcModal(true)}
+                    className="bg-green-600 text-white px-6 py-2 rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+                  >
+                    <PlayCircle size={20} />
+                    Calculate Bulk
+                  </button>
+                  {filteredPayrolls.length > 0 && (
+                    <button
+                      onClick={handleExportAnnualCTCCSV}
+                      className="bg-gray-600 text-white px-6 py-2 rounded-xl hover:bg-gray-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+                    >
+                      <FileDown size={20} />
+                      Export CSV
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Annual CTC Table */}
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
+            <div className="p-4 sm:p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-600 to-indigo-600">
+              <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-3">
+                <TrendingUp size={24} />
+                Annual CTC Records ({filteredPayrolls.length})
+              </h3>
+            </div>
+            {loading && filteredPayrolls.length === 0 ? (
+              <div className="p-8 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                <p className="text-gray-600">Loading payroll records...</p>
+              </div>
+            ) : filteredPayrolls.length === 0 ? (
+              <div className="p-8 text-center">
+                <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Payroll Records Found</h3>
+                <p className="text-gray-500">
+                  {payrolls.length === 0 
+                    ? 'No payroll records available for Annual CTC calculation'
+                    : 'No records match your search criteria'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b-2 border-gray-200">
+                    <tr>
+                      <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase">Employee</th>
+                      <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase">Month/Year</th>
+                      <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase">Monthly Gross</th>
+                      <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase">Employer Contribution</th>
+                      <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase">Monthly CTC</th>
+                      <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase">Annual CTC</th>
+                      <th className="px-4 sm:px-6 py-3 sm:py-4 text-right text-xs font-semibold text-gray-700 uppercase pr-8">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredPayrolls.map((payroll) => {
+                      const employee = employees.find(emp => emp.id === payroll.employeeId || emp.id === parseInt(payroll.employeeId))
+                      const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
+                      
+                      const baseSalary = parseFloat(payroll.baseSalary) || 0
+                      const allowances = parseFloat(payroll.allowances) || 0
+                      const monthlyGross = baseSalary + allowances
+                      
+                      // Get salary structure for contributions
+                      const salaryStructure = salaryStructures.find(s => 
+                        (s.employeeId === payroll.employeeId || s.employeeId === parseInt(payroll.employeeId)) && s.active
+                      )
+                      const contributions = calculateContributions(payroll, salaryStructure)
+                      const monthlyEmployerContribution = parseFloat(contributions.employerContribution) || 0
+                      const monthlyCTC = monthlyGross + monthlyEmployerContribution
+                      const annualCTC = monthlyCTC * 12
+                      
+                      return (
+                        <tr key={payroll.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {employeeName}
+                          </td>
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-900">
+                            {payroll.month && payroll.year 
+                              ? `${payroll.month}/${payroll.year}`
+                              : payroll.month || 'N/A'}
+                          </td>
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-900">
+                            ₹{monthlyGross.toFixed(2)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                            ₹{monthlyEmployerContribution.toFixed(2)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
+                            ₹{monthlyCTC.toFixed(2)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-bold text-blue-700">
+                            ₹{annualCTC.toFixed(2)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
+                            <div className="relative inline-block dropdown-menu-container">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const button = e.currentTarget
+                                  const rect = button.getBoundingClientRect()
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const spaceAbove = rect.top
+                                  const dropdownHeight = 180
+                                  
+                                  // Determine position: show below if enough space, otherwise above
+                                  const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                  
+                                  setDropdownPosition(prev => ({
+                                    ...prev,
+                                    [`annualCtc-${payroll.id}`]: {
+                                      showAbove,
+                                      top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                      right: window.innerWidth - rect.right
+                                    }
+                                  }))
+                                  setOpenAnnualCtcDropdownId(openAnnualCtcDropdownId === payroll.id ? null : payroll.id)
+                                }}
+                                className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Actions"
+                              >
+                                <MoreVertical size={18} />
+                              </button>
+                              
+                              {openAnnualCtcDropdownId === payroll.id && dropdownPosition[`annualCtc-${payroll.id}`] && (
+                                <div 
+                                  className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                                  style={{ 
+                                    zIndex: 9999,
+                                    top: `${dropdownPosition[`annualCtc-${payroll.id}`].top}px`,
+                                    right: `${dropdownPosition[`annualCtc-${payroll.id}`].right}px`
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDownloadAnnualCTC(payroll)
+                                      setOpenAnnualCtcDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  >
+                                    <Download size={16} className="text-blue-600" />
+                                    Download PDF
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleViewESSPayslip(payroll.id, true)
+                                      setOpenAnnualCtcDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  >
+                                    <Eye size={16} className="text-green-600" />
+                                    View Payslip
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeletePayroll(payroll.id)
+                                      setOpenAnnualCtcDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 size={16} />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       {/* Gratuity Modal */}
       {showGratuityModal && isAdmin && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -4909,6 +4809,166 @@ const Payroll = () => {
         </div>
       )}
 
+      {/* Individual Annual CTC Calculation Modal */}
+      {showIndividualAnnualCtcModal && isAdmin && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Users size={28} className="text-blue-600" />
+                Calculate Individual Annual CTC
+              </h3>
+              <button
+                onClick={() => {
+                  setShowIndividualAnnualCtcModal(false)
+                  setIndividualAnnualCtcData({
+                    employeeId: '',
+                    year: new Date().getFullYear().toString()
+                  })
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
+                <select
+                  value={individualAnnualCtcData.employeeId}
+                  onChange={(e) => setIndividualAnnualCtcData({ ...individualAnnualCtcData, employeeId: e.target.value })}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  required
+                >
+                  <option value="">Select Employee</option>
+                  {employees
+                    .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
+                    .map((emp) => {
+                      const employeeName = emp.name || 'Unnamed Employee'
+                      return (
+                        <option key={emp.id} value={emp.id}>
+                          {employeeName} {emp.employeeId ? `(${emp.employeeId})` : `(ID: ${emp.id})`}
+                        </option>
+                      )
+                    })}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Year *</label>
+                <input
+                  type="number"
+                  value={individualAnnualCtcData.year}
+                  onChange={(e) => setIndividualAnnualCtcData({ ...individualAnnualCtcData, year: e.target.value })}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter Year (e.g., 2025)"
+                  min="2000"
+                  max="2100"
+                  required
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowIndividualAnnualCtcModal(false)
+                    setIndividualAnnualCtcData({
+                      employeeId: '',
+                      year: new Date().getFullYear().toString()
+                    })
+                  }}
+                  className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleIndividualAnnualCTC}
+                  disabled={processingIndividualAnnualCtc || !individualAnnualCtcData.employeeId || !individualAnnualCtcData.year}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {processingIndividualAnnualCtc ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp size={18} />
+                      Calculate Annual CTC
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Annual CTC Calculation Modal */}
+      {showBulkAnnualCtcModal && isAdmin && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md border-2 border-gray-200">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-xl sm:text-2xl font-bold text-green-600 flex items-center gap-3">
+                <PlayCircle size={28} className="text-green-600" />
+                Calculate Bulk Annual CTC
+              </h3>
+              <button
+                onClick={() => {
+                  setShowBulkAnnualCtcModal(false)
+                  setBulkAnnualCtcData({ year: new Date().getFullYear().toString() })
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Year *</label>
+                <input
+                  type="number"
+                  value={bulkAnnualCtcData.year}
+                  onChange={(e) => setBulkAnnualCtcData({ ...bulkAnnualCtcData, year: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter Year (e.g., 2025)"
+                  min="2000"
+                  max="2100"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Calculate Annual CTC for all employees for this year</p>
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowBulkAnnualCtcModal(false)
+                    setBulkAnnualCtcData({ year: new Date().getFullYear().toString() })
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkAnnualCTC}
+                  disabled={processingBulkAnnualCtc || !bulkAnnualCtcData.year}
+                  className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                >
+                  {processingBulkAnnualCtc ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp size={18} />
+                      Calculate Annual CTC
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ESS Payslip View Modal - Comprehensive Employee Self-Service Payslip */}
       {showESSPayslipModal && viewingESSPayslip && payslipDetails && (
@@ -4928,16 +4988,17 @@ const Payroll = () => {
                 <button
                   onClick={() => handleDownloadPayslip(viewingESSPayslip.id)}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all font-semibold"
-                  title="Download PDF"
+                  title={isPayslipFromAnnualCTC ? "Download Annual CTC PDF" : "Download PDF"}
                 >
                   <Download size={18} />
-                  Download PDF
+                  {isPayslipFromAnnualCTC ? "Download Annual CTC" : "Download PDF"}
                 </button>
                 <button
                   onClick={() => {
                     setShowESSPayslipModal(false)
                     setViewingESSPayslip(null)
                     setPayslipDetails(null)
+                    setIsPayslipFromAnnualCTC(false)
                   }}
                   className="text-gray-500 hover:text-gray-700 transition-colors"
                 >
@@ -4958,27 +5019,37 @@ const Payroll = () => {
                     <span className="font-semibold text-gray-700">Employee ID:</span>
                     <span className="ml-2 text-gray-900">{payslipDetails.employee?.employeeId || payslipDetails.employee?.id || 'N/A'}</span>
                   </div>
-                  <div>
-                    <span className="font-semibold text-gray-700">Month:</span>
-                    <span className="ml-2 text-gray-900">
-                      {viewingESSPayslip.month && viewingESSPayslip.year 
-                        ? (() => {
-                            const monthStr = viewingESSPayslip.month.includes('-') 
-                              ? viewingESSPayslip.month.split('-')[1] 
-                              : viewingESSPayslip.month
-                            try {
-                              return format(new Date(viewingESSPayslip.year, parseInt(monthStr) - 1, 1), 'MMMM yyyy')
-                            } catch {
-                              return `${viewingESSPayslip.month} ${viewingESSPayslip.year}`
-                            }
-                          })()
-                        : viewingESSPayslip.month || 'N/A'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-semibold text-gray-700">Working Days:</span>
-                    <span className="ml-2 text-gray-900">{payslipDetails.attendanceDays.workingDays} days</span>
-                  </div>
+                  {!isPayslipFromAnnualCTC && (
+                    <>
+                      <div>
+                        <span className="font-semibold text-gray-700">Month:</span>
+                        <span className="ml-2 text-gray-900">
+                          {viewingESSPayslip.month && viewingESSPayslip.year 
+                            ? (() => {
+                                const monthStr = viewingESSPayslip.month.includes('-') 
+                                  ? viewingESSPayslip.month.split('-')[1] 
+                                  : viewingESSPayslip.month
+                                try {
+                                  return format(new Date(viewingESSPayslip.year, parseInt(monthStr) - 1, 1), 'MMMM yyyy')
+                                } catch {
+                                  return `${viewingESSPayslip.month} ${viewingESSPayslip.year}`
+                                }
+                              })()
+                            : viewingESSPayslip.month || 'N/A'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">Working Days:</span>
+                        <span className="ml-2 text-gray-900">{payslipDetails.attendanceDays.workingDays} days</span>
+                      </div>
+                    </>
+                  )}
+                  {isPayslipFromAnnualCTC && (
+                    <div>
+                      <span className="font-semibold text-gray-700">Year:</span>
+                      <span className="ml-2 text-gray-900">{viewingESSPayslip.year || 'N/A'}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -5063,69 +5134,207 @@ const Payroll = () => {
         const specialAllowancePercentage = ctc > 0 ? ((specialAllowance / ctc) * 100).toFixed(2) : 0
         const pfBase = Math.min(basicSalary, 15000)
         
+        // Calculate annual values
+        const annualCTC = ctc * 12
+        const annualBasic = basicSalary * 12
+        const annualHRA = hra * 12
+        const annualMedical = medicalAllowance * 12
+        const annualTransport = transportAllowance * 12
+        const annualSpecial = specialAllowance * 12
+        const annualOther = otherAllowances * 12
+        const annualBonus = bonus
+        const annualGross = grossSalary * 12
+        const annualPFEmployer = pfEmployer * 12
+        const annualESIEmployer = esiEmployer * 12
+        const monthlyGratuity = basicSalary * (15.0 / (26.0 * 12.0))
+        const annualGratuity = monthlyGratuity * 12
+        const monthlyLTA = basicSalary / 12.0
+        const annualLTA = monthlyLTA * 12
+        const annualEmployerContribution = (pfEmployer + esiEmployer + monthlyGratuity + monthlyLTA) * 12
+        
         return (
           <>
-                    {/* Prepare the Monthly CTC Section */}
-                    <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
-                      <div className="bg-yellow-100 px-4 py-3 border-b-2 border-yellow-300">
-                        <h4 className="text-lg font-bold text-gray-800">Prepare the Monthly CTC ₹{ctc.toFixed(2)}</h4>
+                    {/* Annual CTC Section when from Annual CTC view, Monthly CTC otherwise */}
+                    {isPayslipFromAnnualCTC ? (
+                      <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                        <div className="bg-blue-100 px-4 py-3 border-b-2 border-blue-300">
+                          <h4 className="text-lg font-bold text-gray-800">Annual CTC (Cost to Company) ₹{annualCTC.toFixed(2)}</h4>
+                        </div>
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Particulars</th>
+                              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Per Month (₹)</th>
+                              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Per Annum (₹)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            <tr className="bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900">Gross Salary (A)</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 text-sm text-gray-900 pl-6">Basic Salary</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{basicSalary.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualBasic.toFixed(2)}</td>
+                            </tr>
+                            {hra > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">House Rental Allowance (HRA)</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{hra.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualHRA.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {medicalAllowance > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">Medical Allowance</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{medicalAllowance.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualMedical.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {transportAllowance > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">Travel Allowance</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{transportAllowance.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualTransport.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {specialAllowance > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">Special Allowance</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{specialAllowance.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualSpecial.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {otherAllowances > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">Other Allowances</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{otherAllowances.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualOther.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            <tr className="bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900">Gross Salary (A) Total</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{grossSalary.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualGross.toFixed(2)}</td>
+                            </tr>
+                            <tr className="bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900">Employer Contribution (B)</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                            </tr>
+                            {pfEmployer > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">PF (Employer)</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{pfEmployer.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualPFEmployer.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {esiEmployer > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">ESI (Employer)</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{esiEmployer.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualESIEmployer.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {monthlyGratuity > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">Gratuity</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{monthlyGratuity.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualGratuity.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {monthlyLTA > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">LTA (Leave Travel Allowance)</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{monthlyLTA.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualLTA.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            {bonus > 0 && (
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">Bonus</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{(bonus / 12).toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualBonus.toFixed(2)}</td>
+                              </tr>
+                            )}
+                            <tr className="bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900">Total Employer Contribution (B)</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{(annualEmployerContribution / 12).toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualEmployerContribution.toFixed(2)}</td>
+                            </tr>
+                            <tr className="bg-blue-50 border-t-2 border-blue-300">
+                              <td className="px-4 py-3 text-sm font-bold text-blue-900">CTC (A+B)</td>
+                              <td className="px-4 py-3 text-sm font-bold text-blue-900 text-right">₹{ctc.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-blue-900 text-right">₹{annualCTC.toFixed(2)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Particulars (Earnings)</th>
-                            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Amount</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Remarks</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          <tr>
-                            <td className="px-4 py-3 text-sm text-gray-900">Basic Salary</td>
-                            <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{basicSalary.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{basicPercentage}% of CTC</td>
-                          </tr>
-                          {hra > 0 && (
-                            <tr>
-                              <td className="px-4 py-3 text-sm text-gray-900">House Rental Allowance</td>
-                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{hra.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">{hraPercentage}% of Basic</td>
-                            </tr>
-                          )}
-                          {medicalAllowance > 0 && (
-                            <tr>
-                              <td className="px-4 py-3 text-sm text-gray-900">Medical Allowance</td>
-                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{medicalAllowance.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">-</td>
-                            </tr>
-                          )}
-                          {transportAllowance > 0 && (
-                            <tr>
-                              <td className="px-4 py-3 text-sm text-gray-900">Travel Allowance</td>
-                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{transportAllowance.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">-</td>
-                            </tr>
-                          )}
-                          {specialAllowance > 0 && (
-                            <tr>
-                              <td className="px-4 py-3 text-sm text-gray-900">Special Allowance</td>
-                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{specialAllowance.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">{specialAllowancePercentage}% of CTC</td>
-                            </tr>
-                          )}
-                          {otherAllowances > 0 && (
-                            <tr>
-                              <td className="px-4 py-3 text-sm text-gray-900">Other Allowances</td>
-                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{otherAllowances.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">-</td>
-                            </tr>
-                          )}
-                          {bonus > 0 && (
-                            <tr>
-                              <td className="px-4 py-3 text-sm text-gray-900">Bonus</td>
-                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{bonus.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">-</td>
-                            </tr>
-                          )}
+                    ) : (
+                      <>
+                        {/* Prepare the Monthly CTC Section */}
+                        <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                          <div className="bg-yellow-100 px-4 py-3 border-b-2 border-yellow-300">
+                            <h4 className="text-lg font-bold text-gray-800">Prepare the Monthly CTC ₹{ctc.toFixed(2)}</h4>
+                          </div>
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Particulars (Earnings)</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Amount</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Remarks</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900">Basic Salary</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{basicSalary.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600">{basicPercentage}% of CTC</td>
+                              </tr>
+                              {hra > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900">House Rental Allowance</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{hra.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">{hraPercentage}% of Basic</td>
+                                </tr>
+                              )}
+                              {medicalAllowance > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900">Medical Allowance</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{medicalAllowance.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                </tr>
+                              )}
+                              {transportAllowance > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900">Travel Allowance</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{transportAllowance.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                </tr>
+                              )}
+                              {specialAllowance > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900">Special Allowance</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{specialAllowance.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">{specialAllowancePercentage}% of CTC</td>
+                                </tr>
+                              )}
+                              {otherAllowances > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900">Other Allowances</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{otherAllowances.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                </tr>
+                              )}
+                              {bonus > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900">Bonus</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{bonus.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                </tr>
+                              )}
                           <tr className="bg-gray-50 font-bold">
                             <td className="px-4 py-3 text-sm text-gray-900">Gross Salary</td>
                             <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{grossSalary.toFixed(2)}</td>
@@ -5134,9 +5343,12 @@ const Payroll = () => {
                         </tbody>
                       </table>
                     </div>
+                      </>
+                    )}
 
-                    {/* Employer Contribution Section */}
-                    <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                    {/* Employer Contribution Section - Only for Monthly View */}
+                    {!isPayslipFromAnnualCTC && (
+                      <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
                       <div className="bg-blue-100 px-4 py-3 border-b-2 border-blue-300">
                         <h4 className="text-lg font-bold text-gray-800">Employer Contribution</h4>
                       </div>
@@ -5171,9 +5383,11 @@ const Payroll = () => {
                         </tbody>
                       </table>
                     </div>
+                    )}
 
-                    {/* CTC = Gross salary + Employer contribution */}
-                    <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
+                    {/* CTC = Gross salary + Employer contribution - Only for Monthly View */}
+                    {!isPayslipFromAnnualCTC && (
+                      <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
                       <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
                           <div className="text-sm font-semibold text-gray-600 mb-1">CTC</div>
@@ -5189,9 +5403,11 @@ const Payroll = () => {
                         </div>
                       </div>
                     </div>
+                    )}
 
-                    {/* Employee Contribution (Take home) Section */}
-                    <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                    {/* Employee Contribution (Take home) Section - Only for Monthly View */}
+                    {!isPayslipFromAnnualCTC && (
+                      <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
                       <div className="bg-green-100 px-4 py-3 border-b-2 border-green-300">
                         <h4 className="text-lg font-bold text-gray-800">Particulars (Take home) (Employee Contribution)</h4>
                       </div>
@@ -5247,9 +5463,11 @@ const Payroll = () => {
                         </tbody>
                       </table>
                     </div>
+                    )}
 
-                    {/* Take Home Section */}
-                    <div className="bg-white rounded-lg border-2 border-green-300 p-4">
+                    {/* Take Home Section - Only for Monthly View */}
+                    {!isPayslipFromAnnualCTC && (
+                      <div className="bg-white rounded-lg border-2 border-green-300 p-4">
                       <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
                           <div className="text-sm font-semibold text-gray-600 mb-1">Gross salary</div>
@@ -5265,6 +5483,7 @@ const Payroll = () => {
                         </div>
                       </div>
                     </div>
+                    )}
                   </>
                 )
               })()}

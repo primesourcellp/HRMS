@@ -45,6 +45,12 @@ const fetchWithAuth = async (url, options = {}) => {
     ...(options.headers || {})
   }
 
+  // Add X-User-Id header if userId is available in localStorage
+  const userId = localStorage.getItem('userId')
+  if (userId) {
+    headers['X-User-Id'] = userId
+  }
+
   // Don't override Content-Type if it's FormData (browser sets it automatically)
   if (options.body instanceof FormData) {
     delete headers['Content-Type']
@@ -2007,6 +2013,52 @@ const api = {
       throw error
     }
   },
+  downloadAnnualCTC: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payroll/${id}/annual-ctc`)
+      
+      // Check content type first
+      const contentType = response.headers.get('content-type') || ''
+      
+      if (!response.ok) {
+        // Try to parse as JSON error response
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.message || errorData.error || `Failed to download Annual CTC: ${response.status}`)
+        } else {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          throw new Error(`Failed to download Annual CTC: ${response.status} ${response.statusText}. ${errorText}`)
+        }
+      }
+      
+      // Check if response is PDF
+      if (!contentType.includes('pdf') && !contentType.includes('application/octet-stream')) {
+        // Might be JSON error
+        try {
+          const errorData = await response.json()
+          throw new Error(errorData.message || errorData.error || 'Invalid response format')
+        } catch (jsonError) {
+          console.warn('Response is not a PDF. Content-Type:', contentType)
+        }
+      }
+      
+      const blob = await response.blob()
+      
+      // Check if blob is empty or too small (likely an error)
+      if (blob.size < 100) {
+        // Try to read as text to see if it's an error message
+        const text = await blob.text()
+        if (text.includes('error') || text.includes('Error')) {
+          throw new Error('Annual CTC generation failed: ' + text)
+        }
+      }
+      
+      return blob
+    } catch (error) {
+      console.error('Download Annual CTC API error:', error)
+      throw error
+    }
+  },
   downloadForm16: (employeeId, assessmentYear) => fetchWithAuth(`${API_BASE_URL}/payroll/form16?employeeId=${employeeId}&assessmentYear=${assessmentYear}`).then(res => res.blob()),
   
   // Gratuity Management
@@ -2271,14 +2323,35 @@ const api = {
       
       const response = await fetchWithAuth(url)
       if (!response.ok) {
-        console.error('CTC Template API error:', response.status, response.statusText)
-        return []
+        const contentType = response.headers.get('content-type') || ''
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('CTC Template API error:', response.status, response.statusText, errorData)
+          if (response.status === 403) {
+            throw new Error(errorData.message || 'Access denied. Only SUPER_ADMIN and HR_ADMIN can access CTC Templates.')
+          }
+          throw new Error(errorData.message || errorData.error || `Failed to fetch CTC templates: ${response.status}`)
+        } else {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          console.error('CTC Template API error:', response.status, response.statusText, errorText)
+          throw new Error(`Failed to fetch CTC templates: ${response.status} ${response.statusText}`)
+        }
       }
       const data = await response.json()
-      return Array.isArray(data) ? data : []
+      // Handle different response formats
+      if (Array.isArray(data)) {
+        return data
+      } else if (data && Array.isArray(data.templates)) {
+        return data.templates
+      } else if (data && Array.isArray(data.data)) {
+        return data.data
+      } else {
+        console.warn('Unexpected CTC templates response format:', data)
+        return []
+      }
     } catch (error) {
       console.error('Error fetching CTC templates:', error)
-      return []
+      throw error // Re-throw to let the component handle it
     }
   },
 
@@ -2511,6 +2584,125 @@ const api = {
       return data.approverId || null
     } catch (error) {
       console.error('Error finding approver:', error)
+      throw error
+    }
+  },
+  generateComplianceReport: async (reportType, queryParams = '') => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compliance/${reportType}-report?${queryParams}`)
+      
+      // Check content type first
+      const contentType = response.headers.get('content-type') || ''
+      
+      // If response is JSON (error), parse it
+      if (contentType.includes('application/json')) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || `Failed to generate ${reportType} report: ${response.status}`)
+      }
+      
+      if (!response.ok) {
+        // Try to get error text
+        const errorText = await response.text().catch(() => 'Unknown error')
+        throw new Error(`Failed to generate ${reportType} report: ${response.status} ${response.statusText}. ${errorText}`)
+      }
+      
+      // Check if response is PDF
+      if (!contentType.includes('pdf') && !contentType.includes('application/octet-stream')) {
+        // Might be JSON error
+        try {
+          const errorData = await response.json()
+          throw new Error(errorData.message || errorData.error || 'Invalid response format')
+        } catch (jsonError) {
+          console.warn('Response is not a PDF. Content-Type:', contentType)
+          throw new Error(`Invalid response format. Expected PDF, got: ${contentType}`)
+        }
+      }
+      
+      const blob = await response.blob()
+      
+      // Check if blob is empty or too small (likely an error)
+      if (blob.size < 100) {
+        // Try to read as text to see if it's an error message
+        const text = await blob.text()
+        if (text.includes('error') || text.includes('Error') || text.includes('{')) {
+          try {
+            const errorData = JSON.parse(text)
+            throw new Error(errorData.message || errorData.error || `${reportType} report generation failed`)
+          } catch (parseError) {
+            throw new Error(`${reportType} report generation failed: ` + text.substring(0, 200))
+          }
+        }
+      }
+      
+      return blob
+    } catch (error) {
+      console.error(`Generate ${reportType} report API error:`, error)
+      throw error
+    }
+  },
+  generatePayrollRegister: async (queryParams = '') => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compliance/payroll-register?${queryParams}`)
+      
+      // Check content type first
+      const contentType = response.headers.get('content-type') || ''
+      
+      // If response is JSON (error), parse it
+      if (contentType.includes('application/json')) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || `Failed to generate payroll register: ${response.status}`)
+      }
+      
+      if (!response.ok) {
+        // Try to get error text
+        const errorText = await response.text().catch(() => 'Unknown error')
+        throw new Error(`Failed to generate payroll register: ${response.status} ${response.statusText}. ${errorText}`)
+      }
+      
+      // Check if response is PDF
+      if (!contentType.includes('pdf') && !contentType.includes('application/octet-stream')) {
+        // Might be JSON error
+        try {
+          const errorData = await response.json()
+          throw new Error(errorData.message || errorData.error || 'Invalid response format')
+        } catch (jsonError) {
+          console.warn('Response is not a PDF. Content-Type:', contentType)
+          throw new Error(`Invalid response format. Expected PDF, got: ${contentType}`)
+        }
+      }
+      
+      const blob = await response.blob()
+      
+      // Check if blob is empty or too small (likely an error)
+      if (blob.size < 100) {
+        // Try to read as text to see if it's an error message
+        const text = await blob.text()
+        if (text.includes('error') || text.includes('Error') || text.includes('{')) {
+          try {
+            const errorData = JSON.parse(text)
+            throw new Error(errorData.message || errorData.error || 'Payroll register generation failed')
+          } catch (parseError) {
+            throw new Error('Payroll register generation failed: ' + text.substring(0, 200))
+          }
+        }
+      }
+      
+      return blob
+    } catch (error) {
+      console.error('Generate payroll register API error:', error)
+      throw error
+    }
+  },
+  getAuditLogs: async (queryParams = '') => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/compliance/audit-logs?${queryParams}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to get audit logs (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error getting audit logs:', error)
       throw error
     }
   }

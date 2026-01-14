@@ -27,7 +27,8 @@ export const PERMISSIONS = {
     security: true,
     integrations: true,
     masterData: true,
-    teamManagement: true
+    teamManagement: true,
+    compliance: true
   },
   
   // HR Admin - Employee lifecycle, payroll, compliance, reporting
@@ -49,7 +50,8 @@ export const PERMISSIONS = {
     security: false,
     integrations: false,
     masterData: true,
-    myTeams: true
+    myTeams: true,
+    compliance: true
   },
   
   // Manager - Team attendance, leave approvals, performance tracking
@@ -112,7 +114,8 @@ export const PERMISSIONS = {
     systemConfig: false,
     security: false,
     integrations: false,
-    masterData: false
+    masterData: false,
+    compliance: true
   }
 }
 

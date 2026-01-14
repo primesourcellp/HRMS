@@ -1203,39 +1203,39 @@ const Shifts = () => {
       </div>
 
       {/* Toggle Buttons for Shifts, Assignments, and Requests */}
-      <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-200">
-        <div className="flex flex-wrap items-center gap-4">
+      <div className="bg-white rounded-xl shadow-md p-3 sm:p-4">
+        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 flex-wrap">
           <button
             onClick={() => setActiveView('shifts')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
               activeView === 'shifts'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <Clock size={20} />
+            <Clock size={18} />
             All Shifts
           </button>
           <button
             onClick={() => setActiveView('assignments')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
               activeView === 'assignments'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <Users size={20} />
+            <Users size={18} />
             Shift Assignments
           </button>
           <button
             onClick={() => setActiveView('requests')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
               activeView === 'requests'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <ArrowLeftRight size={20} />
+            <ArrowLeftRight size={18} />
             Shift Change Requests
           </button>
         </div>

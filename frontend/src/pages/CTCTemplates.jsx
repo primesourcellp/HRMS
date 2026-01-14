@@ -38,16 +38,16 @@ const CTCTemplates = () => {
   })
 
   const userRole = localStorage.getItem('userRole')
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || 
-                  userRole === 'HR_ADMIN' || userRole === 'MANAGER' || 
-                  userRole === 'FINANCE'
+  const isSuperAdmin = userRole === 'SUPER_ADMIN'
+  const isHRAdmin = userRole === 'HR_ADMIN'
+  const canAccess = isSuperAdmin || isHRAdmin
 
   useEffect(() => {
-    if (isAdmin) {
+    if (canAccess) {
       loadData()
       loadClients()
     }
-  }, [isAdmin])
+  }, [canAccess])
 
   const loadData = async () => {
     try {
@@ -170,13 +170,13 @@ const CTCTemplates = () => {
     return matchesSearch && matchesClient
   })
 
-  if (!isAdmin) {
+  if (!canAccess) {
     return (
       <div className="p-4">
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You don't have permission to access this page.</p>
+          <p className="text-gray-600">You don't have permission to access this page. Only SUPER_ADMIN and HR_ADMIN can access CTC Templates.</p>
         </div>
       </div>
     )

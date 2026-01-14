@@ -1032,6 +1032,9 @@ const Attendance = () => {
                     ))}
                     <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider">Total Hours</th>
                     <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider">Present Days</th>
+                    {(isAdmin || isHrAdmin) && (
+                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider">Actions</th>
+                    )}
                   </>
                 )}
               </tr>
@@ -1039,21 +1042,159 @@ const Attendance = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={viewType === 'daily' ? (isAdmin ? 8 : ((isEmployee || isEmployeeRole) ? 8 : 7)) : (viewType === 'weekly' ? 9 : (viewType === 'monthly' ? 35 : 7))} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={
+                    viewType === 'daily' 
+                      ? (isAdmin || isHrAdmin ? 8 : ((isEmployee || isEmployeeRole) ? 8 : 7))
+                      : (viewType === 'weekly' 
+                          ? (1 + ((isAdmin || isHrAdmin) ? 1 : 0) + 7 + 2 + ((isAdmin || isHrAdmin) ? 1 : 0)) // Name + Dept + 7 days + Total + Present + Actions
+                          : (viewType === 'monthly'
+                              ? (1 + ((isAdmin || isHrAdmin) ? 1 : 0) + getDaysForView().length + 2 + ((isAdmin || isHrAdmin) ? 1 : 0)) // Name + Dept + days + Total + Present + Actions
+                              : 7))
+                  } className="px-6 py-8 text-center text-gray-500">
                     Loading attendance data...
                   </td>
                 </tr>
               ) : filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={viewType === 'daily' ? (isAdmin ? 8 : ((isEmployee || isEmployeeRole) ? 8 : 7)) : (viewType === 'weekly' ? 9 : (viewType === 'monthly' ? 35 : 7))} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={
+                    viewType === 'daily' 
+                      ? (isAdmin || isHrAdmin ? 8 : ((isEmployee || isEmployeeRole) ? 8 : 7))
+                      : (viewType === 'weekly' 
+                          ? (1 + ((isAdmin || isHrAdmin) ? 1 : 0) + 7 + 2 + ((isAdmin || isHrAdmin) ? 1 : 0)) // Name + Dept + 7 days + Total + Present + Actions
+                          : (viewType === 'monthly'
+                              ? (1 + ((isAdmin || isHrAdmin) ? 1 : 0) + getDaysForView().length + 2 + ((isAdmin || isHrAdmin) ? 1 : 0)) // Name + Dept + days + Total + Present + Actions
+                              : 7))
+                  } className="px-6 py-8 text-center text-gray-500">
                     No attendance records found {viewType === 'daily' ? 'for this date' : viewType === 'weekly' ? 'for this week' : 'for this month'}
                   </td>
                 </tr>
               ) : (
                 filteredEmployees.map((employee) => {
-                  const record = getAttendanceStatus(employee.id)
                   const employeeName = employee.name || 'Unknown'
                   
+                  // For weekly/monthly views, calculate totals
+                  if (viewType === 'weekly' || viewType === 'monthly') {
+                    const days = getDaysForView()
+                    let totalHours = 0
+                    let presentDays = 0
+                    
+                    days.forEach(day => {
+                      const dayStr = format(day, 'yyyy-MM-dd')
+                      const dayRecord = getAttendanceStatus(employee.id, dayStr)
+                      if (dayRecord) {
+                        if (dayRecord.workingHours) {
+                          totalHours += parseFloat(dayRecord.workingHours) || 0
+                        }
+                        if (dayRecord.status === 'Present') {
+                          presentDays++
+                        }
+                      }
+                    })
+                    
+                    return (
+                      <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                              <span className="text-blue-600 font-semibold">
+                                {employeeName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{employeeName}</div>
+                              <div className="text-sm text-gray-500">{employee.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        {(isAdmin || isHrAdmin) && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">
+                            {employee.department || 'N/A'}
+                          </td>
+                        )}
+                        {days.map((day, idx) => {
+                          const dayStr = format(day, 'yyyy-MM-dd')
+                          const dayRecord = getAttendanceStatus(employee.id, dayStr)
+                          const isPresent = dayRecord?.status === 'Present'
+                          const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                          
+                          return (
+                            <td 
+                              key={idx} 
+                              className={`px-2 py-3 text-center ${(isAdmin || isHrAdmin) ? 'cursor-pointer hover:bg-blue-50 transition-colors' : ''}`}
+                              onClick={(isAdmin || isHrAdmin) ? () => {
+                                // Ensure we use the specific day's date, not the record's date (which might be different)
+                                const recordToEdit = dayRecord ? { ...dayRecord, date: dayStr } : { employeeId: employee.id, date: dayStr }
+                                setSelectedRecord(recordToEdit)
+                                setMarkFormData({
+                                  status: dayRecord?.status || 'Present',
+                                  checkIn: dayRecord?.checkIn || '',
+                                  checkOut: dayRecord?.checkOut || ''
+                                })
+                                setSelectedEmployee(employee)
+                                setShowEditModal(true)
+                              } : undefined}
+                              title={(isAdmin || isHrAdmin) ? `Click to edit attendance for ${format(day, 'MMM dd, yyyy')}` : ''}
+                            >
+                              {dayRecord ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  {isPresent ? (
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                  ) : (
+                                    <X className="w-5 h-5 text-red-600" />
+                                  )}
+                                  {dayRecord.workingHours && (
+                                    <span className="text-xs font-semibold text-gray-700">
+                                      {parseFloat(dayRecord.workingHours).toFixed(1)}h
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className={`text-gray-400 ${isToday ? 'font-semibold' : ''}`}>-</span>
+                              )}
+                            </td>
+                          )
+                        })}
+                        <td className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
+                          {totalHours > 0 ? `${totalHours.toFixed(1)}h` : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
+                          {presentDays}/{days.length}
+                        </td>
+                        {(isAdmin || isHrAdmin) && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex flex-col gap-2 items-center">
+                              <button
+                                onClick={() => {
+                                  // Mark attendance for today or first day of period
+                                  const today = new Date()
+                                  const todayStr = format(today, 'yyyy-MM-dd')
+                                  const periodDays = days.map(d => format(d, 'yyyy-MM-dd'))
+                                  const targetDay = periodDays.includes(todayStr) ? todayStr : format(days[0], 'yyyy-MM-dd')
+                                  const targetRecord = getAttendanceStatus(employee.id, targetDay)
+                                  setSelectedRecord(targetRecord || { employeeId: employee.id, date: targetDay })
+                                  setMarkFormData({
+                                    status: targetRecord?.status || 'Present',
+                                    checkIn: targetRecord?.checkIn || '',
+                                    checkOut: targetRecord?.checkOut || ''
+                                  })
+                                  setSelectedEmployee(employee)
+                                  setShowEditModal(true)
+                                }}
+                                className="text-blue-600 hover:text-blue-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                title="Mark/Edit attendance"
+                              >
+                                <Edit className="w-4 h-4" />
+                                <span className="text-xs">Edit</span>
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  }
+                  
+                  // Daily view
+                  const record = getAttendanceStatus(employee.id)
                   return (
                     <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1069,9 +1210,11 @@ const Attendance = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {employee.department || 'N/A'}
-                      </td>
+                      {(isAdmin || isHrAdmin) && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">
+                          {employee.department || 'N/A'}
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {format(new Date(selectedDate), 'MMM dd, yyyy')}
                       </td>
@@ -1267,6 +1410,58 @@ const Attendance = () => {
             </div>
             <form onSubmit={handleEditAttendance}>
               <div className="space-y-4">
+                {selectedEmployee && (
+                  <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                    <div className="text-sm text-gray-600 mb-1">Employee</div>
+                    <div className="text-base font-semibold text-gray-900">{selectedEmployee.name || 'Unknown'}</div>
+                  </div>
+                )}
+                {selectedRecord?.date && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Date</label>
+                    <input
+                      type="date"
+                      value={(() => {
+                        try {
+                          // Ensure date is in yyyy-MM-dd format
+                          if (typeof selectedRecord.date === 'string') {
+                            if (selectedRecord.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                              return selectedRecord.date
+                            } else {
+                              // Try to parse and format
+                              const parsed = new Date(selectedRecord.date)
+                              return format(parsed, 'yyyy-MM-dd')
+                            }
+                          } else {
+                            return format(new Date(selectedRecord.date), 'yyyy-MM-dd')
+                          }
+                        } catch (error) {
+                          console.error('Error formatting date:', error, selectedRecord.date)
+                          return selectedRecord.date || format(new Date(), 'yyyy-MM-dd')
+                        }
+                      })()}
+                      onChange={(e) => {
+                        setSelectedRecord({ ...selectedRecord, date: e.target.value })
+                      }}
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                    <div className="text-xs text-gray-500 mt-1">
+                      {(() => {
+                        try {
+                          const dateStr = typeof selectedRecord.date === 'string' && selectedRecord.date.match(/^\d{4}-\d{2}-\d{2}$/)
+                            ? selectedRecord.date
+                            : format(new Date(selectedRecord.date), 'yyyy-MM-dd')
+                          const [year, month, day] = dateStr.split('-')
+                          const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+                          return format(dateObj, 'EEEE, MMMM dd, yyyy')
+                        } catch (error) {
+                          return ''
+                        }
+                      })()}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
                   <select

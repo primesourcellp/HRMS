@@ -18,7 +18,8 @@ import {
   UserCog,
   Building2,
   Receipt,
-  UserCheck
+  UserCheck,
+  FileCheck
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getUserRole, hasPermission, ROLES } from '../utils/roles'
@@ -84,6 +85,7 @@ const Layout = () => {
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
         { path: '/recruitment', icon: Briefcase, label: 'Recruitment', permission: 'recruitment' },
         { path: '/analytics', icon: BarChart3, label: userRole === ROLES.FINANCE ? 'Cost Analytics' : 'Analytics', permission: 'analytics' },
+        { path: '/compliance', icon: FileCheck, label: 'Compliance & Audit', permission: 'compliance', roles: [ROLES.SUPER_ADMIN, ROLES.HR_ADMIN, ROLES.FINANCE] },
         { path: '/clients', icon: Building2, label: 'Client Management', permission: 'employees' },
         { path: '/users', icon: Shield, label: 'User Management', permission: 'users' },
         { path: '/teams', icon: UserCheck, label: 'Team Management', permission: 'teamManagement', roles: [ROLES.SUPER_ADMIN] },
