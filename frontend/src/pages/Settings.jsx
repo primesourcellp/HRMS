@@ -80,6 +80,11 @@ const Settings = () => {
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
   const isSuperAdmin = userRole === 'SUPER_ADMIN'
   const isEmployee = userRole === 'EMPLOYEE'
+  const isHrAdmin = userRole === 'HR_ADMIN'
+  const isManager = userRole === 'MANAGER'
+  const isFinance = userRole === 'FINANCE'
+  // Check if user should have employee profile fields
+  const hasEmployeeProfile = isEmployee || isHrAdmin || isManager || isFinance
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -93,14 +98,14 @@ const Settings = () => {
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     ...(isSuperAdmin ? [{ id: 'security', label: 'Security', icon: Shield }] : []),
-    ...(isEmployee ? [{ id: 'documents', label: 'Documents', icon: FileText }] : []),
+    ...(hasEmployeeProfile ? [{ id: 'documents', label: 'Documents', icon: FileText }] : []),
     { id: 'notifications', label: 'Notifications', icon: Bell }
   ]
 
   useEffect(() => {
     loadUserProfile()
     loadAppearanceSettings()
-    if (isEmployee && userId) {
+    if (hasEmployeeProfile && userId) {
       loadDocuments()
     }
     
@@ -217,8 +222,8 @@ const Settings = () => {
 
     try {
       setLoading(true)
-      if (isEmployee) {
-        // Load employee details
+      if (hasEmployeeProfile) {
+        // Load employee details for EMPLOYEE, HR_ADMIN, MANAGER, and FINANCE
         const employees = await api.getEmployees()
         const employee = Array.isArray(employees) 
           ? employees.find(emp => emp.id.toString() === userId.toString())
@@ -237,7 +242,7 @@ const Settings = () => {
             bankAccountNumber: employee.bankAccountNumber || '',
             department: employee.department || '',
             position: employee.designation || '',
-            role: 'EMPLOYEE',
+            role: employee.role || userRole,
             gender: employee.gender || '',
             dateOfBirth: formattedDateOfBirth,
             age: calculateAge(formattedDateOfBirth),
@@ -282,8 +287,8 @@ const Settings = () => {
     e.preventDefault()
     try {
       setLoading(true)
-      if (isEmployee) {
-        // Update employee profile
+      if (hasEmployeeProfile) {
+        // Update employee profile for EMPLOYEE, HR_ADMIN, MANAGER, and FINANCE
         const employees = await api.getEmployees()
         const employee = Array.isArray(employees)
           ? employees.find(emp => emp.id.toString() === userId.toString())
@@ -586,6 +591,9 @@ const Settings = () => {
                           <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
                             profileData.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' :
                             profileData.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
+                            profileData.role === 'HR_ADMIN' ? 'bg-purple-100 text-purple-800' :
+                            profileData.role === 'MANAGER' ? 'bg-blue-100 text-blue-800' :
+                            profileData.role === 'FINANCE' ? 'bg-green-100 text-green-800' :
                             'bg-green-100 text-green-800'
                           }`}>
                             {profileData.role || 'N/A'}
@@ -613,18 +621,27 @@ const Settings = () => {
                 </div>
                 <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email <span className="text-red-500">*</span>
+                        Email (Login ID) <span className="text-red-500">*</span>
                       </label>
                   <input
                     type="email"
                     value={profileData.email}
                     onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
+                          hasEmployeeProfile || (!isSuperAdmin && !isAdmin) 
+                            ? 'bg-gray-50 cursor-not-allowed' 
+                            : 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                        }`}
+                        readOnly={hasEmployeeProfile || (!isSuperAdmin && !isAdmin)}
                         required
                   />
-                      <p className="text-xs text-gray-500 mt-1">Changing email will update your login credentials</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {hasEmployeeProfile || (!isSuperAdmin && !isAdmin) 
+                          ? 'Email cannot be changed as it is your login ID' 
+                          : 'Changing email will update your login credentials'}
+                      </p>
                 </div>
-                    {isEmployee && (
+                    {hasEmployeeProfile && (
                       <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Personal Mobile Number</label>
@@ -916,7 +933,7 @@ const Settings = () => {
           )}
 
           {/* Documents Tab - Only for Employees */}
-          {activeTab === 'documents' && isEmployee && (
+          {activeTab === 'documents' && hasEmployeeProfile && (
             <div className="space-y-4 md:space-y-6">
               <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">My Documents</h3>
               

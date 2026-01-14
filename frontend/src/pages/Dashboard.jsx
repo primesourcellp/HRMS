@@ -824,6 +824,23 @@ const Dashboard = () => {
             </div>
           )}
 
+          {/* Fallback: Show Configure Widgets button when all widgets are hidden */}
+          {!widgetVisibility.kpis && !widgetVisibility.monthlyAttendance && !widgetVisibility.leavePatterns && 
+           !widgetVisibility.payrollVariance && !widgetVisibility.departmentAnalytics && !widgetVisibility.locationAnalytics && (
+            <div className="bg-white rounded-lg shadow-md p-8 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center min-h-[300px]">
+              <LayoutGrid className="w-16 h-16 text-gray-400 mb-4" />
+              <h3 className="text-xl font-bold text-gray-800 mb-2">All Widgets are Hidden</h3>
+              <p className="text-gray-600 mb-6 text-center">Configure your dashboard to show widgets</p>
+              <button
+                onClick={() => setShowWidgetConfig(true)}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+              >
+                <LayoutGrid className="w-5 h-5" />
+                Configure Dashboard Widgets
+              </button>
+            </div>
+          )}
+
           {/* Executive KPIs - Compact Size */}
           {widgetVisibility.kpis && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">

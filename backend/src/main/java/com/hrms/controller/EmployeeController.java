@@ -2,19 +2,29 @@ package com.hrms.controller;
 
 import java.util.List;
 import java.util.Map;
-import com.hrms.dto.EmployeeDTO;
-import com.hrms.mapper.EmployeeMapper;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.lang.NonNull;
-import java.util.Objects;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
+import com.hrms.dto.EmployeeDTO;
 import com.hrms.entity.User;
+import com.hrms.mapper.EmployeeMapper;
 import com.hrms.service.UserService;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/employees")
@@ -170,8 +180,10 @@ public class EmployeeController {
         // SUPER_ADMIN and ADMIN can update any employee
         boolean isAdmin = role.equals("SUPER_ADMIN") || role.equals("ADMIN");
         
-        // EMPLOYEE can only update their own profile
-        boolean isOwnProfile = role.equals("EMPLOYEE") && currentUserId != null && currentUserId.equals(id);
+        // EMPLOYEE, HR_ADMIN, MANAGER, and FINANCE can update their own profile
+        boolean isOwnProfile = (role.equals("EMPLOYEE") || role.equals("HR_ADMIN") || 
+                               role.equals("MANAGER") || role.equals("FINANCE")) && 
+                               currentUserId != null && currentUserId.equals(id);
         
         if (!isAdmin && !isOwnProfile) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -180,7 +192,8 @@ public class EmployeeController {
         
         // If employee is updating their own profile, restrict certain fields
         if (isOwnProfile && !isAdmin) {
-            // Employees cannot update sensitive fields - set them to null so they won't be changed
+            // Employees, HR_ADMIN, MANAGER, and FINANCE cannot update sensitive fields - set them to null so they won't be changed
+            employee.setEmail(null); // Email is login ID - cannot be changed
             employee.setSalary(null);
             employee.setDepartment(null);
             employee.setDesignation(null);

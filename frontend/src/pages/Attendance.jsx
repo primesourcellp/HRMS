@@ -42,6 +42,52 @@ const Attendance = () => {
   const currentUserId = localStorage.getItem('userId')
   const [teamMemberIds, setTeamMemberIds] = useState([])
 
+  const formatWorkingHoursShort = (workingHours) => {
+    if (workingHours === null || workingHours === undefined || workingHours === '') return '-'
+    const hoursNum = typeof workingHours === 'string' ? parseFloat(workingHours) : workingHours
+    if (!Number.isFinite(hoursNum) || hoursNum <= 0) return '0h 0m'
+    const h = Math.floor(hoursNum)
+    const m = Math.round((hoursNum - h) * 60)
+    // handle rounding case (e.g. 1.999 -> 2h 0m)
+    const hh = m === 60 ? h + 1 : h
+    const mm = m === 60 ? 0 : m
+    return `${hh}h ${mm}m`
+  }
+
+  const formatTimeAmPm = (timeStr) => {
+    if (!timeStr) return '-'
+    // Accept "HH:mm" or "HH:mm:ss" (and tolerate "H:mm")
+    const parts = String(timeStr).trim().split(':')
+    if (parts.length < 2) return String(timeStr)
+    const hRaw = parseInt(parts[0], 10)
+    const mRaw = parseInt(parts[1], 10)
+    if (!Number.isFinite(hRaw) || !Number.isFinite(mRaw)) return String(timeStr)
+    const h12 = ((hRaw % 12) || 12)
+    const ampm = hRaw >= 12 ? 'PM' : 'AM'
+    const mm = String(mRaw).padStart(2, '0')
+    return `${h12}:${mm} ${ampm}`
+  }
+
+  const getAttendanceTooltip = (record) => {
+    if (!record) return ''
+    const checkIn = formatTimeAmPm(record.checkIn)
+    const checkOut = formatTimeAmPm(record.checkOut)
+    const wh = formatWorkingHoursShort(record.workingHours)
+    return `Login: ${checkIn}\nLogout: ${checkOut}\nWorking: ${wh}`
+  }
+
+  const AttendanceHoverTooltip = ({ record }) => {
+    if (!record) return null
+    return (
+      <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 z-50 hidden group-hover:block">
+        <div className="bg-gray-900 text-white text-xs rounded-lg shadow-xl px-3 py-2 whitespace-pre-line min-w-[160px]">
+          {getAttendanceTooltip(record)}
+        </div>
+        <div className="absolute left-1/2 -top-1 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45" />
+      </div>
+    )
+  }
+
   // Load team member IDs for HR_ADMIN
   useEffect(() => {
     const loadTeamMembers = async () => {
@@ -975,7 +1021,10 @@ const Attendance = () => {
                                 }`}
                               >
                                 {isPresent ? (
-                                  <CheckCircle className="w-5 h-5 text-green-600 mx-auto" />
+                                  <div className="relative inline-flex justify-center group">
+                                    <CheckCircle className="w-5 h-5 text-green-600 mx-auto" />
+                                    <AttendanceHoverTooltip record={attendanceRecord} />
+                                  </div>
                                 ) : attendanceRecord ? (
                                   <X className="w-5 h-5 text-red-600 mx-auto" />
                                 ) : (
@@ -1138,7 +1187,9 @@ const Attendance = () => {
                               {dayRecord ? (
                                 <div className="flex flex-col items-center gap-1">
                                   {isPresent ? (
-                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                    <div title={getAttendanceTooltip(dayRecord)} className="inline-flex">
+                                      <CheckCircle className="w-5 h-5 text-green-600" />
+                                    </div>
                                   ) : (
                                     <X className="w-5 h-5 text-red-600" />
                                   )}
