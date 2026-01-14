@@ -133,6 +133,7 @@ const Attendance = () => {
       return
     }
     
+    
     const userType = localStorage.getItem('userType')
     const userId = localStorage.getItem('userId')
     const userRoleValue = localStorage.getItem('userRole')
