@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getUserRole, hasPermission, ROLES } from '../utils/roles'
+import NotificationBell from './NotificationBell'
 
 const Layout = () => {
   const navigate = useNavigate()
@@ -261,6 +262,7 @@ const Layout = () => {
               </h2>
             </div>
             <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+              <NotificationBell />
               <button
                 onClick={() => navigate('/settings')}
                 className="flex items-center gap-2 md:gap-3 hover:bg-gray-50 rounded-lg px-2 md:px-3 py-2 transition-all duration-200 cursor-pointer group"

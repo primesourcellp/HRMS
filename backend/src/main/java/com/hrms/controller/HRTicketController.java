@@ -1,15 +1,27 @@
 package com.hrms.controller;
 
-import com.hrms.entity.HRTicket;
-import com.hrms.service.HRTicketService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.hrms.entity.HRTicket;
+import com.hrms.entity.User;
+import com.hrms.repository.UserRepository;
+import com.hrms.service.HRTicketService;
+import com.hrms.service.NotificationService;
 
 @RestController
 @RequestMapping("/api/tickets")
@@ -18,6 +30,12 @@ public class HRTicketController {
 
     @Autowired
     private HRTicketService ticketService;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @GetMapping
     public ResponseEntity<List<HRTicket>> getAllTickets() {
@@ -51,6 +69,22 @@ public class HRTicketController {
         Map<String, Object> response = new HashMap<>();
         try {
             HRTicket created = ticketService.createTicket(ticket);
+            
+            // Send notification to HR_ADMIN if employee is in their team
+            try {
+                User employee = userRepository.findById(created.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                notificationService.notifyHRTicketCreated(
+                    created.getEmployeeId(),
+                    created.getId(),
+                    employeeName,
+                    created.getSubject()
+                );
+            } catch (Exception e) {
+                // Log but don't fail the request if notification fails
+                System.err.println("Failed to send HR ticket notification: " + e.getMessage());
+            }
+            
             response.put("success", true);
             response.put("message", "Ticket created successfully");
             response.put("ticket", created);

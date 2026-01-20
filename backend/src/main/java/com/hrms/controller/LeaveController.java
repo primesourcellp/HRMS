@@ -3,6 +3,7 @@ package com.hrms.controller;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -18,12 +19,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.entity.Leave;
+import com.hrms.entity.LeaveType;
 import com.hrms.entity.User;
+import com.hrms.repository.LeaveTypeRepository;
 import com.hrms.repository.UserRepository;
 import com.hrms.service.AuditLogService;
 import com.hrms.service.LeaveService;
+import com.hrms.service.NotificationService;
+
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/leaves")
@@ -37,6 +41,12 @@ public class LeaveController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private LeaveTypeRepository leaveTypeRepository;
 
     @GetMapping
     public ResponseEntity<?> getAllLeaves(@RequestParam(required = false) String status) {
@@ -94,6 +104,28 @@ public class LeaveController {
                     String.format("Created leave request for %s from %s to %s", employeeName, created.getStartDate(), created.getEndDate()),
                     request
                 );
+                
+                // Send notification to HR_ADMIN if employee is in their team
+                try {
+                    String leaveTypeName = "Leave";
+                    if (created.getLeaveTypeId() != null) {
+                        Optional<LeaveType> leaveTypeOpt = leaveTypeRepository.findById(created.getLeaveTypeId());
+                        if (leaveTypeOpt.isPresent()) {
+                            leaveTypeName = leaveTypeOpt.get().getName();
+                        }
+                    }
+                    notificationService.notifyLeaveApplication(
+                        created.getEmployeeId(),
+                        created.getId(),
+                        employeeName,
+                        leaveTypeName,
+                        created.getStartDate().toString(),
+                        created.getEndDate().toString()
+                    );
+                } catch (Exception e) {
+                    // Log but don't fail the request if notification fails
+                    System.err.println("Failed to send leave application notification: " + e.getMessage());
+                }
             }
             
             response.put("success", true);
@@ -136,6 +168,29 @@ public class LeaveController {
                     String.format("Approved leave request for %s from %s to %s", employeeName, approved.getStartDate(), approved.getEndDate()),
                     request
                 );
+                
+                // Send notification to SUPER_ADMIN and employee when leave is approved
+                try {
+                    String leaveTypeName = "Leave";
+                    if (approved.getLeaveTypeId() != null) {
+                        Optional<LeaveType> leaveTypeOpt = leaveTypeRepository.findById(approved.getLeaveTypeId());
+                        if (leaveTypeOpt.isPresent()) {
+                            leaveTypeName = leaveTypeOpt.get().getName();
+                        }
+                    }
+                    notificationService.notifyLeaveApproved(
+                        approved.getId(),
+                        approved.getEmployeeId(),
+                        employeeName,
+                        leaveTypeName,
+                        approved.getStartDate().toString(),
+                        approved.getEndDate().toString(),
+                        currentUserId
+                    );
+                } catch (Exception e) {
+                    // Log but don't fail the request if notification fails
+                    System.err.println("Failed to send leave approval notification: " + e.getMessage());
+                }
             }
             
             response.put("success", true);
@@ -182,6 +237,30 @@ public class LeaveController {
                     String.format("Rejected leave request for %s from %s to %s. Reason: %s", employeeName, rejected.getStartDate(), rejected.getEndDate(), rejectionReason),
                     request
                 );
+                
+                // Send notification to employee when leave is rejected
+                try {
+                    String leaveTypeName = "Leave";
+                    if (rejected.getLeaveTypeId() != null) {
+                        Optional<LeaveType> leaveTypeOpt = leaveTypeRepository.findById(rejected.getLeaveTypeId());
+                        if (leaveTypeOpt.isPresent()) {
+                            leaveTypeName = leaveTypeOpt.get().getName();
+                        }
+                    }
+                    notificationService.notifyLeaveRejected(
+                        rejected.getId(),
+                        rejected.getEmployeeId(),
+                        employeeName,
+                        leaveTypeName,
+                        rejected.getStartDate().toString(),
+                        rejected.getEndDate().toString(),
+                        rejectionReason,
+                        currentUserId
+                    );
+                } catch (Exception e) {
+                    // Log but don't fail the request if notification fails
+                    System.err.println("Failed to send leave rejection notification: " + e.getMessage());
+                }
             }
             
             response.put("success", true);
