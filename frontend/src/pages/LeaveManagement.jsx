@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react'
-<<<<<<< Updated upstream
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon, MoreVertical } from 'lucide-react'
-=======
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon, MoreVertical, FileText } from 'lucide-react'
->>>>>>> Stashed changes
 import api from '../services/api'
 import { format, differenceInDays, parseISO, isAfter, isBefore, startOfToday } from 'date-fns'
 
