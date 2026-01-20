@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.entity.Attendance;
 import com.hrms.entity.User;
+import com.hrms.repository.AuditLogRepository;
 import com.hrms.repository.UserRepository;
 import com.hrms.service.AuditLogService;
 import com.hrms.service.AttendanceService;
@@ -37,6 +38,9 @@ public class AttendanceController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
 
     @GetMapping
     public ResponseEntity<?> getAllAttendance() {
@@ -142,10 +146,10 @@ public class AttendanceController {
             
             // Log audit event
             Long userId = getCurrentUserId(httpRequest);
-            if (userId != null && attendance != null) {
+            if (userId != null && attendance != null && attendance.getId() != null) {
                 User employee = userRepository.findById(employeeId).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
-                auditLogService.logEvent(
+                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent(
                     "ATTENDANCE",
                     attendance.getId(),
                     "CHECK_IN",
@@ -155,6 +159,12 @@ public class AttendanceController {
                     String.format("Check-in for %s on %s at %s", employeeName, date, checkInTime),
                     httpRequest
                 );
+                // Set employee information on the audit log
+                if (auditLog != null && employeeId != null) {
+                    auditLog.setEmployeeId(employeeId);
+                    auditLog.setEmployeeName(employeeName);
+                    auditLogRepository.save(auditLog);
+                }
             }
             
             response.put("success", true);
@@ -226,10 +236,10 @@ public class AttendanceController {
             
             // Log audit event
             Long userId = getCurrentUserId(httpRequest);
-            if (userId != null && attendance != null) {
+            if (userId != null && attendance != null && attendance.getId() != null) {
                 User employee = userRepository.findById(employeeId).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
-                auditLogService.logEvent(
+                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent(
                     "ATTENDANCE",
                     attendance.getId(),
                     "CHECK_OUT",
@@ -239,6 +249,12 @@ public class AttendanceController {
                     String.format("Check-out for %s on %s at %s", employeeName, date, checkOutTime),
                     httpRequest
                 );
+                // Set employee information on the audit log
+                if (auditLog != null && employeeId != null) {
+                    auditLog.setEmployeeId(employeeId);
+                    auditLog.setEmployeeName(employeeName);
+                    auditLogRepository.save(auditLog);
+                }
             }
             
             response.put("success", true);

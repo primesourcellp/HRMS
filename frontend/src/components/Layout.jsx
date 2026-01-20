@@ -77,10 +77,11 @@ const Layout = () => {
       const allMenuItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
         { path: '/employees', icon: Users, label: 'Employee', permission: 'employees' },
-        { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'Team Attendance' : 'Attendance', permission: 'attendance' },
+        { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'My Attendance' : 'Attendance', permission: 'attendance' },
+        { path: '/team-attendance', icon: Users, label: 'Team Attendance', permission: 'attendance', roles: [ROLES.MANAGER] },
         { path: '/my-attendance', icon: Calendar, label: 'My Attendance', permission: 'myAttendance', roles: [ROLES.HR_ADMIN, ROLES.FINANCE] },
-        { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : 'Leave Management', permission: 'leave' },
-        { path: '/payroll', icon: null, label: userRole === ROLES.EMPLOYEE ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll', customIcon: '₹' },
+        { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : userRole === ROLES.FINANCE ? 'My Leaves' : 'Leave Management', permission: 'leave' },
+        { path: '/payroll', icon: null, label: userRole === ROLES.EMPLOYEE || userRole === ROLES.MANAGER ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll', customIcon: '₹' },
         { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
         { path: '/shifts', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Shift' : 'Shifts', permission: 'shifts' },
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
@@ -99,6 +100,10 @@ const Layout = () => {
         try {
           // Check if item has specific roles requirement
           if (item.roles && !item.roles.includes(userRole)) {
+            return false
+          }
+          // Exclude Attendance menu item for FINANCE role (they have My Attendance instead)
+          if (item.path === '/attendance' && userRole === ROLES.FINANCE) {
             return false
           }
           return hasPermission(userRole, item.permission)

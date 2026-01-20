@@ -60,7 +60,7 @@ export const PERMISSIONS = {
     employees: false, // Only view team members
     attendance: true, // Team attendance
     leave: true, // Approve team leaves
-    payroll: false,
+    payroll: true, // My Payroll access
     performance: true, // Team performance
     shifts: true, // View team shifts
     tickets: true, // Team tickets

@@ -1,6 +1,7 @@
 package com.hrms.controller;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -8,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -404,25 +406,64 @@ public class ComplianceController {
             @RequestParam(required = false) String endDate) {
         try {
             List<com.hrms.entity.AuditLog> auditLogs;
+            LocalDate start = null;
+            LocalDate end = null;
             
-            if (entityType != null && employeeId != null && startDate != null && endDate != null) {
-                LocalDate start = LocalDate.parse(startDate);
-                LocalDate end = LocalDate.parse(endDate);
-                auditLogs = auditLogService.getAuditLogsByEntityTypesAndDateRange(
-                    Arrays.asList(entityType), 
-                    start.atStartOfDay(), 
+            // Parse dates if provided
+            if (startDate != null && !startDate.trim().isEmpty()) {
+                start = LocalDate.parse(startDate);
+            }
+            if (endDate != null && !endDate.trim().isEmpty()) {
+                end = LocalDate.parse(endDate);
+            }
+            
+            // Handle all filter combinations
+            if (entityType != null && !entityType.trim().isEmpty() && employeeId != null && start != null && end != null) {
+                // All filters: entityType + employeeId + dates
+                auditLogs = auditLogRepository.findByEntityTypeAndEmployeeIdAndTimestampBetween(
+                    entityType.trim(),
+                    employeeId,
+                    start.atStartOfDay(),
                     end.atTime(23, 59, 59)
                 );
+            } else if (entityType != null && !entityType.trim().isEmpty() && start != null && end != null) {
+                // entityType + dates (without employeeId)
+                auditLogs = auditLogService.getAuditLogsByEntityTypesAndDateRange(
+                    Arrays.asList(entityType.trim()),
+                    start.atStartOfDay(),
+                    end.atTime(23, 59, 59)
+                );
+            } else if (entityType != null && !entityType.trim().isEmpty() && employeeId != null) {
+                // entityType + employeeId (without dates) - filter by entityType first, then filter by employeeId in memory
+                List<com.hrms.entity.AuditLog> entityLogs = auditLogRepository.findByEntityTypeOrderByTimestampDesc(entityType.trim());
+                auditLogs = entityLogs.stream()
+                    .filter(log -> log.getEmployeeId() != null && log.getEmployeeId().equals(employeeId))
+                    .collect(Collectors.toList());
+            } else if (entityType != null && !entityType.trim().isEmpty()) {
+                // Only entityType
+                auditLogs = auditLogRepository.findByEntityTypeOrderByTimestampDesc(entityType.trim());
+            } else if (employeeId != null && start != null && end != null) {
+                // employeeId + dates - filter by employeeId first, then filter by dates in memory
+                List<com.hrms.entity.AuditLog> employeeLogs = auditLogService.getAuditLogsByEmployee(employeeId);
+                LocalDateTime startDateTime = start.atStartOfDay();
+                LocalDateTime endDateTime = end.atTime(23, 59, 59);
+                auditLogs = employeeLogs.stream()
+                    .filter(log -> {
+                        if (log.getTimestamp() == null) return false;
+                        return !log.getTimestamp().isBefore(startDateTime) && !log.getTimestamp().isAfter(endDateTime);
+                    })
+                    .collect(Collectors.toList());
             } else if (employeeId != null) {
+                // Only employeeId
                 auditLogs = auditLogService.getAuditLogsByEmployee(employeeId);
-            } else if (startDate != null && endDate != null) {
-                LocalDate start = LocalDate.parse(startDate);
-                LocalDate end = LocalDate.parse(endDate);
+            } else if (start != null && end != null) {
+                // Only dates
                 auditLogs = auditLogService.getAuditLogsByDateRange(
-                    start.atStartOfDay(), 
+                    start.atStartOfDay(),
                     end.atTime(23, 59, 59)
                 );
             } else {
+                // Default: last 3 months
                 auditLogs = auditLogService.getAuditLogsByDateRange(
                     LocalDate.now().minusMonths(3).atStartOfDay(),
                     LocalDate.now().atTime(23, 59, 59)

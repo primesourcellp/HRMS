@@ -40,7 +40,14 @@ const Compliance = () => {
   const loadEmployees = async () => {
     try {
       const data = await api.getEmployees()
-      setEmployees(Array.isArray(data) ? data : [])
+      // Filter out SUPER_ADMIN from the employees list
+      const filteredEmployees = Array.isArray(data) 
+        ? data.filter(emp => {
+            const role = (emp.role || emp.designation || '').toUpperCase()
+            return role !== 'SUPER_ADMIN'
+          })
+        : []
+      setEmployees(filteredEmployees)
     } catch (error) {
       console.error('Error loading employees:', error)
     }
@@ -51,20 +58,36 @@ const Compliance = () => {
       setAuditLoading(true)
       setError(null)
       const params = new URLSearchParams()
-      if (auditFilters.entityType) params.append('entityType', auditFilters.entityType)
-      if (auditFilters.employeeId) params.append('employeeId', auditFilters.employeeId)
-      if (auditFilters.startDate) params.append('startDate', auditFilters.startDate)
-      if (auditFilters.endDate) params.append('endDate', auditFilters.endDate)
+      
+      // Only add non-empty filter values
+      if (auditFilters.entityType && auditFilters.entityType.trim() !== '') {
+        params.append('entityType', auditFilters.entityType.trim())
+      }
+      if (auditFilters.employeeId && auditFilters.employeeId.toString().trim() !== '') {
+        params.append('employeeId', auditFilters.employeeId.toString().trim())
+      }
+      if (auditFilters.startDate && auditFilters.startDate.trim() !== '') {
+        params.append('startDate', auditFilters.startDate.trim())
+      }
+      if (auditFilters.endDate && auditFilters.endDate.trim() !== '') {
+        params.append('endDate', auditFilters.endDate.trim())
+      }
 
-      const response = await api.getAuditLogs(params.toString())
-      if (response.success) {
+      const queryString = params.toString()
+      const response = await api.getAuditLogs(queryString)
+      
+      if (response && response.success) {
         setAuditLogs(response.auditLogs || [])
+      } else if (response && Array.isArray(response)) {
+        // Handle case where API returns array directly
+        setAuditLogs(response)
       } else {
-        setError(response.message || 'Failed to load audit logs')
+        setError(response?.message || 'Failed to load audit logs')
       }
     } catch (error) {
       console.error('Error loading audit logs:', error)
-      setError('Failed to load audit logs: ' + error.message)
+      setError('Failed to load audit logs: ' + (error.message || 'Unknown error'))
+      setAuditLogs([])
     } finally {
       setAuditLoading(false)
     }
@@ -177,18 +200,27 @@ const Compliance = () => {
       setError(null)
       const params = new URLSearchParams()
       // Only add non-empty filter values
-      if (defaultFilters.startDate) params.append('startDate', defaultFilters.startDate)
-      if (defaultFilters.endDate) params.append('endDate', defaultFilters.endDate)
+      if (defaultFilters.startDate && defaultFilters.startDate.trim() !== '') {
+        params.append('startDate', defaultFilters.startDate.trim())
+      }
+      if (defaultFilters.endDate && defaultFilters.endDate.trim() !== '') {
+        params.append('endDate', defaultFilters.endDate.trim())
+      }
 
-      const response = await api.getAuditLogs(params.toString())
-      if (response.success) {
+      const queryString = params.toString()
+      const response = await api.getAuditLogs(queryString)
+      
+      if (response && response.success) {
         setAuditLogs(response.auditLogs || [])
+      } else if (response && Array.isArray(response)) {
+        setAuditLogs(response)
       } else {
-        setError(response.message || 'Failed to load audit logs')
+        setError(response?.message || 'Failed to load audit logs')
       }
     } catch (error) {
       console.error('Error loading audit logs:', error)
-      setError('Failed to load audit logs: ' + error.message)
+      setError('Failed to load audit logs: ' + (error.message || 'Unknown error'))
+      setAuditLogs([])
     } finally {
       setAuditLoading(false)
     }
@@ -212,17 +244,29 @@ const Compliance = () => {
         <p className="text-gray-600">Generate statutory reports and view audit logs for compliance readiness</p>
       </div>
 
-      {/* Success/Error Messages */}
+      {/* Success/Error Messages - Fixed Top Right */}
       {successMessage && (
-        <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center gap-2">
-          <CheckCircle className="w-5 h-5" />
-          {successMessage}
+        <div className="fixed top-4 right-4 bg-blue-50 border border-blue-200 text-blue-800 px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2 max-w-md">
+          <CheckCircle className="w-5 h-5 flex-shrink-0 text-blue-600" />
+          <span>{successMessage}</span>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="ml-2 text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
       {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          {error}
+        <div className="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2 max-w-md">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="ml-2 text-white hover:text-red-200 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -300,7 +344,7 @@ const Compliance = () => {
                   <option value="">All Employees</option>
                   {employees.map(emp => (
                     <option key={emp.id} value={emp.id}>
-                      {emp.name} ({emp.employeeId || emp.id})
+                      {emp.name}
                     </option>
                   ))}
                 </select>
@@ -466,7 +510,7 @@ const Compliance = () => {
                   <option value="">All Employees</option>
                   {employees.map(emp => (
                     <option key={emp.id} value={emp.id}>
-                      {emp.name} ({emp.employeeId || emp.id})
+                      {emp.name}
                     </option>
                   ))}
                 </select>

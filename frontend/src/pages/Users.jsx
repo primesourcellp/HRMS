@@ -901,21 +901,14 @@ const Users = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Department *</label>
-                      <select
+                      <input
+                        type="text"
                         value={employeeFormData.department}
                         onChange={(e) => setEmployeeFormData({ ...employeeFormData, department: e.target.value })}
+                        placeholder="Enter Department"
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                         required
-                      >
-                        <option value="">Select Department</option>
-                        {departments.length > 0 ? (
-                          departments.map((dept) => (
-                            <option key={dept} value={dept}>{dept}</option>
-                          ))
-                        ) : (
-                          <option value="" disabled>No departments found</option>
-                        )}
-                      </select>
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Role *</label>

@@ -25,6 +25,15 @@ const Dashboard = () => {
   const [checkOutError, setCheckOutError] = useState(null)
   const [tickets, setTickets] = useState([])
   const [loadingTickets, setLoadingTickets] = useState(false)
+  const [teamMembers, setTeamMembers] = useState([])
+  const [teamAttendanceData, setTeamAttendanceData] = useState([])
+  const [loadingTeamAttendance, setLoadingTeamAttendance] = useState(false)
+  const [myAttendanceData, setMyAttendanceData] = useState([])
+  const [loadingMyAttendance, setLoadingMyAttendance] = useState(false)
+  const [employeeLeaves, setEmployeeLeaves] = useState([])
+  const [financePayrolls, setFinancePayrolls] = useState([])
+  const [loadingFinancePayrolls, setLoadingFinancePayrolls] = useState(false)
+  const [payrollTrendData, setPayrollTrendData] = useState([])
   const [widgetVisibility, setWidgetVisibility] = useState(() => {
     // Load from localStorage if available
     const saved = localStorage.getItem('dashboardWidgetVisibility')
@@ -71,7 +80,8 @@ const Dashboard = () => {
     const userId = localStorage.getItem('userId')
     const empId = userId ? parseInt(userId) : null
     setEmployeeId(empId)
-    loadDashboardStats(empId && (isEmployee || userType === 'employee') ? empId : null)
+    // Load dashboard stats with empId for employees and finance users (to show their department)
+    loadDashboardStats(empId && (isEmployee || userType === 'employee' || isFinance) ? empId : null)
     
     // Load executive dashboard for Super Admin/HR Admin
     if (isExecutiveView) {
@@ -84,16 +94,31 @@ const Dashboard = () => {
       loadTodayAttendance(empId)
       // Load weekly attendance for employee view
       loadEmployeeWeeklyAttendance(empId)
+      // Load employee leaves for pending/approved counts
+      loadEmployeeLeaves(empId)
     }
 
-    // Load weekly attendance data for admin/manager/finance
-    if (!isEmployee && userType !== 'employee') {
+    // Load manager-specific data
+    if (isManager && empId) {
+      loadEmployeeShift(empId)
+      loadTodayAttendance(empId)
+      loadMyAttendance(empId)
+      loadTeamMembers(empId)
+    }
+
+    // Load weekly attendance data for admin (overall attendance)
+    if (!isEmployee && userType !== 'employee' && !isManager && !isFinance) {
       loadWeeklyAttendanceData()
     }
 
-    // Load tickets for finance users
-    if (isFinance) {
+    // Load finance-specific data (like employees - personal attendance)
+    if (isFinance && empId) {
       loadTickets()
+      loadFinancePayrolls()
+      loadEmployeeShift(empId)
+      loadTodayAttendance(empId)
+      loadEmployeeLeaves(empId)
+      loadEmployeeWeeklyAttendance(empId) // Load personal weekly attendance like employees
     }
   }, [employees, isEmployee, isExecutiveView, selectedMonth, isFinance]) // Re-run when employees data is loaded or selectedMonth changes
 
@@ -451,10 +476,274 @@ const Dashboard = () => {
     }
   }
 
+  const loadTeamMembers = async (managerId) => {
+    try {
+      // Load teams where manager is a member (like TeamAttendance page does)
+      const allTeams = await api.getTeams()
+      
+      // Filter teams where current user (manager) is a member
+      const myTeams = allTeams.filter(team => {
+        if (!team.members || !Array.isArray(team.members)) return false
+        return team.members.some(member => {
+          const memberId = typeof member.employeeId === 'string' ? parseInt(member.employeeId) : member.employeeId
+          return memberId === managerId
+        })
+      })
+      
+      // Extract all team members from teams where manager is a member
+      const allTeamMembers = []
+      myTeams.forEach(team => {
+        if (team.members && Array.isArray(team.members)) {
+          team.members.forEach(member => {
+            // Only include EMPLOYEE role members (exclude MANAGER, HR_ADMIN, etc.)
+            const memberRole = member.employeeRole || member.role
+            if (memberRole === 'EMPLOYEE') {
+              // Avoid duplicates
+              const memberId = typeof member.employeeId === 'string' ? parseInt(member.employeeId) : member.employeeId
+              if (!allTeamMembers.find(m => {
+                const mId = typeof m.id === 'string' ? parseInt(m.id) : m.id
+                return mId === memberId
+              })) {
+                allTeamMembers.push({
+                  id: memberId,
+                  name: member.employeeName || `Employee ${memberId}`,
+                  email: member.employeeEmail || '-',
+                  employeeId: member.employeeId
+                })
+              }
+            }
+          })
+        }
+      })
+      
+      setTeamMembers(allTeamMembers)
+      // Load team attendance after team members are loaded
+      if (allTeamMembers.length > 0) {
+        loadTeamAttendance(managerId, allTeamMembers)
+      } else {
+        // If no team members, set empty attendance data
+        const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const weekData = []
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today)
+          date.setDate(date.getDate() - i)
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: 0,
+            absent: 0
+          })
+        }
+        setTeamAttendanceData(weekData)
+      }
+    } catch (error) {
+      console.error('Error loading team members:', error)
+      setTeamMembers([])
+    }
+  }
+
+  const loadMyAttendance = async (empId) => {
+    try {
+      setLoadingMyAttendance(true)
+      const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const weekData = []
+
+      // Fetch attendance for each day of the past week
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today)
+        date.setDate(date.getDate() - i)
+        const dateStr = format(date, 'yyyy-MM-dd')
+        
+        try {
+          const attendanceRecords = await api.getAttendanceByDate(dateStr)
+          const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+          
+          // Find this employee's attendance
+          const employeeAttendance = attendanceArray.find(a => {
+            const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+            return attEmpId === empId
+          })
+          
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: employeeAttendance && (employeeAttendance.status === 'Present' || employeeAttendance.status === 'PRESENT') ? 1 : 0,
+            absent: employeeAttendance && (employeeAttendance.status === 'Absent' || employeeAttendance.status === 'ABSENT') ? 1 : 0
+          })
+        } catch (error) {
+          console.error(`Error fetching attendance for ${dateStr}:`, error)
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setMyAttendanceData(weekData)
+    } catch (error) {
+      console.error('Error loading my attendance:', error)
+      setMyAttendanceData([])
+    } finally {
+      setLoadingMyAttendance(false)
+    }
+  }
+
+  const loadEmployeeLeaves = async (empId) => {
+    try {
+      const leavesData = await api.getLeavesByEmployee(empId)
+      const leavesArray = Array.isArray(leavesData) ? leavesData : []
+      setEmployeeLeaves(leavesArray)
+      console.log('Employee leaves loaded:', leavesArray.length, leavesArray)
+    } catch (error) {
+      console.error('Error loading employee leaves:', error)
+      setEmployeeLeaves([])
+    }
+  }
+
+  const loadFinancePayrolls = async () => {
+    try {
+      setLoadingFinancePayrolls(true)
+      const payrollsData = await api.getPayrolls()
+      const payrollsArray = Array.isArray(payrollsData) ? payrollsData : []
+      setFinancePayrolls(payrollsArray)
+      
+      // Calculate monthly payroll trend for last 6 months
+      const trendData = []
+      const currentDate = new Date()
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
+        const monthStr = format(date, 'yyyy-MM')
+        const monthPayrolls = payrollsArray.filter(p => {
+          const payrollMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
+          return payrollMonth === monthStr
+        })
+        const total = monthPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0)
+        trendData.push({
+          month: format(date, 'MMM yyyy'),
+          payroll: total
+        })
+      }
+      setPayrollTrendData(trendData)
+    } catch (error) {
+      console.error('Error loading finance payrolls:', error)
+      setFinancePayrolls([])
+      setPayrollTrendData([])
+    } finally {
+      setLoadingFinancePayrolls(false)
+    }
+  }
+
+  const loadTeamAttendance = async (managerId, teamMembersList = null) => {
+    try {
+      setLoadingTeamAttendance(true)
+      const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const weekData = []
+
+      // Use provided team members list or state
+      const membersToUse = teamMembersList || teamMembers
+      
+      // Get team member IDs
+      const teamMemberIds = membersToUse.map(emp => {
+        const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+        return empId
+      })
+
+      if (teamMemberIds.length === 0) {
+        // If no team members, return empty data
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today)
+          date.setDate(date.getDate() - i)
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: 0,
+            absent: 0
+          })
+        }
+        setTeamAttendanceData(weekData)
+        setLoadingTeamAttendance(false)
+        return
+      }
+
+      // Fetch attendance for each day of the past week
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today)
+        date.setDate(date.getDate() - i)
+        const dateStr = format(date, 'yyyy-MM-dd')
+        
+        try {
+          const attendanceRecords = await api.getAttendanceByDate(dateStr)
+          const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+          
+          // Count present and absent for team members
+          let present = 0
+          let absent = 0
+          
+          teamMemberIds.forEach(teamMemberId => {
+            const teamMemberAttendance = attendanceArray.find(a => {
+              const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+              return attEmpId === teamMemberId
+            })
+            
+            if (teamMemberAttendance) {
+              if (teamMemberAttendance.status === 'Present' || teamMemberAttendance.status === 'PRESENT') {
+                present++
+              } else if (teamMemberAttendance.status === 'Absent' || teamMemberAttendance.status === 'ABSENT') {
+                absent++
+              }
+            } else {
+              // If no attendance record for past dates, count as absent
+              const dateOnly = new Date(date)
+              dateOnly.setHours(0, 0, 0, 0)
+              const todayOnly = new Date(today)
+              todayOnly.setHours(0, 0, 0, 0)
+              if (dateOnly < todayOnly) {
+                absent++
+              }
+            }
+          })
+          
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: present,
+            absent: absent
+          })
+        } catch (error) {
+          console.error(`Error fetching team attendance for ${dateStr}:`, error)
+          const dayName = weekDays[date.getDay()]
+          weekData.push({
+            name: dayName,
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setTeamAttendanceData(weekData)
+    } catch (error) {
+      console.error('Error loading team attendance:', error)
+      setTeamAttendanceData([])
+    } finally {
+      setLoadingTeamAttendance(false)
+    }
+  }
+
   // Filter data based on employee or admin view
   // Ensure arrays exist before filtering
   const safeAttendance = Array.isArray(attendance) ? attendance : []
-  const safeLeaves = Array.isArray(leaves) ? leaves : []
+  // For employees, use employeeLeaves if loaded, otherwise fall back to filtered context leaves
+  const safeLeaves = isEmployee && employeeId && employeeLeaves.length > 0
+    ? employeeLeaves
+    : Array.isArray(leaves) ? leaves : []
   const safePayrolls = Array.isArray(payrolls) ? payrolls : []
   const safeEmployees = Array.isArray(employees) ? employees : []
   
@@ -463,14 +752,100 @@ const Dashboard = () => {
     : safeAttendance
   
   const filteredLeaves = isEmployee && employeeId
-    ? safeLeaves.filter(l => l.employeeId === employeeId)
+    ? safeLeaves.filter(l => {
+        const leaveEmpId = typeof l.employeeId === 'string' ? parseInt(l.employeeId) : l.employeeId
+        return leaveEmpId === employeeId || parseInt(leaveEmpId) === employeeId
+      })
     : safeLeaves
   
   const filteredPayrolls = isEmployee && employeeId
     ? safePayrolls.filter(p => p.employeeId === employeeId)
     : safePayrolls
 
-  const stats = isEmployee ? [
+  // Get manager stats
+  const managerStats = isManager ? [
+    {
+      title: 'My Status Today',
+      value: dashboardStats?.presentToday > 0 ? 'Present' : 'Absent',
+      change: dashboardStats?.presentToday > 0 ? 'Present' : 'Absent',
+      trend: dashboardStats?.presentToday > 0 ? 'up' : 'down',
+      icon: Clock,
+      color: dashboardStats?.presentToday > 0 ? 'bg-green-500' : 'bg-red-500'
+    },
+    {
+      title: 'Team Members',
+      value: teamMembers.length,
+      change: '+0%',
+      trend: 'up',
+      icon: Users,
+      color: 'bg-blue-500'
+    },
+    {
+      title: 'Pending Leaves',
+      value: dashboardStats?.pendingLeaves || filteredLeaves.filter(l => l.status === 'PENDING' || l.status === 'Pending').length,
+      change: '-3%',
+      trend: 'down',
+      icon: Calendar,
+      color: 'bg-yellow-500'
+    },
+    {
+      title: 'Total Payroll',
+      value: `$${dashboardStats?.totalPayroll?.toLocaleString() || filteredPayrolls.reduce((sum, p) => sum + (p.amount || 0), 0).toLocaleString()}`,
+      change: '+8%',
+      trend: 'up',
+      icon: DollarSign,
+      color: 'bg-purple-500'
+    }
+  ] : []
+
+  // Finance-specific stats
+  const financeStats = isFinance ? [
+    {
+      title: 'Pending Payroll Approvals',
+      value: financePayrolls.filter(p => {
+        const status = (p.status || '').toUpperCase()
+        return status === 'PENDING_APPROVAL'
+      }).length,
+      change: '',
+      trend: 'neutral',
+      icon: DollarSign,
+      color: 'bg-yellow-500'
+    },
+    {
+      title: 'Total Payroll',
+      value: `$${financePayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0).toLocaleString()}`,
+      change: '',
+      trend: 'neutral',
+      icon: DollarSign,
+      color: 'bg-purple-500'
+    },
+    {
+      title: 'Monthly Payroll',
+      value: (() => {
+        const currentMonth = format(new Date(), 'yyyy-MM')
+        const monthPayrolls = financePayrolls.filter(p => {
+          const payrollMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
+          return payrollMonth === currentMonth
+        })
+        const total = monthPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0)
+        return `$${total.toLocaleString()}`
+      })(),
+      change: '',
+      trend: 'neutral',
+      icon: Calendar,
+      color: 'bg-blue-500'
+    },
+    {
+      title: 'HR Tickets',
+      value: tickets.length,
+      change: '',
+      trend: 'neutral',
+      icon: Ticket,
+      color: 'bg-orange-500'
+    }
+  ] : []
+
+  const stats = isFinance ? financeStats : isManager ? managerStats : isEmployee ? [
     {
       title: 'My Status Today',
       value: dashboardStats?.presentToday > 0 ? 'Present' : 'Absent',
@@ -481,25 +856,37 @@ const Dashboard = () => {
     },
     {
       title: 'My Pending Leaves',
-      value: dashboardStats?.pendingLeaves || filteredLeaves.filter(l => l.status === 'PENDING' || l.status === 'Pending').length,
-      change: '-3%',
-      trend: 'down',
+      value: dashboardStats?.pendingLeaves !== undefined 
+        ? dashboardStats.pendingLeaves 
+        : filteredLeaves.filter(l => {
+            const status = (l.status || '').toUpperCase()
+            return status === 'PENDING'
+          }).length,
+      change: '', // Dynamic data - no hardcoded change
+      trend: 'neutral',
       icon: Calendar,
       color: 'bg-yellow-500'
     },
     {
       title: 'My Approved Leaves',
-      value: dashboardStats?.approvedLeaves || filteredLeaves.filter(l => l.status === 'APPROVED' || l.status === 'Approved').length,
-      change: '+5%',
-      trend: 'up',
+      value: dashboardStats?.approvedLeaves !== undefined
+        ? dashboardStats.approvedLeaves
+        : filteredLeaves.filter(l => {
+            const status = (l.status || '').toUpperCase()
+            return status === 'APPROVED'
+          }).length,
+      change: '', // Dynamic data - no hardcoded change
+      trend: 'neutral',
       icon: Calendar,
       color: 'bg-green-500'
     },
     {
       title: 'My Total Payroll',
-      value: `$${dashboardStats?.totalPayroll?.toLocaleString() || filteredPayrolls.reduce((sum, p) => sum + (p.amount || 0), 0).toLocaleString()}`,
-      change: '+8%',
-      trend: 'up',
+      value: dashboardStats?.totalPayroll !== undefined
+        ? `$${dashboardStats.totalPayroll.toLocaleString()}`
+        : `$${filteredPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0).toLocaleString()}`,
+      change: '', // Dynamic data - no hardcoded change
+      trend: 'neutral',
       icon: DollarSign,
       color: 'bg-purple-500'
     }
@@ -558,8 +945,8 @@ const Dashboard = () => {
 
   // Generate attendance data for the week
   const getWeeklyAttendanceData = () => {
-    // For employee, use loaded weekly attendance data
-    if (isEmployee) {
+    // For employee and finance, use personal weekly attendance data (like employee pages)
+    if (isEmployee || isFinance) {
       if (weeklyAttendanceData.length > 0) {
         return weeklyAttendanceData
       }
@@ -600,7 +987,7 @@ const Dashboard = () => {
         { name: 'Sat', present: 0, absent: 0 }
       ]
     } else {
-      // For admin, use dynamically loaded weekly attendance data
+      // For admin, use overall weekly attendance data (all employees)
       if (weeklyAttendanceData.length > 0) {
         return weeklyAttendanceData
       }
@@ -628,11 +1015,11 @@ const Dashboard = () => {
         .sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate))
         .slice(0, 5))
 
-  // Check if employee can check in
-  const canCheckIn = isEmployee && employeeId && (!todayAttendance || !todayAttendance.checkIn)
+  // Check if employee or manager can check in
+  const canCheckIn = (isEmployee || isManager) && employeeId && (!todayAttendance || !todayAttendance.checkIn)
   
-  // Check if employee can check out
-  const canCheckOut = isEmployee && employeeId && todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
+  // Check if employee or manager can check out
+  const canCheckOut = (isEmployee || isManager) && employeeId && todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
 
   // Executive Dashboard KPIs
   const executiveKPIs = executiveData ? [
@@ -1184,7 +1571,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             {stats.map((stat, index) => {
               const Icon = stat.icon
-              const isPresentStatus = isEmployee && stat.title === 'My Status Today'
+              const isPresentStatus = (isEmployee || isManager) && stat.title === 'My Status Today'
               
               return (
                 <div 
@@ -1203,11 +1590,11 @@ const Dashboard = () => {
                     }`}>
                       <Icon className="w-3 h-3 text-white" />
                     </div>
-                    {!isPresentStatus && (
+                    {!isPresentStatus && stat.change && stat.change.trim() !== '' && (
                       <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        stat.trend === 'up' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        stat.trend === 'up' ? 'bg-green-100 text-green-700' : stat.trend === 'down' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
                       }`}>
-                        {stat.trend === 'up' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                        {stat.trend === 'up' ? <ArrowUp size={12} /> : stat.trend === 'down' ? <ArrowDown size={12} /> : null}
                         <span>{stat.change}</span>
                       </div>
                     )}
@@ -1257,13 +1644,14 @@ const Dashboard = () => {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-        {/* Attendance Chart */}
-        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
-          <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            {isEmployee ? 'My Weekly Attendance' : 'Weekly Attendance'}
-          </h3>
-          {loadingWeeklyAttendance && !isEmployee ? (
+        {/* Attendance Chart - Hide for managers (they have My Attendance chart instead) */}
+        {!isManager && (
+          <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
+            <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              {isEmployee || isFinance ? 'My Weekly Attendance' : 'Weekly Attendance'}
+            </h3>
+          {loadingWeeklyAttendance && !isEmployee && !isManager && !isFinance ? (
             <div className="flex items-center justify-center h-[300px]">
               <div className="text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
@@ -1280,7 +1668,7 @@ const Dashboard = () => {
                   axisLine={{ stroke: '#d1d5db' }}
                 />
                 <YAxis 
-                  domain={isEmployee ? [0, 1] : [0, 'auto']}
+                  domain={isEmployee || isFinance ? [0, 1] : isManager ? [0, 'auto'] : [0, 'auto']}
                   tick={{ fill: '#6b7280', fontSize: 12 }}
                   axisLine={{ stroke: '#d1d5db' }}
                 />
@@ -1313,10 +1701,139 @@ const Dashboard = () => {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+          </div>
+        )}
+
+        {/* Manager-specific sections: My Attendance and Team Attendance */}
+        {isManager && (
+          <>
+            {/* My Attendance Chart */}
+            <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
+              <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                My Attendance
+              </h3>
+              {loadingMyAttendance ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                    <p className="text-gray-600">Loading my attendance data...</p>
+                  </div>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={myAttendanceData} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <YAxis 
+                      domain={[0, 1]}
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e5e7eb', 
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px' }}
+                      iconType="square"
+                    />
+                    <Bar 
+                      dataKey="present" 
+                      fill="#10b981" 
+                      name="Present" 
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={60}
+                    />
+                    <Bar 
+                      dataKey="absent" 
+                      fill="#ef4444" 
+                      name="Absent" 
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={60}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Team Attendance Chart */}
+            <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
+              <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Team Attendance ({teamMembers.length} {teamMembers.length === 1 ? 'Employee' : 'Employees'})
+              </h3>
+              {loadingTeamAttendance ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                    <p className="text-gray-600">Loading team attendance data...</p>
+                  </div>
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No team members assigned</p>
+                  </div>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={teamAttendanceData} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <YAxis 
+                      domain={[0, 'auto']}
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e5e7eb', 
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px' }}
+                      iconType="square"
+                    />
+                    <Bar 
+                      dataKey="present" 
+                      fill="#10b981" 
+                      name="Present" 
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={60}
+                    />
+                    <Bar 
+                      dataKey="absent" 
+                      fill="#ef4444" 
+                      name="Absent" 
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={60}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Department Distribution - Only show for admin */}
-        {!isEmployee && (
+        {!isEmployee && !isManager && (
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
             <h3 className="text-xl font-bold text-blue-600 mb-3">Department Distribution</h3>
             <ResponsiveContainer width="100%" height={300}>
@@ -1341,8 +1858,8 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Employee Info Card - Only show for employee */}
-        {isEmployee && dashboardStats && (
+        {/* Employee Info Card - Show for employee and finance */}
+        {(isEmployee || isFinance) && dashboardStats && (
           <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
             <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
               <UserPlus className="w-5 h-5" />
@@ -1400,7 +1917,18 @@ const Dashboard = () => {
                 <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                   <p className="text-xs text-gray-600 mb-1">Monthly Payroll</p>
                   <p className="text-lg font-bold text-gray-800">
-                    ${dashboardStats.monthlyPayroll?.toLocaleString() || '0.00'}
+                    {(() => {
+                      // Calculate current month's payroll from filtered payrolls
+                      const currentMonth = format(new Date(), 'yyyy-MM')
+                      const currentMonthPayrolls = filteredPayrolls.filter(p => {
+                        const payrollMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
+                        return payrollMonth === currentMonth
+                      })
+                      const monthlyTotal = currentMonthPayrolls.reduce((sum, p) => {
+                        return sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0)
+                      }, 0)
+                      return `$${monthlyTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    })()}
                   </p>
                 </div>
               </div>
@@ -1503,6 +2031,124 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Payroll Trend Chart - Finance Users */}
+      {isFinance && payrollTrendData.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-blue-600 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Payroll Trend (Last 6 Months)
+            </h3>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={payrollTrendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fill: '#6b7280', fontSize: 12 }}
+                axisLine={{ stroke: '#d1d5db' }}
+              />
+              <YAxis 
+                tick={{ fill: '#6b7280', fontSize: 12 }}
+                axisLine={{ stroke: '#d1d5db' }}
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#fff', 
+                  border: '1px solid #e5e7eb', 
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                }}
+                formatter={(value) => [`$${value.toLocaleString()}`, 'Payroll']}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="payroll" 
+                stroke="#8b5cf6" 
+                fill="#8b5cf6" 
+                fillOpacity={0.3}
+                name="Payroll"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Pending Payroll Approvals - Finance Users */}
+      {isFinance && (
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-blue-600 flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Pending Payroll Approvals
+            </h3>
+            <button
+              onClick={() => navigate('/payroll')}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+            >
+              View All
+              <Eye className="w-4 h-4" />
+            </button>
+          </div>
+          {loadingFinancePayrolls ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <p className="text-gray-600">Loading payroll data...</p>
+              </div>
+            </div>
+          ) : (() => {
+            const pendingPayrolls = financePayrolls.filter(p => {
+              const status = (p.status || '').toUpperCase()
+              return status === 'PENDING_APPROVAL'
+            }).slice(0, 5)
+            
+            if (pendingPayrolls.length === 0) {
+              return (
+                <div className="text-center py-8">
+                  <CheckCircle className="mx-auto text-green-400 mb-2" size={32} />
+                  <p className="text-gray-500">No pending payroll approvals</p>
+                </div>
+              )
+            }
+            
+            return (
+              <div className="space-y-3">
+                {pendingPayrolls.map((payroll) => {
+                  const employee = safeEmployees.find(emp => {
+                    const empId = emp.id || emp.employeeId
+                    const payrollEmpId = payroll.employeeId
+                    return empId === payrollEmpId || parseInt(empId) === payrollEmpId || parseInt(empId) === parseInt(payrollEmpId)
+                  })
+                  const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
+                  const netSalary = parseFloat(payroll.netSalary) || parseFloat(payroll.amount) || 0
+                  
+                  return (
+                    <div key={payroll.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-800">{employeeName}</p>
+                          <p className="text-sm text-gray-600">
+                            {payroll.month && payroll.year ? `${payroll.month}/${payroll.year}` : payroll.month || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-purple-600">${netSalary.toLocaleString()}</p>
+                          <span className="inline-block px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full mt-1">
+                            Pending Approval
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
       {/* Quick Actions - Moved to Bottom */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
         <h3 className="text-xl font-bold text-blue-600 mb-3">Quick Actions</h3>
@@ -1552,6 +2198,51 @@ const Dashboard = () => {
                 <span className="text-sm font-semibold text-gray-800">Recruitment</span>
               </button>
             </>
+          ) : isFinance ? (
+            <>
+              <button
+                onClick={() => navigate('/payroll')}
+                className="flex flex-col items-center justify-center p-3 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
+              >
+                <DollarSign className="w-5 h-5 text-purple-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Payroll Validation</span>
+              </button>
+              <button
+                onClick={() => navigate('/tickets')}
+                className="flex flex-col items-center justify-center p-3 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-orange-200 hover:border-orange-400 group"
+              >
+                <Ticket className="w-5 h-5 text-orange-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">HR Tickets</span>
+              </button>
+              <button
+                onClick={() => navigate('/analytics')}
+                className="flex flex-col items-center justify-center p-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-indigo-200 hover:border-indigo-400 group"
+              >
+                <TrendingUp className="w-5 h-5 text-indigo-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Cost Analytics</span>
+              </button>
+              <button
+                onClick={() => navigate('/leave')}
+                className="flex flex-col items-center justify-center p-3 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-yellow-200 hover:border-yellow-400 group"
+              >
+                <Calendar className="w-5 h-5 text-yellow-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">My Leaves</span>
+              </button>
+              <button
+                onClick={() => navigate('/attendance')}
+                className="flex flex-col items-center justify-center p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
+              >
+                <Clock className="w-5 h-5 text-green-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">My Attendance</span>
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-200 hover:border-gray-400 group"
+              >
+                <Settings className="w-5 h-5 text-gray-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Settings</span>
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -1583,7 +2274,7 @@ const Dashboard = () => {
                 <span className="text-sm font-semibold text-gray-800">My Performance</span>
               </button>
               <button
-                onClick={() => navigate('/hrtickets')}
+                onClick={() => navigate('/tickets')}
                 className="flex flex-col items-center justify-center p-3 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-orange-200 hover:border-orange-400 group"
               >
                 <FileText className="w-5 h-5 text-orange-600 mb-1.5 group-hover:scale-110 transition-transform" />

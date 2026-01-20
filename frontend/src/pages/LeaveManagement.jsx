@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon, MoreVertical } from 'lucide-react'
+import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon, MoreVertical, FileText } from 'lucide-react'
 import api from '../services/api'
 import { format, differenceInDays, parseISO, isAfter, isBefore, startOfToday } from 'date-fns'
 
@@ -12,6 +11,7 @@ const LeaveManagement = () => {
   const [leaveBalances, setLeaveBalances] = useState([])
   const [employees, setEmployees] = useState([])
   const [users, setUsers] = useState([])
+  const [approverNames, setApproverNames] = useState({})
   const [showModal, setShowModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -62,7 +62,7 @@ const LeaveManagement = () => {
   const currentUserId = localStorage.getItem('userId')
   const isSuperAdmin = userRole === 'SUPER_ADMIN'
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
-  const isEmployee = userType === 'employee'
+  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE'
   const isHrAdmin = userRole === 'HR_ADMIN'
   const isManager = userRole === 'MANAGER'
   const isFinance = userRole === 'FINANCE'
@@ -266,8 +266,8 @@ const LeaveManagement = () => {
             })
             return currentEmp ? [currentEmp] : []
           }).catch(() => []) : Promise.resolve([])),
-        // Load users (admins and HR_ADMIN) to get approver names
-        (isAdmin || isHrAdmin) ? api.getUsers() : Promise.resolve([])
+        // Load users (admins and HR_ADMIN) to get approver names - load for all roles to show approver names
+        api.getUsers().catch(() => [])
       ])
       
       setLeaves(Array.isArray(leavesData) ? leavesData : [])
@@ -325,6 +325,41 @@ const LeaveManagement = () => {
       }
       
       setUsers(Array.isArray(usersData) ? usersData : [])
+
+      // Fetch approver names for approved/rejected leaves
+      if (leavesData && Array.isArray(leavesData)) {
+        const approverIds = [...new Set(leavesData
+          .map(leave => leave.approvedBy)
+          .filter(id => id != null && id !== undefined)
+        )]
+        
+        // Fetch approver names that aren't already in users or employees
+        approverIds.forEach(approverId => {
+          const approverIdNum = typeof approverId === 'string' ? parseInt(approverId) : approverId
+          if (isNaN(approverIdNum)) return
+          
+          // Check if already in users or employees
+          const inUsers = usersData.some(u => {
+            const userId = typeof u.id === 'string' ? parseInt(u.id) : u.id
+            return userId === approverIdNum
+          })
+          const inEmployees = employeesData.some(emp => {
+            const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+            return empId === approverIdNum
+          })
+          
+          // If not found locally, fetch from API
+          if (!inUsers && !inEmployees) {
+            api.getUserById(approverIdNum).then(userData => {
+              if (userData && userData.name) {
+                setApproverNames(prev => ({ ...prev, [approverIdNum]: userData.name }))
+              }
+            }).catch(() => {
+              // Silently fail - will show 'Unknown' if not found
+            })
+          }
+        })
+      }
 
       // Load leave balances for current user and auto-initialize if needed
       if (currentUserId) {
@@ -495,8 +530,21 @@ const LeaveManagement = () => {
         }
       }
       
+      // Validate leaveTypeId first
+      const leaveTypeIdValue = parseInt(formData.leaveTypeId)
+      if (isNaN(leaveTypeIdValue)) {
+        throw new Error('Please select a valid leave type')
+      }
+      
       // Prepare submit data with all required fields
-      const selectedLeaveType = leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))
+      const selectedLeaveType = leaveTypes.find(t => {
+        const typeId = typeof t.id === 'string' ? parseInt(t.id) : t.id
+        return typeId === leaveTypeIdValue
+      })
+      
+      if (!selectedLeaveType) {
+        throw new Error('Selected leave type not found. Please refresh the page and try again.')
+      }
       
       // Validate employeeId
       let employeeIdValue
@@ -539,16 +587,10 @@ const LeaveManagement = () => {
         }
       }
       
-      // Validate leaveTypeId
-      const leaveTypeIdValue = parseInt(formData.leaveTypeId)
-      if (isNaN(leaveTypeIdValue)) {
-        throw new Error('Please select a valid leave type')
-      }
-      
       const submitData = {
         employeeId: employeeIdValue,
         leaveTypeId: leaveTypeIdValue,
-        type: selectedLeaveType?.name || 'Leave',
+        type: selectedLeaveType.name || 'Leave',
         startDate: formData.startDate,
         endDate: formData.endDate,
         reason: formData.reason || '',
@@ -860,23 +902,53 @@ const LeaveManagement = () => {
     
     const approverIdNum = typeof approverId === 'string' ? parseInt(approverId) : approverId
     
+    // Check cached approver name first
+    if (approverNames[approverIdNum]) {
+      return approverNames[approverIdNum]
+    }
+    
     // First check in users (admins) - approvers are usually admins
     const user = users.find(u => {
       const userId = typeof u.id === 'string' ? parseInt(u.id) : u.id
       return userId === approverIdNum
     })
-    if (user) return user.name
+    if (user && user.name) {
+      // Cache it
+      setApproverNames(prev => ({ ...prev, [approverIdNum]: user.name }))
+      return user.name
+    }
     
     // Then check in employees (in case an employee approved)
     const employee = employees.find(emp => {
       const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
       return empId === approverIdNum
     })
-    if (employee) return employee.name
+    if (employee && employee.name) {
+      // Cache it
+      setApproverNames(prev => ({ ...prev, [approverIdNum]: employee.name }))
+      return employee.name
+    }
     
     // If it's the current user, use localStorage
     if (currentUserId && approverIdNum === parseInt(currentUserId)) {
-      return localStorage.getItem('userName') || 'You'
+      const name = localStorage.getItem('userName') || 'You'
+      setApproverNames(prev => ({ ...prev, [approverIdNum]: name }))
+      return name
+    }
+    
+    // If not found locally and not already fetching, fetch from API
+    if (!approverNames[approverIdNum] && approverIdNum) {
+      api.getUserById(approverIdNum).then(userData => {
+        if (userData && userData.name) {
+          setApproverNames(prev => ({ ...prev, [approverIdNum]: userData.name }))
+        } else {
+          setApproverNames(prev => ({ ...prev, [approverIdNum]: 'Unknown' }))
+        }
+      }).catch(() => {
+        // If API call fails, cache 'Unknown' to avoid repeated calls
+        setApproverNames(prev => ({ ...prev, [approverIdNum]: 'Unknown' }))
+      })
+      return 'Loading...'
     }
     
     return 'Unknown'
@@ -1087,49 +1159,46 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Page Header for Employees, Finance (HR_ADMIN uses management view like Super Admin) */}
-      {((isEmployee || userRole === 'EMPLOYEE') || isManager || isFinance) && (
-        <div className="bg-white rounded-lg shadow-md p-4 md:p-6 border-2 border-blue-200">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-1">
-                {isFinance ? 'My Leaves' : 'My Leaves'}
-              </h1>
-              <p className="text-sm text-gray-600">
-                View and manage your leave applications
-              </p>
+      {/* Finance User, Employee, and Manager - My Leaves Layout */}
+      {(isFinance || isEmployee || isManager) ? (
+        <div className="space-y-4">
+          {/* Header Card with Title and Apply Leave Button - Matching MyAttendance style */}
+          <div className="bg-white rounded-xl shadow-md p-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-bold text-gray-800">My Leaves</h1>
+              <button
+                onClick={handleOpenModal}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+              >
+                <FileText className="w-4 h-4" />
+                Apply Leave
+              </button>
             </div>
-            {/* Apply Leave button - For Employees, Managers, and Finance */}
-            <button
-              onClick={handleOpenModal}
-              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-            >
-              <Calendar size={20} />
-              Apply Leave
-            </button>
           </div>
         </div>
+      ) : (
+        <>
+          {/* Statistics Cards - Only for Admin/HR_ADMIN */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="text-sm text-gray-600">Total Leaves</div>
+              <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+            </div>
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="text-sm text-gray-600">Pending</div>
+              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            </div>
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="text-sm text-gray-600">Approved</div>
+              <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+            </div>
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="text-sm text-gray-600">Rejected</div>
+              <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+            </div>
+          </div>
+        </>
       )}
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Total Leaves</div>
-          <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Pending</div>
-          <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Approved</div>
-          <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Rejected</div>
-          <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
-        </div>
-      </div>
 
       {/* Toggle Buttons for Leave Applications and Leave Types - Admin and HR_ADMIN (not Finance) */}
       {(isAdmin || isHrAdmin) && !isFinance && (
@@ -1161,8 +1230,8 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Filters and Actions - Only show for Leave Applications view (not for Finance) */}
-      {activeView === 'applications' && !isFinance && (
+      {/* Filters and Actions - Only show for Leave Applications view (not for Finance, Employee, or Manager) */}
+      {activeView === 'applications' && !isFinance && !isEmployee && !isManager && (
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
@@ -1194,6 +1263,16 @@ const LeaveManagement = () => {
             <option value="APPROVED">Approved</option>
             <option value="REJECTED">Rejected</option>
           </select>
+          {/* Apply Leave button - For Employees, Managers, and Finance (after All Leaves filter) */}
+          {canApplyLeave && !isHrAdmin && (
+            <button
+              onClick={handleOpenModal}
+              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+            >
+              <Calendar size={20} />
+              Apply Leave
+            </button>
+          )}
           {(isAdmin || isHrAdmin) && (
             <select
               value={employeeFilter}
@@ -1255,16 +1334,6 @@ const LeaveManagement = () => {
               Add Leave Type
             </button>
           )}
-          {/* Apply Leave button - Only for Employees, Managers, and Finance (not HR_ADMIN) */}
-          {canApplyLeave && !isHrAdmin && (
-            <button
-              onClick={handleOpenModal}
-              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-            >
-              <Calendar size={20} />
-              Apply Leave
-            </button>
-          )}
         </div>
       </div>
         </div>
@@ -1278,8 +1347,8 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Leave Balances - Only visible to employees and Finance (not HR_ADMIN - they use My Attendance) */}
-      {activeView === 'applications' && (canApplyLeave || isFinance) && !isHrAdmin && (() => {
+      {/* Leave Balances - Visible to employees, managers, and finance (not HR_ADMIN - they use My Attendance) */}
+      {(isFinance || (activeView === 'applications' && (isEmployee || isManager))) && !isHrAdmin && (() => {
         // Remove duplicates by grouping by leaveTypeId (keep the one with highest totalDays or most recent)
         const uniqueBalances = leaveBalances.reduce((acc, balance) => {
           const typeId = balance.leaveTypeId
@@ -1300,11 +1369,11 @@ const LeaveManagement = () => {
         if (uniqueBalances.length === 0) return null
 
               return (
-          <div className="bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 md:p-6 border-2 border-gray-200">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 md:mb-6 gap-3">
+          <div className={`${(isFinance || isEmployee || isManager) ? 'rounded-xl shadow-md' : 'rounded-lg shadow-md hover:shadow-lg'} transition-all duration-300 p-3 md:p-4 border border-gray-200`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 md:mb-4 gap-2">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-1">Your Leave Balance</h3>
-                <p className="text-xs md:text-sm text-gray-500 font-medium">Year {new Date().getFullYear()}</p>
+                <h3 className="text-lg md:text-xl font-bold text-gray-800 mb-0.5">Your Leave Balance</h3>
+                <p className={`${(isFinance || isEmployee || isManager) ? 'text-sm text-gray-600' : 'text-xs text-gray-500'} font-medium`}>Year {new Date().getFullYear()}</p>
               </div>
               <button
                 onClick={async () => {
@@ -1319,7 +1388,7 @@ const LeaveManagement = () => {
                       
                       // Show success message with proper styling
                       const successMsg = document.createElement('div')
-                      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
+                      successMsg.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2'
                       successMsg.style.opacity = '1'
                       successMsg.style.transform = 'translateY(0)'
                       successMsg.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Leave balances refreshed successfully!</span>'
@@ -1358,17 +1427,16 @@ const LeaveManagement = () => {
                     }
                   }
                 }}
-                className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors text-sm font-semibold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
                 title="Refresh Leave Balances"
                 disabled={loading}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {loading ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {uniqueBalances.map((balance) => {
                 const type = leaveTypes.find(t => {
                   const typeId = typeof t.id === 'string' ? parseInt(t.id) : t.id
@@ -1382,79 +1450,99 @@ const LeaveManagement = () => {
                 return (
                   <div 
                     key={`${balance.leaveTypeId}-${balance.id}`} 
-                    className={`rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-2 transform hover:scale-105 ${
+                    className={`${(isFinance || isEmployee || isManager) ? 'border-2 border-gray-200 hover:shadow-md' : 'rounded-lg shadow-md hover:shadow-lg transform hover:scale-[1.02]'} p-4 transition-all duration-300 ${
+                      (isFinance || isEmployee || isManager) ? 'rounded-lg' : ''
+                    } ${
                       hasZeroBalance 
                         ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-300' 
                         : isLowBalance
                         ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300'
+                        : (isFinance || isEmployee || isManager) 
+                        ? 'bg-white'
                         : 'bg-gradient-to-br from-blue-50 to-white border-blue-300'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <p className={`text-base font-bold mb-1 ${
-                          hasZeroBalance ? 'text-yellow-800' : 
+                    <div className={`flex items-center ${(isFinance || isEmployee || isManager) ? 'justify-between' : 'items-start justify-between'} mb-2`}>
+                      <div className={(isFinance || isEmployee || isManager) ? '' : 'flex-1'}>
+                        <h3 className={`${(isFinance || isEmployee || isManager) ? 'text-lg font-bold text-gray-800' : 'text-sm font-bold mb-0.5'} ${
+                          !(isFinance || isEmployee || isManager) && (hasZeroBalance ? 'text-yellow-800' : 
                           isLowBalance ? 'text-orange-800' : 
-                          'text-blue-800'
+                          'text-blue-800')
                         }`}>
                           {type?.name || 'Unknown Leave Type'}
-                        </p>
+                        </h3>
                         {type?.code && (
-                          <p className={`text-xs font-medium ${
-                            hasZeroBalance ? 'text-yellow-600' : 
+                          <p className={`${(isFinance || isEmployee || isManager) ? 'text-xs text-gray-500' : 'text-xs font-medium'} ${
+                            !(isFinance || isEmployee || isManager) && (hasZeroBalance ? 'text-yellow-600' : 
                             isLowBalance ? 'text-orange-600' : 
-                            'text-blue-600'
-                          }`}>{type.code}</p>
+                            'text-blue-600')
+                          }`}>ID: {type.code}</p>
                         )}
                       </div>
-                      {hasZeroBalance && type && type.maxDays && (
+                      {(isFinance || isEmployee || isManager) && (
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-blue-600">{balance.balance.toFixed(1)} days</div>
+                          <p className="text-xs text-gray-500">AVAILABLE BALANCE</p>
+                        </div>
+                      )}
+                      {!(isFinance || isEmployee || isManager) && hasZeroBalance && type && type.maxDays && (
                         <span className={`text-xs font-bold ${
                           hasZeroBalance ? 'bg-yellow-200 text-yellow-800' : 
                           isLowBalance ? 'bg-orange-200 text-orange-800' : 
                           'bg-blue-200 text-blue-800'
-                        } px-3 py-1.5 rounded-full`}>
+                        } px-2 py-1 rounded-full`}>
                           Max: {type.maxDays}
                         </span>
                       )}
                     </div>
-                    
-                    <div className="mb-4">
-                      <p className={`text-5xl font-bold mb-2 ${
-                        hasZeroBalance ? 'text-yellow-700' : 
-                        isLowBalance ? 'text-orange-700' : 
-                        'text-blue-700'
-                      }`}>
-                        {balance.balance.toFixed(1)}
-                        <span className="text-xl font-normal ml-2 text-gray-600">days</span>
-                      </p>
-                      <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">
-                        Available Balance
-                      </p>
-                    </div>
+                     
+                     {!(isFinance || isEmployee || isManager) && (
+                       <div className="mb-3">
+                         <p className={`text-3xl md:text-4xl font-bold mb-1 ${
+                           hasZeroBalance ? 'text-yellow-700' : 
+                           isLowBalance ? 'text-orange-700' : 
+                           'text-blue-700'
+                         }`}>
+                           {balance.balance.toFixed(1)}
+                           <span className="text-base md:text-lg font-normal ml-1 text-gray-600">days</span>
+                         </p>
+                         <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">
+                           Available Balance
+                         </p>
+                       </div>
+                     )}
 
-                    {/* Progress Bar */}
-                    {balance.totalDays > 0 && (
-                      <div className="mb-4">
-                        <div className={`flex items-center justify-between text-xs font-semibold mb-2 ${
-                          hasZeroBalance ? 'text-yellow-700' : 
-                          isLowBalance ? 'text-orange-700' : 
-                          'text-blue-700'
-                        }`}>
-                          <span>Used: {balance.usedDays.toFixed(1)} / {balance.totalDays.toFixed(1)} days</span>
-                          <span className="font-bold">{usagePercentage.toFixed(0)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-500 shadow-md ${
-                              usagePercentage >= 80 ? 'bg-red-500' : 
-                              usagePercentage >= 50 ? 'bg-orange-500' : 
-                              'bg-green-500'
-                            }`}
-                            style={{ width: `${Math.min(usagePercentage, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
+                     {/* Progress Bar */}
+                     {balance.totalDays > 0 && (
+                       <div className={`${(isFinance || isEmployee || isManager) ? 'mt-3' : 'mb-3'}`}>
+                         {!(isFinance || isEmployee || isManager) && (
+                           <div className={`flex items-center justify-between text-xs font-semibold mb-1.5 ${
+                             hasZeroBalance ? 'text-yellow-700' : 
+                             isLowBalance ? 'text-orange-700' : 
+                             'text-blue-700'
+                           }`}>
+                             <span>Used: {balance.usedDays.toFixed(1)} / {balance.totalDays.toFixed(1)} days</span>
+                             <span className="font-bold">{usagePercentage.toFixed(0)}%</span>
+                           </div>
+                         )}
+                         <div className={`w-full bg-gray-200 rounded-full ${(isFinance || isEmployee || isManager) ? 'h-2' : 'h-2.5'} overflow-hidden ${!(isFinance || isEmployee || isManager) ? 'shadow-inner' : ''}`}>
+                           <div 
+                             className={`h-full rounded-full transition-all duration-500 ${(isFinance || isEmployee || isManager) ? '' : 'shadow-md'} ${
+                               (isFinance || isEmployee || isManager) ? 'bg-blue-600' :
+                               usagePercentage >= 80 ? 'bg-red-500' : 
+                               usagePercentage >= 50 ? 'bg-orange-500' : 
+                               'bg-green-500'
+                             }`}
+                             style={{ width: `${Math.min(usagePercentage, 100)}%` }}
+                           />
+                         </div>
+                         {(isFinance || isEmployee || isManager) && (
+                           <div className="flex justify-between text-xs mt-1">
+                             <span className="text-gray-600">Used: {balance.usedDays.toFixed(1)} / {balance.totalDays.toFixed(1)} days</span>
+                           </div>
+                         )}
+                       </div>
+                     )}
 
                     {/* Additional Info */}
                     {balance.carriedForward > 0 && (
@@ -1487,36 +1575,54 @@ const LeaveManagement = () => {
         )
       })()}
 
-      {/* Leaves List - Redesigned */}
-      {activeView === 'applications' && (
-      <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-gray-200">
+       {/* Leaves List - Redesigned */}
+       {(isFinance || isEmployee || isManager || activeView === 'applications') && (
+       <div className={`${(isFinance || isEmployee || isManager) ? 'bg-white rounded-xl shadow-md' : 'bg-white rounded-2xl shadow-lg hover:shadow-xl border-2 border-gray-200'} transition-all duration-300 overflow-hidden`}>
+         {/* My Leave Applications Header for Finance, Employee, and Manager */}
+         {(isFinance || isEmployee || isManager) && (
+           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+             <h2 className="text-lg font-bold text-gray-800">My Leave Applications</h2>
+             <select
+               value={filter}
+               onChange={(e) => setFilter(e.target.value)}
+               className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+             >
+               <option value="All">All Leaves</option>
+               <option value="PENDING">Pending</option>
+               <option value="APPROVED">Approved</option>
+               <option value="REJECTED">Rejected</option>
+             </select>
+           </div>
+         )}
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">S.No</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Role</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Leave Type</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Dates</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Days</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Reason</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
+             <thead className={(isFinance || isEmployee || isManager) ? "bg-blue-50" : "bg-gradient-to-r from-blue-600 to-blue-700 text-white"}>
+               <tr>
+                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase tracking-wider ${(isFinance || isEmployee || isManager) ? 'text-gray-700' : 'text-white'}`}>S.No</th>
+                 {!(isFinance || isEmployee || isManager) && <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-white">Employee</th>}
+                 {!(isFinance || isEmployee || isManager) && <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-white">Role</th>}
+                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase tracking-wider ${(isFinance || isEmployee || isManager) ? 'text-gray-700' : 'text-white'}`}>Leave Type</th>
+                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase tracking-wider ${(isFinance || isEmployee || isManager) ? 'text-gray-700' : 'text-white'}`}>Dates</th>
+                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase tracking-wider ${(isFinance || isEmployee || isManager) ? 'text-gray-700' : 'text-white'}`}>Days</th>
+                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase tracking-wider ${(isFinance || isEmployee || isManager) ? 'text-gray-700' : 'text-white'}`}>Reason</th>
+                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase tracking-wider ${(isFinance || isEmployee || isManager) ? 'text-gray-700' : 'text-white'}`}>Status</th>
+                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase tracking-wider ${(isFinance || isEmployee || isManager) ? 'text-gray-700' : 'text-white'}`}>Actions</th>
+               </tr>
+             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredLeaves.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center">
+                  <td colSpan={(isFinance || isEmployee) ? 7 : 9} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center justify-center py-8">
                       <Search className="text-gray-400 mb-3" size={48} />
                       <p className="text-gray-500 font-medium mb-1">
-                        {searchTerm || employeeFilter !== 'All' || filter !== 'All' 
-                          ? 'No leaves match your search criteria' 
-                          : 'No leaves found'}
+                        {isFinance 
+                          ? (filter !== 'All' ? 'No leaves match your filter' : 'No leave applications found')
+                          : (searchTerm || employeeFilter !== 'All' || filter !== 'All' 
+                            ? 'No leaves match your search criteria' 
+                            : 'No leaves found')}
                       </p>
-                      {(searchTerm || employeeFilter !== 'All' || filter !== 'All') && (
+                      {!isFinance && (searchTerm || employeeFilter !== 'All' || filter !== 'All') && (
                         <button
                           onClick={() => {
                             setSearchTerm('')
@@ -1533,56 +1639,62 @@ const LeaveManagement = () => {
                 </tr>
               ) : (
                 filteredLeaves.map((leave, index) => (
-                <tr key={leave.id} className="hover:bg-gray-50 transition-all duration-200 border-b border-gray-100">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-gray-900">{index + 1}</span>
+                <tr key={leave.id} className="hover:bg-gray-50 transition-all duration-200">
+                  <td className={`px-6 ${(isFinance || isEmployee || isManager) ? 'py-4' : 'py-4'} whitespace-nowrap`}>
+                    <span className="text-sm text-gray-900">{index + 1}</span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold mr-3 shadow-md">
-                        {getEmployeeName(leave.employeeId)?.charAt(0) || 'E'}
+                  {!(isFinance || isEmployee || isManager) && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold mr-3 shadow-md">
+                          {getEmployeeName(leave.employeeId)?.charAt(0) || 'E'}
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">{getEmployeeName(leave.employeeId)}</span>
                       </div>
-                      <span className="text-sm font-bold text-gray-900">{getEmployeeName(leave.employeeId)}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      getEmployeeRole(leave.employeeId) === 'MANAGER' ? 'bg-blue-100 text-blue-800' :
-                      getEmployeeRole(leave.employeeId) === 'HR_ADMIN' ? 'bg-purple-100 text-purple-800' :
-                      getEmployeeRole(leave.employeeId) === 'FINANCE' ? 'bg-green-100 text-green-800' :
-                      getEmployeeRole(leave.employeeId) === 'SUPER_ADMIN' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {getEmployeeRole(leave.employeeId)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">{getLeaveTypeName(leave.leaveTypeId)}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {format(new Date(leave.startDate), 'MMM dd')} - {format(new Date(leave.endDate), 'MMM dd, yyyy')}
-                    </div>
-                    {leave.halfDay && (
-                      <div className="text-xs text-gray-500">Half Day ({leave.halfDayType})</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">{leave.totalDays} days</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-gray-600">{leave.reason}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
-                      leave.status === 'APPROVED' ? 'bg-green-100 text-green-800 border border-green-200' :
-                      leave.status === 'REJECTED' ? 'bg-red-100 text-red-800 border border-red-200' :
-                      'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                    }`}>
-                      {leave.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    </td>
+                  )}
+                   {!(isFinance || isEmployee || isManager) && (
+                     <td className="px-6 py-4 whitespace-nowrap">
+                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                         getEmployeeRole(leave.employeeId) === 'MANAGER' ? 'bg-blue-100 text-blue-800' :
+                         getEmployeeRole(leave.employeeId) === 'HR_ADMIN' ? 'bg-purple-100 text-purple-800' :
+                         getEmployeeRole(leave.employeeId) === 'FINANCE' ? 'bg-green-100 text-green-800' :
+                         getEmployeeRole(leave.employeeId) === 'SUPER_ADMIN' ? 'bg-red-100 text-red-800' :
+                         'bg-gray-100 text-gray-800'
+                       }`}>
+                         {getEmployeeRole(leave.employeeId)}
+                       </span>
+                     </td>
+                   )}
+                   <td className={`px-6 ${(isFinance || isEmployee || isManager) ? 'py-4' : 'py-4'} whitespace-nowrap`}>
+                     <span className="text-sm text-gray-900">{getLeaveTypeName(leave.leaveTypeId)}</span>
+                   </td>
+                   <td className={`px-6 ${(isFinance || isEmployee || isManager) ? 'py-4' : 'py-4'} whitespace-nowrap`}>
+                     <div className="text-sm text-gray-900">
+                       {format(new Date(leave.startDate), (isFinance || isEmployee || isManager) ? 'MMM dd, yyyy' : 'MMM dd')} - {format(new Date(leave.endDate), 'MMM dd, yyyy')}
+                     </div>
+                     {leave.halfDay && (
+                       <div className="text-xs text-gray-500">Half Day ({leave.halfDayType})</div>
+                     )}
+                   </td>
+                   <td className={`px-6 ${(isFinance || isEmployee || isManager) ? 'py-4' : 'py-4'} whitespace-nowrap`}>
+                     <span className="text-sm text-gray-900">{leave.totalDays} days</span>
+                   </td>
+                   <td className={`px-6 ${(isFinance || isEmployee || isManager) ? 'py-4' : 'py-4'}`}>
+                     <span className="text-sm text-gray-900">{leave.reason || '-'}</span>
+                   </td>
+                   <td className={`px-6 ${(isFinance || isEmployee || isManager) ? 'py-4' : 'py-4'} whitespace-nowrap`}>
+                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                       leave.status === 'APPROVED' || leave.status === 'Approved' 
+                         ? 'bg-green-100 text-green-800'
+                         : leave.status === 'REJECTED' || leave.status === 'Rejected'
+                         ? 'bg-red-100 text-red-800'
+                         : 'bg-yellow-100 text-yellow-800'
+                     }`}>
+                       {leave.status}
+                     </span>
+                   </td>
+                   <td className={`px-6 ${(isFinance || isEmployee || isManager) ? 'py-4' : 'py-4'} whitespace-nowrap text-sm font-medium`}>
                     <div className="flex items-center gap-2">
                       {leave.rejectionReason && (
                         <div className="text-xs text-red-600" title={leave.rejectionReason}>
@@ -1640,7 +1752,7 @@ const LeaveManagement = () => {
                               <Eye size={16} className="text-blue-600" />
                               View Details
                             </button>
-                            {(isAdmin || isHrAdmin) && leave.status === 'PENDING' && (
+                            {!isFinance && !isEmployee && (isAdmin || isHrAdmin) && leave.status === 'PENDING' && (
                               <>
                                 <button
                                   onClick={(e) => {
@@ -1667,21 +1779,34 @@ const LeaveManagement = () => {
                                 </button>
                               </>
                             )}
-                            {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && 
+                            {(isFinance || isEmployee || isManager || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && 
                              leave.status === 'PENDING' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleCancelLeave(leave.id)
-                                  setOpenDropdownId(null)
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                              >
-                                <X size={16} className="text-gray-600" />
-                                Cancel
-                              </button>
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openEditModal(leave)
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <Edit size={16} className="text-blue-600" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleCancelLeave(leave.id)
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <X size={16} className="text-gray-600" />
+                                  Cancel
+                                </button>
+                              </>
                             )}
-                            {(isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId)) && leave.status !== 'APPROVED' && (
+                            {(isFinance || (isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId))) && leave.status !== 'APPROVED' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -1700,7 +1825,8 @@ const LeaveManagement = () => {
                     </div>
                   </td>
                 </tr>
-              )))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
