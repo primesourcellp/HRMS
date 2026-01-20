@@ -8,20 +8,21 @@ const Payroll = () => {
   const [salaryStructures, setSalaryStructures] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(false)
-  // For employees, default to empty (show all months), for admins default to current month
+  // For employees and managers, default to empty (show all months), for admins default to current month
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const userType = localStorage.getItem('userType')
-    return userType === 'employee' ? '' : format(new Date(), 'yyyy-MM')
+    const userRole = localStorage.getItem('userRole')
+    return (userType === 'employee' || userRole === 'EMPLOYEE' || userRole === 'MANAGER') ? '' : format(new Date(), 'yyyy-MM')
   })
-  const [selectedAnnualCtcYear, setSelectedAnnualCtcYear] = useState(() => {
-    return format(new Date(), 'yyyy')
-  })
+  const [selectedAnnualCtcYear, setSelectedAnnualCtcYear] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
   // Set default view based on user type
   const [activeView, setActiveView] = useState(() => {
     const userType = localStorage.getItem('userType')
-    return userType === 'employee' ? 'processedPayrolls' : 'salaryDetails'
+    const userRole = localStorage.getItem('userRole')
+    // Employees and managers see Processed Payrolls by default
+    return (userType === 'employee' || userRole === 'EMPLOYEE' || userRole === 'MANAGER') ? 'processedPayrolls' : 'salaryDetails'
   }) // 'salaryDetails', 'processedPayrolls', 'ctcTemplates', 'gratuity', or 'annualCTC'
   const [showPayrollModal, setShowPayrollModal] = useState(false)
   const [showSalaryModal, setShowSalaryModal] = useState(false)
@@ -62,10 +63,10 @@ const Payroll = () => {
   const [processingBulkAnnualCtc, setProcessingBulkAnnualCtc] = useState(false)
   const [individualAnnualCtcData, setIndividualAnnualCtcData] = useState({
     employeeId: '',
-    year: new Date().getFullYear().toString()
+    year: ''
   })
   const [bulkAnnualCtcData, setBulkAnnualCtcData] = useState({
-    year: new Date().getFullYear().toString()
+    year: ''
   })
   const [payrollFormData, setPayrollFormData] = useState({
     employeeId: '',
@@ -145,12 +146,13 @@ const Payroll = () => {
   const userRole = localStorage.getItem('userRole')
   const userId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'MANAGER' || userRole === 'FINANCE'
+  const isManager = userRole === 'MANAGER'
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'FINANCE'
   const isSuperAdmin = userRole === 'SUPER_ADMIN'
   const isHRAdmin = userRole === 'HR_ADMIN'
   const canAccessCTCTemplates = isSuperAdmin || isHRAdmin
   // Check if employee: userType === 'employee' OR userRole === 'EMPLOYEE' OR not admin
-  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && userType !== 'admin')
+  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && !isManager && userType !== 'admin')
 
   useEffect(() => {
     loadData()
@@ -234,16 +236,29 @@ const Payroll = () => {
   const loadData = async () => {
     try {
       setLoading(true)
-      if (isEmployee && userId) {
-        console.log('Loading employee payroll data for userId:', userId)
+      // Load only own data for employees and managers
+      if ((isEmployee || isManager) && userId) {
+        console.log('Loading payroll data for userId:', userId, 'role:', userRole)
         try {
-        const [payrollsData, employeesData] = await Promise.all([
+        const [payrollsData, employeesData, salaryStructuresData] = await Promise.all([
           api.getEmployeePayrolls(parseInt(userId)),
-          api.getEmployees()
+          api.getEmployees(),
+          api.getSalaryStructures().then(structures => {
+            // Filter to show only manager's/employee's own salary structures
+            const structuresArray = Array.isArray(structures) ? structures : []
+            return structuresArray.filter(s => {
+              const empId = typeof s.employeeId === 'string' ? parseInt(s.employeeId) : s.employeeId
+              return empId === parseInt(userId)
+            })
+          }).catch(err => {
+            console.warn('Failed to load salary structures:', err)
+            return []
+          })
         ])
           const payrollsArray = Array.isArray(payrollsData) ? payrollsData : []
           setPayrolls(payrollsArray)
         setEmployees(Array.isArray(employeesData) ? employeesData : [])
+        setSalaryStructures(Array.isArray(salaryStructuresData) ? salaryStructuresData : [])
           
           // Debug: Log to help diagnose
           console.log('Employee payroll data loaded:', {
@@ -280,16 +295,36 @@ const Payroll = () => {
           // Load all templates if viewing CTC Templates tab, otherwise load only active ones
           const shouldLoadAllTemplates = activeView === 'ctcTemplates'
           const shouldLoadGratuities = activeView === 'gratuity'
+          // SUPER_ADMIN, HR_ADMIN, and FINANCE can access CTC Templates (read-only for FINANCE)
+          const canAccessCTCTemplates = isSuperAdmin || isHRAdmin || userRole === 'FINANCE'
+          console.log('Loading admin data:', { userRole, isAdmin, activeView, canAccessCTCTemplates })
+          
+          // Load CTC templates if user has permission (read access for finance, full access for super admin/hr admin)
+          const ctcTemplatesPromise = canAccessCTCTemplates 
+            ? api.getCTCTemplates(null, !shouldLoadAllTemplates).catch(err => {
+                console.warn('Failed to load CTC templates:', err)
+                return []
+              })
+            : Promise.resolve([])
+          
           const [payrollsData, employeesData, salaryStructuresData, ctcTemplatesData, clientsData, gratuitiesData] = await Promise.all([
           api.getPayrolls(),
             api.getEmployees(),
             api.getSalaryStructures(),
-            api.getCTCTemplates(null, !shouldLoadAllTemplates), // Get all templates if viewing CTC Templates tab, otherwise active only
-            api.getClients(),
-            shouldLoadGratuities ? api.getGratuities() : Promise.resolve([])
+            ctcTemplatesPromise,
+            api.getClients().catch(err => {
+              console.warn('Failed to load clients:', err)
+              return []
+            }),
+            shouldLoadGratuities ? api.getGratuities().catch(err => {
+              console.warn('Failed to load gratuities:', err)
+              return []
+            }) : Promise.resolve([])
         ])
         setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
-        setEmployees(Array.isArray(employeesData) ? employeesData : [])
+        const employeesArray = Array.isArray(employeesData) ? employeesData : []
+        setEmployees(employeesArray)
+        console.log('Employees loaded:', { count: employeesArray.length, employees: employeesArray })
           setSalaryStructures(Array.isArray(salaryStructuresData) ? salaryStructuresData : [])
           const templates = Array.isArray(ctcTemplatesData) ? ctcTemplatesData : []
           setCtcTemplates(templates)
@@ -319,9 +354,21 @@ const Payroll = () => {
           } else {
             console.log('Loaded CTC templates:', templates.length, templates)
           }
+      } else {
+        // For other roles (shouldn't happen, but fallback)
+        console.warn('User role not recognized, loading basic data')
+        const [payrollsData, employeesData] = await Promise.all([
+          api.getPayrolls(),
+          api.getEmployees()
+        ])
+        setPayrolls(Array.isArray(payrollsData) ? payrollsData : [])
+        setEmployees(Array.isArray(employeesData) ? employeesData : [])
       }
     } catch (error) {
       console.error('Error loading data:', error)
+      // Set empty arrays on error to prevent undefined issues
+      setPayrolls([])
+      setEmployees([])
     } finally {
       setLoading(false)
     }
@@ -946,7 +993,7 @@ const Payroll = () => {
       
       alert(`Annual CTC calculation view filtered for ${employeeName} - Year ${individualAnnualCtcData.year}`)
       setShowIndividualAnnualCtcModal(false)
-      setIndividualAnnualCtcData({ employeeId: '', year: new Date().getFullYear().toString() })
+      setIndividualAnnualCtcData({ employeeId: '', year: '' })
     } catch (error) {
       alert('Error calculating Annual CTC: ' + error.message)
     } finally {
@@ -974,7 +1021,7 @@ const Payroll = () => {
       
       alert(`Annual CTC calculation view filtered for all employees - Year ${bulkAnnualCtcData.year}`)
       setShowBulkAnnualCtcModal(false)
-      setBulkAnnualCtcData({ year: new Date().getFullYear().toString() })
+      setBulkAnnualCtcData({ year: '' })
     } catch (error) {
       alert('Error calculating Annual CTC: ' + error.message)
     } finally {
@@ -1385,14 +1432,38 @@ const Payroll = () => {
     let matchesMonth = true
     if (activeView === 'annualCTC') {
       // Match year from payroll.month (format: yyyy-MM) or payroll.year
-      if (selectedAnnualCtcYear) {
-        const payrollYear = payroll.year || (payroll.month ? payroll.month.split('-')[0] : null)
-        matchesMonth = payrollYear === selectedAnnualCtcYear
+      if (selectedAnnualCtcYear && selectedAnnualCtcYear.trim() !== '') {
+        // Get year from payroll - handle both number and string types
+        // Priority: payroll.year (Integer) > payroll.month (String "yyyy-MM")
+        let payrollYear = null
+        if (payroll.year != null && payroll.year !== undefined) {
+          // payroll.year is an Integer, convert to string
+          payrollYear = String(payroll.year)
+        } else if (payroll.month && typeof payroll.month === 'string') {
+          // Extract year from month string (format: "yyyy-MM")
+          const monthParts = payroll.month.split('-')
+          if (monthParts.length > 0) {
+            payrollYear = monthParts[0]
+          }
+        }
+        // Compare as strings, ensuring both are normalized and trimmed
+        const selectedYear = String(selectedAnnualCtcYear).trim()
+        matchesMonth = payrollYear && payrollYear.trim() === selectedYear
+      } else {
+        // If no year selected, show all records
+        matchesMonth = true
       }
     } else {
       // Match month exactly (format: yyyy-MM)
+      // For employees: if selectedMonth is empty or not set, show all months
       const monthFilter = selectedMonth
-      matchesMonth = !monthFilter || (payroll.month && payroll.month === monthFilter)
+      if (isEmployee) {
+        // Employees see all months when no filter is selected
+        matchesMonth = !monthFilter || monthFilter === '' || (payroll.month && payroll.month === monthFilter)
+      } else {
+        // Admins: filter by selected month or show all if no filter
+        matchesMonth = !monthFilter || (payroll.month && payroll.month === monthFilter)
+      }
     }
     const matchesSearch = !searchTerm || 
       (isAdmin && (() => {
@@ -3189,7 +3260,7 @@ const Payroll = () => {
       )}
 
       {/* Statistics Cards - Only for Processed Payrolls view */}
-      {isAdmin && activeView === 'processedPayrolls' && (
+      {(isAdmin || isManager) && activeView === 'processedPayrolls' && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 md:gap-4">
           <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
             <div className="flex items-center justify-between">
@@ -3258,7 +3329,7 @@ const Payroll = () => {
       )}
 
       {/* Salary Details View */}
-      {isAdmin && activeView === 'salaryDetails' && (
+      {(isAdmin || isManager) && activeView === 'salaryDetails' && (
         <>
           {/* Filters and Actions for Salary Details */}
           <div className="bg-white rounded-lg shadow-md p-4">
@@ -3282,13 +3353,15 @@ const Payroll = () => {
                     </button>
                   )}
                 </div>
-                <button
-                  onClick={() => handleOpenSalaryModal()}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-                >
-                  <Plus size={20} />
-                  Add Salary Details
-                </button>
+                {!isManager && (
+                  <button
+                    onClick={() => handleOpenSalaryModal()}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+                  >
+                    <Plus size={20} />
+                    Add Salary Details
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -3299,6 +3372,12 @@ const Payroll = () => {
               <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-3">
                 <span className="text-blue-600 font-bold text-xl">₹</span>
                 Salary Details ({salaryStructures.filter(s => {
+                  // For managers, only show their own salary structures
+                  if (isManager && userId) {
+                    const empId = typeof s.employeeId === 'string' ? parseInt(s.employeeId) : s.employeeId
+                    if (empId !== parseInt(userId)) return false
+                  }
+                  // Apply search filter if search term exists
                   if (!searchTerm) return true
                   const emp = employees.find(e => e.id === s.employeeId)
                   if (!emp) return false
@@ -3322,11 +3401,19 @@ const Payroll = () => {
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Net Salary</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Effective From</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider pr-8">Actions</th>
+                    {!isManager && (
+                      <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider pr-8">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {salaryStructures.filter(s => {
+                    // For managers, only show their own salary structures
+                    if (isManager && userId) {
+                      const empId = typeof s.employeeId === 'string' ? parseInt(s.employeeId) : s.employeeId
+                      if (empId !== parseInt(userId)) return false
+                    }
+                    // Apply search filter if search term exists
                     if (!searchTerm) return true
                     const emp = employees.find(e => e.id === s.employeeId)
                     if (!emp) return false
@@ -3363,83 +3450,85 @@ const Payroll = () => {
                             {salary.active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
-                          <div className="relative inline-block dropdown-menu-container">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const button = e.currentTarget
-                                const rect = button.getBoundingClientRect()
-                                const spaceBelow = window.innerHeight - rect.bottom
-                                const spaceAbove = rect.top
-                                const dropdownHeight = 120
-                                
-                                // Determine position: show below if enough space, otherwise above
-                                const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
-                                
-                                setDropdownPosition(prev => ({
-                                  ...prev,
-                                  [`salary-${salary.id}`]: {
-                                    showAbove,
-                                    top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
-                                    right: window.innerWidth - rect.right
-                                  }
-                                }))
-                                setOpenSalaryDropdownId(openSalaryDropdownId === salary.id ? null : salary.id)
-                              }}
-                              className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                              title="Actions"
-                            >
-                              <MoreVertical size={18} />
-                            </button>
-                            
-                            {openSalaryDropdownId === salary.id && dropdownPosition[`salary-${salary.id}`] && (
-                              <div 
-                                className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
-                                style={{ 
-                                  zIndex: 9999,
-                                  top: `${dropdownPosition[`salary-${salary.id}`].top}px`,
-                                  right: `${dropdownPosition[`salary-${salary.id}`].right}px`
+                        {!isManager && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right pr-8">
+                            <div className="relative inline-block dropdown-menu-container">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const button = e.currentTarget
+                                  const rect = button.getBoundingClientRect()
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const spaceAbove = rect.top
+                                  const dropdownHeight = 120
+                                  
+                                  // Determine position: show below if enough space, otherwise above
+                                  const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                  
+                                  setDropdownPosition(prev => ({
+                                    ...prev,
+                                    [`salary-${salary.id}`]: {
+                                      showAbove,
+                                      top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                      right: window.innerWidth - rect.right
+                                    }
+                                  }))
+                                  setOpenSalaryDropdownId(openSalaryDropdownId === salary.id ? null : salary.id)
                                 }}
-                                onClick={(e) => e.stopPropagation()}
+                                className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Actions"
                               >
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleViewSalary(salary)
-                                    setOpenSalaryDropdownId(null)
+                                <MoreVertical size={18} />
+                              </button>
+                              
+                              {openSalaryDropdownId === salary.id && dropdownPosition[`salary-${salary.id}`] && (
+                                <div 
+                                  className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-48"
+                                  style={{ 
+                                    zIndex: 9999,
+                                    top: `${dropdownPosition[`salary-${salary.id}`].top}px`,
+                                    right: `${dropdownPosition[`salary-${salary.id}`].right}px`
                                   }}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <Eye size={16} className="text-green-600" />
-                                  View Details
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleOpenSalaryModal(salary)
-                                    setOpenSalaryDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                >
-                                  <Edit size={16} className="text-blue-600" />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDeleteSalary(salary.id)
-                                    setOpenSalaryDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                  <Trash2 size={16} />
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleViewSalary(salary)
+                                      setOpenSalaryDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  >
+                                    <Eye size={16} className="text-green-600" />
+                                    View Details
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenSalaryModal(salary)
+                                      setOpenSalaryDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  >
+                                    <Edit size={16} className="text-blue-600" />
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteSalary(salary.id)
+                                      setOpenSalaryDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 size={16} />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}
@@ -3450,8 +3539,8 @@ const Payroll = () => {
         </>
       )}
 
-      {/* Processed Payrolls View - For both Admin and Employees */}
-      {(activeView === 'processedPayrolls' || isEmployee) && (
+      {/* Processed Payrolls View - For Admin, Employees, and Managers */}
+      {(activeView === 'processedPayrolls' || isEmployee || isManager) && (
         <>
       {/* Page Title for Employees */}
       {/* {isEmployee && (
@@ -3483,14 +3572,24 @@ const Payroll = () => {
             )}
           </div>
           {/* Month filter - Show for both admin and employees */}
-              <div className="flex-1">
+              <div className="flex-1 flex items-center gap-2">
                 <input
                   type="month"
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="All Months"
+                  placeholder="All Months"
                 />
+                {isEmployee && selectedMonth && (
+                  <button
+                    onClick={() => setSelectedMonth('')}
+                    className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-1 whitespace-nowrap"
+                    title="Clear month filter to show all months"
+                  >
+                    <X size={16} />
+                    Clear
+                  </button>
+                )}
               </div>
           {isAdmin && (
             <>
@@ -4823,7 +4922,7 @@ const Payroll = () => {
                   setShowIndividualAnnualCtcModal(false)
                   setIndividualAnnualCtcData({
                     employeeId: '',
-                    year: new Date().getFullYear().toString()
+                    year: ''
                   })
                 }}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
@@ -4872,7 +4971,7 @@ const Payroll = () => {
                     setShowIndividualAnnualCtcModal(false)
                     setIndividualAnnualCtcData({
                       employeeId: '',
-                      year: new Date().getFullYear().toString()
+                      year: ''
                     })
                   }}
                   className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
@@ -4914,7 +5013,7 @@ const Payroll = () => {
               <button
                 onClick={() => {
                   setShowBulkAnnualCtcModal(false)
-                  setBulkAnnualCtcData({ year: new Date().getFullYear().toString() })
+                  setBulkAnnualCtcData({ year: '' })
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -4940,7 +5039,7 @@ const Payroll = () => {
                 <button
                   onClick={() => {
                     setShowBulkAnnualCtcModal(false)
-                    setBulkAnnualCtcData({ year: new Date().getFullYear().toString() })
+                    setBulkAnnualCtcData({ year: '' })
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >

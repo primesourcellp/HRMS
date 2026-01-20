@@ -379,6 +379,21 @@ const api = {
       throw error
     }
   },
+
+  getUserById: async (id) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/users/${id}`)
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        console.error('Get user by ID API error:', response.status, body)
+        throw new Error(body?.message || body || `Failed to fetch user (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching user by ID:', error)
+      throw error
+    }
+  },
   createUser: (userData, currentUserRole) => fetchWithAuth(`${API_BASE_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -550,6 +565,24 @@ const api = {
   },
 
   // Clients
+  createClient: async (clientName) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/clients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: clientName })
+      })
+      if (!response.ok) {
+        const body = await readResponseBody(response)
+        throw new Error(body?.message || body || `Failed to create client (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating client:', error)
+      throw error
+    }
+  },
+
   getClients: async () => {
     // Try dedicated endpoint, then fallback to deriving from employees
     try {

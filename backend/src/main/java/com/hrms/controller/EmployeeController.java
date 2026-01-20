@@ -74,9 +74,9 @@ public class EmployeeController {
         if (role == null) {
             role = userRole;
         }
-        if (role == null || (!role.equals("SUPER_ADMIN") && !role.equals("ADMIN"))) {
+        if (role == null || (!role.equals("SUPER_ADMIN") && !role.equals("ADMIN") && !role.equals("HR_ADMIN"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("success", false, "message", "Only SUPER_ADMIN or ADMIN can create employees"));
+                    .body(Map.of("success", false, "message", "Only SUPER_ADMIN, ADMIN, or HR_ADMIN can create employees"));
         }
 
         try {

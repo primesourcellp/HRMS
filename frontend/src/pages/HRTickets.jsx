@@ -42,8 +42,9 @@ const HRTickets = () => {
   const userRole = localStorage.getItem('userRole')
   const currentUserId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
-  const isEmployee = userType === 'employee'
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN'
+  // Check if employee: userType === 'employee' OR userRole === 'EMPLOYEE'
+  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE'
 
   // Ticket Categories and Sub-categories
   const ticketCategories = {
