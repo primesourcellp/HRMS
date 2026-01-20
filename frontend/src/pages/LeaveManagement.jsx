@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, Search, Edit, Trash2, Eye, X, Plus, Settings as SettingsIcon, MoreVertical } from 'lucide-react'
 import api from '../services/api'
 import { format, differenceInDays, parseISO, isAfter, isBefore, startOfToday } from 'date-fns'
 
 const LeaveManagement = () => {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [leaves, setLeaves] = useState([])
   const [leaveTypes, setLeaveTypes] = useState([])
   const [leaveBalances, setLeaveBalances] = useState([])
   const [employees, setEmployees] = useState([])
   const [users, setUsers] = useState([])
   const [showModal, setShowModal] = useState(false)
-  const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showBalanceModal, setShowBalanceModal] = useState(false)
@@ -116,6 +118,41 @@ const LeaveManagement = () => {
     
     // HR_ADMIN should not apply leave from Leave Management - they use My Attendance page
   }, [filter, canApplyLeave, currentUserId, teamMemberIds])
+
+  // Check for leave ID from notification (URL params or sessionStorage)
+  useEffect(() => {
+    const checkForNotificationLeave = async () => {
+      try {
+        // Check URL params first
+        const urlParams = new URLSearchParams(location.search)
+        const leaveIdFromUrl = urlParams.get('leaveId')
+        
+        // Check sessionStorage
+        const leaveIdFromStorage = sessionStorage.getItem('viewLeaveId')
+        
+        const leaveId = leaveIdFromUrl || leaveIdFromStorage
+        
+        if (leaveId && leaves.length > 0) {
+          const leave = leaves.find(l => l.id === parseInt(leaveId))
+          if (leave) {
+            setSelectedLeave(leave)
+            setShowDetailsModal(true)
+            // Clear the sessionStorage and URL param
+            sessionStorage.removeItem('viewLeaveId')
+            if (leaveIdFromUrl) {
+              navigate(location.pathname, { replace: true })
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking for notification leave:', error)
+      }
+    }
+    
+    if (leaves.length > 0) {
+      checkForNotificationLeave()
+    }
+  }, [leaves, location.search, location.pathname, navigate])
 
   useEffect(() => {
     // Auto-set employeeId for employees, managers, and finance (HR_ADMIN applies leave from My Attendance)
@@ -691,7 +728,8 @@ const LeaveManagement = () => {
     try {
       await api.approveLeave(leaveId, parseInt(currentUserId))
       await loadData()
-      setShowApprovalModal(false)
+      setShowDetailsModal(false)
+      setSelectedLeave(null)
       alert('Leave approved successfully')
     } catch (error) {
       alert('Error approving leave: ' + error.message)
@@ -709,7 +747,8 @@ const LeaveManagement = () => {
     try {
       await api.rejectLeave(leaveId, parseInt(currentUserId), rejectionReason)
       await loadData()
-      setShowApprovalModal(false)
+      setShowDetailsModal(false)
+      setSelectedLeave(null)
       setRejectionReason('')
       alert('Leave rejected')
     } catch (error) {
@@ -1607,7 +1646,7 @@ const LeaveManagement = () => {
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     setSelectedLeave(leave)
-                                    setShowApprovalModal(true)
+                                    setShowDetailsModal(true)
                                     setOpenDropdownId(null)
                                   }}
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -2040,63 +2079,6 @@ const LeaveManagement = () => {
         </div>
       )}
 
-      {/* Approval Modal - Redesigned */}
-      {showApprovalModal && selectedLeave && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
-                <CheckCircle size={24} className="text-blue-600" />
-                Review Leave Application
-              </h3>
-            </div>
-            <div className="space-y-3 mb-4">
-              <p><strong>Employee:</strong> {getEmployeeName(selectedLeave.employeeId)}</p>
-              <p><strong>Leave Type:</strong> {getLeaveTypeName(selectedLeave.leaveTypeId)}</p>
-              <p><strong>Dates:</strong> {format(new Date(selectedLeave.startDate), 'MMM dd')} - {format(new Date(selectedLeave.endDate), 'MMM dd, yyyy')}</p>
-              <p><strong>Days:</strong> {selectedLeave.totalDays}</p>
-              <p><strong>Reason:</strong> {selectedLeave.reason}</p>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason (if rejecting)</label>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                rows={2}
-                placeholder="Optional"
-              />
-            </div>
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => handleReject(selectedLeave.id)}
-                disabled={loading}
-                className="flex-1 bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
-              >
-                Reject
-              </button>
-              <button
-                onClick={() => handleApprove(selectedLeave.id)}
-                disabled={loading}
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
-              >
-                Approve
-              </button>
-            </div>
-            <button
-              onClick={() => {
-                setShowApprovalModal(false)
-                setSelectedLeave(null)
-                setRejectionReason('')
-              }}
-              className="w-full mt-3 px-4 py-2 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Edit Leave Modal - Redesigned */}
       {showEditModal && selectedLeave && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -2258,6 +2240,7 @@ const LeaveManagement = () => {
                 onClick={() => {
                   setShowDetailsModal(false)
                   setSelectedLeave(null)
+                  setRejectionReason('')
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -2332,17 +2315,50 @@ const LeaveManagement = () => {
                   <p className="text-red-900 bg-red-50 p-3 rounded-lg">{selectedLeave.rejectionReason}</p>
                 </div>
               )}
+              
+              {/* Approve/Reject Section - Only show for PENDING leaves and users with permission */}
+              {(isAdmin || isHrAdmin) && selectedLeave.status === 'PENDING' && (
+                <>
+                  <div className="border-t border-gray-200 pt-4 mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason (if rejecting)</label>
+                    <textarea
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                      placeholder="Optional - Provide a reason if rejecting this leave application"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => handleReject(selectedLeave.id)}
+                      disabled={loading}
+                      className="flex-1 bg-red-600 text-white px-6 py-3 rounded-xl hover:bg-red-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                    >
+                      {loading ? 'Rejecting...' : 'Reject'}
+                    </button>
+                    <button
+                      onClick={() => handleApprove(selectedLeave.id)}
+                      disabled={loading}
+                      className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                    >
+                      {loading ? 'Approving...' : 'Approve'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
             <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => {
-                    setShowDetailsModal(false)
-                    setSelectedLeave(null)
-                  }}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold shadow-md hover:shadow-lg transition-all"
-                >
-                  Close
-                </button>
+              <button
+                onClick={() => {
+                  setShowDetailsModal(false)
+                  setSelectedLeave(null)
+                  setRejectionReason('')
+                }}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold shadow-md hover:shadow-lg transition-all"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -2721,7 +2721,18 @@ const api = {
       console.error('Error getting audit logs:', error)
       throw error
     }
-  }
+  },
+
+  // Notifications
+  getNotifications: () => fetchWithAuth(`${API_BASE_URL}/notifications`).then(res => res.json()),
+  getUnreadNotifications: () => fetchWithAuth(`${API_BASE_URL}/notifications/unread`).then(res => res.json()),
+  getUnreadNotificationCount: () => fetchWithAuth(`${API_BASE_URL}/notifications/unread-count`).then(res => res.json()),
+  markNotificationAsRead: (id) => fetchWithAuth(`${API_BASE_URL}/notifications/${id}/read`, {
+    method: 'PUT'
+  }).then(res => res.json()),
+  markAllNotificationsAsRead: () => fetchWithAuth(`${API_BASE_URL}/notifications/read-all`, {
+    method: 'PUT'
+  }).then(res => res.json())
 }
 
 export default api
