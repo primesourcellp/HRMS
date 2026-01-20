@@ -267,7 +267,6 @@ const HRTickets = () => {
   const checkForDuplicates = (subject, category, employeeId) => {
     if (!subject || !category) return []
     
-    console.log('Checking for duplicates:', { subject, category, employeeId, totalTickets: tickets.length })
     
     const subjectLower = subject.toLowerCase().trim()
     const similar = tickets.filter(ticket => {
@@ -279,20 +278,11 @@ const HRTickets = () => {
                            ticketSubject.includes(subjectLower) || 
                            subjectLower.includes(ticketSubject)
       
-      console.log('Comparing with ticket:', { 
-        ticketId: ticket.ticketId, 
-        subject: ticketSubject, 
-        subjectMatch, 
-        status: ticket.status,
-        ticketCategory: ticket.ticketType,
-        ticketEmployee: ticket.employeeId 
-      })
       
       // Consider it duplicate if subject matches and ticket is not closed/resolved
       return subjectMatch && ticket.status !== 'CLOSED' && ticket.status !== 'RESOLVED'
     })
 
-    console.log('Found similar tickets:', similar)
     return similar // Return all similar tickets for counting
   }
 
@@ -300,14 +290,12 @@ const HRTickets = () => {
     const subject = e.target.value
     setFormData({ ...formData, subject })
     
-    console.log('Subject changed:', subject, 'length:', subject.length)
     
     if (subject.length >= 3) { // Check after 3 characters
       const duplicates = checkForDuplicates(subject, formData.ticketType, formData.employeeId)
       setSimilarTickets(duplicates)
       
       if (duplicates.length > 0) {
-        console.log('Setting duplicate warning:', duplicates.length)
         // Create a summary message with count
         const issueType = formData.ticketType ? getTicketTypeLabel(formData.ticketType) : 'this'
         const message = duplicates.length === 1 
@@ -320,7 +308,6 @@ const HRTickets = () => {
           count: duplicates.length
         })
       } else {
-        console.log('Clearing duplicate warning')
         setDuplicateWarning(null)
         setSimilarTickets([])
       }
@@ -1058,137 +1045,7 @@ const HRTickets = () => {
                     </div>
                   )}
                   
-                  {/* Debug panel - always visible for testing */}
-                  <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
-                    <p className="text-gray-600">Debug Info:</p>
-                    <p>Total tickets loaded: {tickets.length}</p>
-                    <p>Current subject: "{formData.subject}"</p>
-                    <p>Current category: {getTicketTypeLabel(formData.ticketType)}</p>
-                    
-                    {/* Test buttons for all categories */}
-                    <div className="mt-2 space-y-1">
-                      <p className="font-medium text-gray-700">Test duplicate detection:</p>
-                      <div className="grid grid-cols-2 gap-1">
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing PAYROLL category')
-                            const testDuplicates = checkForDuplicates('salary delay', 'PAYROLL', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this Payroll issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "salary delay" (Payroll)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing LEAVE category')
-                            const testDuplicates = checkForDuplicates('leave balance', 'LEAVE', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this Leave issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "leave balance" (Leave)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing IT_SUPPORT category')
-                            const testDuplicates = checkForDuplicates('software installation', 'IT_SUPPORT', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this IT Support issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "software installation" (IT)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing GENERAL_QUERY category')
-                            const testDuplicates = checkForDuplicates('policy information', 'GENERAL_QUERY', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this General Query issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "policy information" (General)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing DOCUMENTS category')
-                            const testDuplicates = checkForDuplicates('salary certificate', 'DOCUMENTS', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this Documents issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "salary certificate" (Docs)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Clearing duplicate warning')
-                            setDuplicateWarning(null)
-                            setSimilarTickets([])
-                          }}
-                          className="text-red-600 underline text-xs"
-                        >
-                          Clear Warning
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                                  </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>

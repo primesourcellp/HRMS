@@ -74,7 +74,6 @@ public class EmployeeDocumentController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             
-            System.out.println("Downloading document ID: " + id + ", File path: " + document.getFilePath());
             byte[] fileContent = documentService.downloadDocument(Objects.requireNonNull(id));
             if (fileContent == null || fileContent.length == 0) {
                 System.err.println("File content is empty for document ID: " + id + ", File path: " + document.getFilePath());
@@ -122,7 +121,6 @@ public class EmployeeDocumentController {
             // Add additional headers to help with download
             headers.set("X-Content-Type-Options", "nosniff");
             
-            System.out.println("Successfully prepared document for download: " + fileName + " (" + fileContent.length + " bytes)");
             return ResponseEntity.ok().headers(headers).body(fileContent);
         } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
             System.err.println("File not found for document ID: " + id + " - " + e.getMessage());
@@ -143,7 +141,6 @@ public class EmployeeDocumentController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             
-            System.out.println("Viewing document ID: " + id + ", File path: " + document.getFilePath());
             byte[] fileContent = documentService.downloadDocument(Objects.requireNonNull(id));
             if (fileContent == null || fileContent.length == 0) {
                 System.err.println("File content is empty for document ID: " + id + ", File path: " + document.getFilePath());
@@ -177,8 +174,7 @@ public class EmployeeDocumentController {
             // Set Content-Length header
             headers.setContentLength(fileContent.length);
             
-            System.out.println("Successfully prepared document for viewing: " + fileName + " (" + fileContent.length + " bytes)");
-            return ResponseEntity.ok().headers(headers).body(fileContent);
+                        return ResponseEntity.ok().headers(headers).body(fileContent);
         } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
             System.err.println("File not found for document ID: " + id + " - " + e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
