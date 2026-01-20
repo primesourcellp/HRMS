@@ -585,7 +585,7 @@ const MyAttendance = () => {
               Back to Attendance
             </button>
           )}
-          {(isHrAdmin || userRole === 'FINANCE') && (
+          {isHrAdmin && (
             <button
               onClick={activeView === 'myLeaves' ? () => setShowLeaveModal(true) : handleApplyLeave}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
@@ -735,12 +735,12 @@ const MyAttendance = () => {
       <div className="flex flex-col lg:flex-row gap-4">
         {/* View Type Toggle and Date Navigation */}
         <div className="bg-white rounded-xl shadow-md p-3 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <button
               onClick={() => setViewType('daily')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                 viewType === 'daily'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -748,9 +748,9 @@ const MyAttendance = () => {
             </button>
             <button
               onClick={() => setViewType('weekly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                 viewType === 'weekly'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -758,9 +758,9 @@ const MyAttendance = () => {
             </button>
             <button
               onClick={() => setViewType('monthly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                 viewType === 'monthly'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -768,9 +768,9 @@ const MyAttendance = () => {
             </button>
             <button
               onClick={() => setViewType('calendar')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                 viewType === 'calendar'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -780,35 +780,35 @@ const MyAttendance = () => {
 
           {/* Date Navigation */}
           {viewType !== 'calendar' && (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => handleDateChange('prev')}
-                className="p-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                className="px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
               />
               <button
                 onClick={() => handleDateChange('next')}
-                className="p-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </button>
               <button
                 onClick={goToToday}
-                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-5 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
               >
                 Today
               </button>
               {viewType === 'weekly' && (
                 <button
                   onClick={goToThisWeek}
-                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  className="px-5 py-2.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
                 >
                   This Week
                 </button>
@@ -816,7 +816,7 @@ const MyAttendance = () => {
               {viewType === 'monthly' && (
                 <button
                   onClick={goToThisMonth}
-                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  className="px-5 py-2.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
                 >
                   This Month
                 </button>
@@ -1164,7 +1164,7 @@ const MyAttendance = () => {
       )}
 
       {/* Apply Leave Modal */}
-      {showLeaveModal && (isHrAdmin || userRole === 'FINANCE') && (
+      {showLeaveModal && isHrAdmin && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">

@@ -65,15 +65,35 @@ public class CTCTemplateController {
         }
     }
     
+    private boolean hasReadAccess(HttpServletRequest request) {
+        try {
+            String userIdHeader = request.getHeader("X-User-Id");
+            if (userIdHeader != null && !userIdHeader.isEmpty()) {
+                Long userId = Long.parseLong(userIdHeader);
+                User user = userRepository.findById(userId).orElse(null);
+                if (user != null) {
+                    String role = user.getRole();
+                    // SUPER_ADMIN, HR_ADMIN can do everything; FINANCE can only read/use templates
+                    return "SUPER_ADMIN".equalsIgnoreCase(role) || 
+                           "HR_ADMIN".equalsIgnoreCase(role) || 
+                           "FINANCE".equalsIgnoreCase(role);
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
     @GetMapping
     public ResponseEntity<?> getAllTemplates(
             @RequestParam(required = false) String clientName,
             @RequestParam(required = false) Boolean activeOnly,
             HttpServletRequest request) {
-        if (!hasAccess(request)) {
+        if (!hasReadAccess(request)) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
-            errorResponse.put("message", "Access denied. Only SUPER_ADMIN and HR_ADMIN can access CTC Templates.");
+            errorResponse.put("message", "Access denied. Only SUPER_ADMIN, HR_ADMIN, and FINANCE can access CTC Templates.");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
         }
         try {
@@ -102,10 +122,10 @@ public class CTCTemplateController {
             @RequestParam Double annualCtc,
             @RequestParam Long templateId,
             HttpServletRequest request) {
-        if (!hasAccess(request)) {
+        if (!hasReadAccess(request)) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
-            errorResponse.put("message", "Access denied. Only SUPER_ADMIN and HR_ADMIN can access CTC Templates.");
+            errorResponse.put("message", "Access denied. Only SUPER_ADMIN, HR_ADMIN, and FINANCE can access CTC Templates.");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
         }
         Map<String, Object> response = new HashMap<>();
@@ -146,10 +166,10 @@ public class CTCTemplateController {
     
     @GetMapping("/{id}")
     public ResponseEntity<Map<String, Object>> getTemplateById(@PathVariable Long id, HttpServletRequest request) {
-        if (!hasAccess(request)) {
+        if (!hasReadAccess(request)) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
-            errorResponse.put("message", "Access denied. Only SUPER_ADMIN and HR_ADMIN can access CTC Templates.");
+            errorResponse.put("message", "Access denied. Only SUPER_ADMIN, HR_ADMIN, and FINANCE can access CTC Templates.");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
         }
         Map<String, Object> response = new HashMap<>();

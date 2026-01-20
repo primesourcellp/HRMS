@@ -15,6 +15,9 @@ const ClientManagement = () => {
   const [loadingEmployees, setLoadingEmployees] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [openDropdownId, setOpenDropdownId] = useState(null)
+  const [showCreateClientModal, setShowCreateClientModal] = useState(false)
+  const [newClientName, setNewClientName] = useState('')
+  const [creatingClient, setCreatingClient] = useState(false)
   
   // CTC Templates State
   const userRole = localStorage.getItem('userRole')
@@ -368,15 +371,24 @@ const ClientManagement = () => {
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-gray-800">Client Employee Counts</h3>
-          <div className="relative flex-1 max-w-md ml-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search clients..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCreateClientModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-md hover:shadow-lg"
+            >
+              <Plus size={18} />
+              Create Client
+            </button>
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search clients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
         </div>
 
@@ -1311,6 +1323,110 @@ const ClientManagement = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Client Modal */}
+      {showCreateClientModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-800">Create New Client</h2>
+              <button
+                onClick={() => {
+                  setShowCreateClientModal(false)
+                  setNewClientName('')
+                  setError(null)
+                }}
+                className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!newClientName.trim()) {
+                  setError('Client name is required')
+                  return
+                }
+
+                try {
+                  setCreatingClient(true)
+                  setError(null)
+                  const response = await api.createClient(newClientName.trim())
+                  
+                  if (response.success) {
+                    alert('Client created successfully! You can now assign employees to this client.')
+                    setShowCreateClientModal(false)
+                    setNewClientName('')
+                    await loadClientCounts()
+                    if (canAccessCTCTemplates) {
+                      await loadCtcClients()
+                    }
+                  } else {
+                    setError(response.message || 'Failed to create client')
+                  }
+                } catch (err) {
+                  console.error('Error creating client:', err)
+                  setError(err.message || 'Failed to create client')
+                } finally {
+                  setCreatingClient(false)
+                }
+              }}
+              className="p-6 space-y-4"
+            >
+              {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Client Name *
+                </label>
+                <input
+                  type="text"
+                  value={newClientName}
+                  onChange={(e) => {
+                    setNewClientName(e.target.value)
+                    setError(null)
+                  }}
+                  placeholder="Enter client name"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                  autoFocus
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  Note: The client will appear in the list once you assign an employee to it.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-4 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateClientModal(false)
+                    setNewClientName('')
+                    setError(null)
+                  }}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  disabled={creatingClient}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingClient || !newClientName.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creatingClient ? 'Creating...' : 'Create Client'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

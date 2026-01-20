@@ -6,13 +6,15 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.lang.NonNull;
+import org.springframework.stereotype.Service;
 
 import com.hrms.entity.Holiday;
 import com.hrms.entity.Leave;
+import com.hrms.entity.LeaveType;
 import com.hrms.repository.HolidayRepository;
 import com.hrms.repository.LeaveRepository;
+import com.hrms.repository.LeaveTypeRepository;
 
 @Service
 public class LeaveService {
@@ -24,6 +26,9 @@ public class LeaveService {
 
     @Autowired
     private LeaveBalanceService leaveBalanceService;
+
+    @Autowired
+    private LeaveTypeRepository leaveTypeRepository;
 
     public List<Leave> getAllLeaves() {
         return leaveRepository.findAll();
@@ -43,6 +48,18 @@ public class LeaveService {
         }
         if (leave.getStatus() == null) {
             leave.setStatus("PENDING");
+        }
+
+        // Ensure type field is set - if null or empty, fetch from LeaveType
+        if ((leave.getType() == null || leave.getType().trim().isEmpty()) && leave.getLeaveTypeId() != null) {
+            Optional<LeaveType> leaveTypeOpt = leaveTypeRepository.findById(leave.getLeaveTypeId());
+            if (leaveTypeOpt.isPresent()) {
+                leave.setType(leaveTypeOpt.get().getName());
+            } else {
+                leave.setType("Leave"); // Fallback if leave type not found
+            }
+        } else if (leave.getType() == null || leave.getType().trim().isEmpty()) {
+            leave.setType("Leave"); // Fallback if leaveTypeId is also null
         }
 
         // Check leave balance
