@@ -1,16 +1,25 @@
 package com.hrms.controller;
 
-import com.hrms.entity.Shift;
-import com.hrms.entity.User;
-import com.hrms.service.ShiftService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.hrms.entity.Shift;
+import com.hrms.entity.User;
+import com.hrms.service.ShiftService;
 
 @RestController
 @RequestMapping("/api/shifts")
@@ -212,6 +221,52 @@ public class ShiftController {
             response.put("success", false);
             response.put("message", "Error fetching shift: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    @PostMapping("/{id}/assign-team")
+    public ResponseEntity<Map<String, Object>> assignTeamToShift(
+            @PathVariable Long id, @RequestBody Map<String, Object> request) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Object employeeIdsObj = request.get("employeeIds");
+            List<Long> employeeIds = new java.util.ArrayList<>();
+            
+            // Handle both List and single value
+            if (employeeIdsObj instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> idsList = (List<Object>) employeeIdsObj;
+                for (Object idObj : idsList) {
+                    if (idObj instanceof Long) {
+                        employeeIds.add((Long) idObj);
+                    } else if (idObj instanceof Integer) {
+                        employeeIds.add(((Integer) idObj).longValue());
+                    } else if (idObj instanceof Number) {
+                        employeeIds.add(((Number) idObj).longValue());
+                    } else if (idObj != null) {
+                        employeeIds.add(Long.parseLong(idObj.toString()));
+                    }
+                }
+            } else if (employeeIdsObj instanceof Number) {
+                employeeIds.add(((Number) employeeIdsObj).longValue());
+            }
+            
+            if (employeeIds.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "At least one employee ID is required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
+            // Extract dates if provided
+            String startDate = request.get("startDate") != null ? request.get("startDate").toString() : null;
+            String endDate = request.get("endDate") != null ? request.get("endDate").toString() : null;
+            
+            Map<String, Object> result = shiftService.assignTeamToShift(id, employeeIds, startDate, endDate);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 }

@@ -46,6 +46,7 @@ function App() {
             <Route path="performance" element={<Performance />} />
             <Route path="shifts" element={<Shifts />} />
             <Route path="tickets" element={<HRTickets />} />
+            <Route path="my-tickets" element={<HRTickets />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<Users />} />
             <Route path="ctc-templates" element={<CTCTemplates />} />

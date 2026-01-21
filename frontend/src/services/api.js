@@ -1485,6 +1485,19 @@ const api = {
       throw error
     }
   },
+  assignTeamToShift: async (shiftId, assignmentData) => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/shifts/${shiftId}/assign-team`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assignmentData)
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error assigning team to shift:', error)
+      throw error
+    }
+  },
   getShiftByEmployeeId: async (employeeId) => {
     try {
       console.log('Fetching shift for employee:', employeeId)

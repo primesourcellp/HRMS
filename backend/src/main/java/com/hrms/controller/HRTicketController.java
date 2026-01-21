@@ -23,6 +23,8 @@ import com.hrms.repository.UserRepository;
 import com.hrms.service.HRTicketService;
 import com.hrms.service.NotificationService;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/api/tickets")
 @CrossOrigin(origins = "http://localhost:3000")
@@ -36,6 +38,16 @@ public class HRTicketController {
 
     @Autowired
     private UserRepository userRepository;
+
+    private Long getCurrentUserId(HttpServletRequest request) {
+        Object userIdObj = request.getAttribute("userId");
+        if (userIdObj instanceof Long) {
+            return (Long) userIdObj;
+        } else if (userIdObj instanceof Number) {
+            return ((Number) userIdObj).longValue();
+        }
+        return null;
+    }
 
     @GetMapping
     public ResponseEntity<List<HRTicket>> getAllTickets() {
@@ -97,9 +109,22 @@ public class HRTicketController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateTicket(@PathVariable Long id, @RequestBody HRTicket ticket) {
+    public ResponseEntity<Map<String, Object>> updateTicket(@PathVariable Long id, @RequestBody HRTicket ticket, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
+            Long currentUserId = getCurrentUserId(request);
+            
+            // If status is being changed to RESOLVED or CLOSED, and assignedTo is not set or is being changed,
+            // set assignedTo to the current user (the one resolving it)
+            if (ticket.getStatus() != null && 
+                ("RESOLVED".equals(ticket.getStatus()) || "CLOSED".equals(ticket.getStatus())) &&
+                currentUserId != null) {
+                // If assignedTo is null or empty, set it to current user
+                if (ticket.getAssignedTo() == null) {
+                    ticket.setAssignedTo(currentUserId);
+                }
+            }
+            
             HRTicket updated = ticketService.updateTicket(id, ticket);
             response.put("success", true);
             response.put("message", "Ticket updated successfully");
