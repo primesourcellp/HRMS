@@ -268,7 +268,6 @@ const HRTickets = () => {
   const checkForDuplicates = (subject, category, employeeId) => {
     if (!subject || !category) return []
     
-    console.log('Checking for duplicates:', { subject, category, employeeId, totalTickets: tickets.length })
     
     const subjectLower = subject.toLowerCase().trim()
     const similar = tickets.filter(ticket => {
@@ -280,20 +279,11 @@ const HRTickets = () => {
                            ticketSubject.includes(subjectLower) || 
                            subjectLower.includes(ticketSubject)
       
-      console.log('Comparing with ticket:', { 
-        ticketId: ticket.ticketId, 
-        subject: ticketSubject, 
-        subjectMatch, 
-        status: ticket.status,
-        ticketCategory: ticket.ticketType,
-        ticketEmployee: ticket.employeeId 
-      })
       
       // Consider it duplicate if subject matches and ticket is not closed/resolved
       return subjectMatch && ticket.status !== 'CLOSED' && ticket.status !== 'RESOLVED'
     })
 
-    console.log('Found similar tickets:', similar)
     return similar // Return all similar tickets for counting
   }
 
@@ -301,14 +291,12 @@ const HRTickets = () => {
     const subject = e.target.value
     setFormData({ ...formData, subject })
     
-    console.log('Subject changed:', subject, 'length:', subject.length)
     
     if (subject.length >= 3) { // Check after 3 characters
       const duplicates = checkForDuplicates(subject, formData.ticketType, formData.employeeId)
       setSimilarTickets(duplicates)
       
       if (duplicates.length > 0) {
-        console.log('Setting duplicate warning:', duplicates.length)
         // Create a summary message with count
         const issueType = formData.ticketType ? getTicketTypeLabel(formData.ticketType) : 'this'
         const message = duplicates.length === 1 
@@ -321,7 +309,6 @@ const HRTickets = () => {
           count: duplicates.length
         })
       } else {
-        console.log('Clearing duplicate warning')
         setDuplicateWarning(null)
         setSimilarTickets([])
       }
@@ -337,10 +324,8 @@ const HRTickets = () => {
 
   useEffect(() => {
     // Load users for assignment functionality
-    if (isAdmin || !isEmployee) {
-      loadUsers()
-    }
-  }, [isAdmin, isEmployee])
+    loadUsers()
+  }, [])
 
   const loadUsers = async () => {
     try {
@@ -417,11 +402,9 @@ const HRTickets = () => {
       
       setTickets(filteredTickets)
       
-      // Load employees for admin view and for ticket creation
-      if (isAdmin || !isEmployee) {
-        const employeesData = await api.getEmployees()
-        setEmployees(Array.isArray(employeesData) ? employeesData : [])
-      }
+      // Load employees for all users
+      const employeesData = await api.getEmployees()
+      setEmployees(Array.isArray(employeesData) ? employeesData : [])
     } catch (error) {
       console.error('Error loading data:', error)
       setError(error.message || 'Failed to load tickets')
@@ -820,13 +803,11 @@ const HRTickets = () => {
                       <AlertCircle size={16} />
                       <strong>Type:</strong> {getTicketTypeLabel(ticket.ticketType || 'SALARY_ISSUE')}
                     </span>
-                    {isAdmin && (
-                      <span className="flex items-center gap-1">
-                        <User size={16} />
-                        <strong>Employee:</strong> {getEmployeeName(ticket.employeeId)}
-                      </span>
-                    )}
-                    {isAdmin && ticket.assignedTo && (
+                    <span className="flex items-center gap-1">
+                      <User size={16} />
+                      <strong>Employee:</strong> {getEmployeeName(ticket.employeeId)}
+                    </span>
+                    {ticket.assignedTo && (
                       <span className="flex items-center gap-1">
                         <UserCheck size={16} />
                         <strong>Assigned to:</strong> {getUserName(ticket.assignedTo)}
@@ -872,7 +853,7 @@ const HRTickets = () => {
                     <Clock size={16} />
                     Timeline
                   </button>
-                  {isAdmin && ticket.status !== 'CLOSED' && (
+                  {ticket.status !== 'CLOSED' && (
                     <button
                       onClick={() => openUpdateModal(ticket)}
                       className="bg-yellow-50 text-yellow-600 px-4 py-2 rounded-lg hover:bg-yellow-100 flex items-center gap-2 text-sm font-medium transition-colors"
@@ -881,15 +862,13 @@ const HRTickets = () => {
                       Update
                     </button>
                   )}
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteTicket(ticket.id)}
-                      className="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 flex items-center gap-2 text-sm font-medium transition-colors"
-                    >
-                      <Trash2 size={16} />
-                      Delete
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDeleteTicket(ticket.id)}
+                    className="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 flex items-center gap-2 text-sm font-medium transition-colors"
+                  >
+                    <Trash2 size={16} />
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>
@@ -931,24 +910,22 @@ const HRTickets = () => {
                 </div>
               </div>
 
-              {(isAdmin || !isEmployee) && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee Name *</label>
-                  <select
-                    value={formData.employeeId}
-                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required={!isEmployee}
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map((employee) => (
-                      <option key={employee.id} value={employee.id.toString()}>
-                        {employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Employee Name *</label>
+                <select
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required={!isEmployee}
+                >
+                  <option value="">Select Employee</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id.toString()}>
+                      {employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'}
+                    </option>
+                  ))}
+                </select>
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1052,6 +1029,7 @@ const HRTickets = () => {
                             </div>
                           )}
                           
+         
                           {/* Debug info */}
                           <div className="mt-2 p-2 bg-yellow-100 rounded text-xs">
                             <p className="text-yellow-600">Debug: Found {duplicateWarning.tickets.length} similar tickets</p>
@@ -1068,137 +1046,7 @@ const HRTickets = () => {
                     </div>
                   )}
                   
-                  {/* Debug panel - always visible for testing */}
-                  <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
-                    <p className="text-gray-600">Debug Info:</p>
-                    <p>Total tickets loaded: {tickets.length}</p>
-                    <p>Current subject: "{formData.subject}"</p>
-                    <p>Current category: {getTicketTypeLabel(formData.ticketType)}</p>
-                    
-                    {/* Test buttons for all categories */}
-                    <div className="mt-2 space-y-1">
-                      <p className="font-medium text-gray-700">Test duplicate detection:</p>
-                      <div className="grid grid-cols-2 gap-1">
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing PAYROLL category')
-                            const testDuplicates = checkForDuplicates('salary delay', 'PAYROLL', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this Payroll issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "salary delay" (Payroll)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing LEAVE category')
-                            const testDuplicates = checkForDuplicates('leave balance', 'LEAVE', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this Leave issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "leave balance" (Leave)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing IT_SUPPORT category')
-                            const testDuplicates = checkForDuplicates('software installation', 'IT_SUPPORT', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this IT Support issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "software installation" (IT)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing GENERAL_QUERY category')
-                            const testDuplicates = checkForDuplicates('policy information', 'GENERAL_QUERY', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this General Query issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "policy information" (General)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Testing DOCUMENTS category')
-                            const testDuplicates = checkForDuplicates('salary certificate', 'DOCUMENTS', formData.employeeId)
-                            setSimilarTickets(testDuplicates)
-                            if (testDuplicates.length > 0) {
-                              setDuplicateWarning({
-                                message: `${testDuplicates.length} people have reported this Documents issue`,
-                                tickets: testDuplicates,
-                                count: testDuplicates.length
-                              })
-                            } else {
-                              setDuplicateWarning(null)
-                            }
-                          }}
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Test: "salary certificate" (Docs)
-                        </button>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            console.log('Clearing duplicate warning')
-                            setDuplicateWarning(null)
-                            setSimilarTickets([])
-                          }}
-                          className="text-red-600 underline text-xs"
-                        >
-                          Clear Warning
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                                  </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
@@ -1279,8 +1127,6 @@ const HRTickets = () => {
                     {selectedTicket.priority}
                   </span>
                 </div>
-                {isAdmin && (
-                  <>
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">Employee</label>
                       <p className="text-lg font-semibold text-gray-800">{getEmployeeName(selectedTicket.employeeId)}</p>
@@ -1289,8 +1135,6 @@ const HRTickets = () => {
                       <label className="block text-sm font-medium text-gray-600 mb-1">Assigned To</label>
                       <p className="text-lg font-semibold text-gray-800">{getUserName(selectedTicket.assignedTo) || 'Unassigned'}</p>
                     </div>
-                  </>
-                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Created</label>
                   <p className="text-sm text-gray-800">{formatDate(selectedTicket.createdAt)}</p>
@@ -1386,23 +1230,21 @@ const HRTickets = () => {
                   </select>
                 </div>
               </div>
-              {isAdmin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Assign To</label>
-                  <select
-                    value={updateData.assignedTo || (selectedTicket.assignedTo ? selectedTicket.assignedTo.toString() : '')}
-                    onChange={(e) => setUpdateData({ ...updateData, assignedTo: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Unassigned</option>
-                    {users.map((user) => (
-                      <option key={user.id} value={user.id.toString()}>
-                        {user.name || user.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Assign To</label>
+                <select
+                  value={updateData.assignedTo || (selectedTicket.assignedTo ? selectedTicket.assignedTo.toString() : '')}
+                  onChange={(e) => setUpdateData({ ...updateData, assignedTo: e.target.value })}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id.toString()}>
+                      {user.name || user.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Resolution</label>
                 <textarea
