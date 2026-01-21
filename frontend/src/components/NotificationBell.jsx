@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell } from 'lucide-react'
+import { Bell, Trash2, Check } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
 
@@ -39,7 +39,8 @@ const NotificationBell = () => {
   const loadNotifications = async () => {
     try {
       setLoading(true)
-      const data = await api.getUnreadNotifications()
+      // Load ALL notifications so they don't disappear after being read
+      const data = await api.getNotifications()
       setNotifications(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error loading notifications:', error)
@@ -61,22 +62,17 @@ const NotificationBell = () => {
 
   const handleNotificationClick = async (notification) => {
     try {
-      // Mark only this notification as read (not all)
-      await api.markNotificationAsRead(notification.id)
-      await loadNotifications()
-      await loadUnreadCount()
-      
+      // Do NOT auto-mark as read; user will manually mark/clear
       // Navigate based on notification type
       if (notification.relatedType === 'LEAVE' && notification.relatedId) {
-        // For employees, navigate to leave page (My Leaves), for admins navigate to leave management
-        if (isEmployee) {
-          // Store leave ID in sessionStorage and navigate to leave page
-          sessionStorage.setItem('viewLeaveId', notification.relatedId.toString())
-          navigate('/leave?leaveId=' + notification.relatedId)
+        // If HR_ADMIN receives an approval/rejection notification, open their own leave details inside My Attendance -> My Leaves
+        if (isHrAdmin && (notification.type === 'LEAVE_APPROVED' || notification.type === 'LEAVE_REJECTED')) {
+          sessionStorage.setItem('viewMyLeaveId', notification.relatedId.toString())
+          navigate(`/my-attendance?leaveId=${notification.relatedId}&_=${Date.now()}`)
         } else {
-          // For HR_ADMIN and SUPER_ADMIN, navigate to leave management
+          // Default leave handling: open Leave page and auto-open details modal
           sessionStorage.setItem('viewLeaveId', notification.relatedId.toString())
-          navigate('/leave?leaveId=' + notification.relatedId)
+          navigate(`/leave?leaveId=${notification.relatedId}&_=${Date.now()}`)
         }
         setShowDropdown(false)
       } else if (notification.relatedType === 'HR_TICKET' && notification.relatedId) {
@@ -96,6 +92,16 @@ const NotificationBell = () => {
       await loadUnreadCount()
     } catch (error) {
       console.error('Error marking notification as read:', error)
+    }
+  }
+
+  const handleDeleteNotification = async (notificationId) => {
+    try {
+      await api.deleteNotification(notificationId)
+      await loadNotifications()
+      await loadUnreadCount()
+    } catch (error) {
+      console.error('Error deleting notification:', error)
     }
   }
 
@@ -190,7 +196,7 @@ const NotificationBell = () => {
             {loading ? (
               <div className="p-4 text-center text-gray-500">Loading...</div>
             ) : notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">No new notifications</div>
+              <div className="p-4 text-center text-gray-500">No notifications</div>
             ) : (
               <div className="divide-y divide-gray-200">
                 {notifications.map((notification) => (
@@ -206,9 +212,35 @@ const NotificationBell = () => {
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded ${getNotificationColor(notification.type)}`}>
                             {notification.title}
                           </span>
-                          {!notification.isRead && (
-                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {!notification.isRead && (
+                              <>
+                                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleMarkAsRead(notification.id)
+                                  }}
+                                  className="p-1 rounded hover:bg-gray-100 text-gray-600"
+                                  title="Mark as read"
+                                >
+                                  <Check size={14} />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteNotification(notification.id)
+                              }}
+                              className="p-1 rounded hover:bg-gray-100 text-gray-600"
+                              title="Clear notification"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
                         <p className="text-sm text-gray-700 mb-1">{notification.message}</p>
                         <p className="text-xs text-gray-500">

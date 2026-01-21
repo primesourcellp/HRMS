@@ -2,6 +2,7 @@ package com.hrms.service;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -65,18 +66,31 @@ public class NotificationService {
 
     /**
      * Create notification for leave application by team member
+     * If HR_ADMIN applies for leave, notify only SUPER_ADMIN
+     * Otherwise, notify HR_ADMINs who manage the employee
      */
     @Transactional
     public void notifyLeaveApplication(Long employeeId, Long leaveId, String employeeName, String leaveType, String startDate, String endDate) {
-        Set<Long> hrAdminIds = findHrAdminsForEmployee(employeeId);
+        // Check if the employee applying for leave is an HR_ADMIN
+        User employee = userRepository.findById(employeeId).orElse(null);
+        boolean isHrAdmin = employee != null && "HR_ADMIN".equals(employee.getRole());
+        
+        Set<Long> recipientIds;
+        if (isHrAdmin) {
+            // If HR_ADMIN applies for leave, notify only SUPER_ADMIN
+            recipientIds = findSuperAdmins();
+        } else {
+            // For other employees, notify HR_ADMINs who manage them
+            recipientIds = findHrAdminsForEmployee(employeeId);
+        }
         
         String title = "Leave Application Submitted";
         String message = String.format("%s has applied for %s leave from %s to %s", 
                 employeeName, leaveType, startDate, endDate);
         
-        for (Long hrAdminId : hrAdminIds) {
+        for (Long recipientId : recipientIds) {
             Notification notification = new Notification();
-            notification.setUserId(hrAdminId);
+            notification.setUserId(recipientId);
             notification.setType("LEAVE_APPLIED");
             notification.setTitle(title);
             notification.setMessage(message);
@@ -214,6 +228,21 @@ public class NotificationService {
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
         notification.setIsRead(true);
         notificationRepository.save(notification);
+    }
+
+    /**
+     * Delete (clear) a notification for a user
+     */
+    @Transactional
+    public void deleteForUser(Long userId, Long notificationId) {
+        Notification notification = notificationRepository.findById(Objects.requireNonNull(notificationId))
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+
+        if (notification.getUserId() == null || !notification.getUserId().equals(userId)) {
+            throw new RuntimeException("Unauthorized to delete this notification");
+        }
+
+        notificationRepository.delete(notification);
     }
 
     /**

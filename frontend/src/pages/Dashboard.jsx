@@ -2190,13 +2190,7 @@ const Dashboard = () => {
                 <Clock className="w-5 h-5 text-indigo-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Manage Shifts</span>
               </button>
-              <button
-                onClick={() => navigate('/recruitment')}
-                className="flex flex-col items-center justify-center p-3 bg-pink-50 hover:bg-pink-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-pink-200 hover:border-pink-400 group"
-              >
-                <FileText className="w-5 h-5 text-pink-600 mb-1.5 group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-semibold text-gray-800">Recruitment</span>
-              </button>
+              {/* Recruitment removed */}
             </>
           ) : isFinance ? (
             <>

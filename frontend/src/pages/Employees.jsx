@@ -4,7 +4,7 @@ import {
   Plus, Search, Edit, Trash2, Mail, Phone, MapPin, Upload, 
   FileText, Download, Eye, User, Shield, Filter, ChevronDown, 
   ChevronRight, ChevronUp, ChevronLeft, MoreVertical, Check, X,
-  Users, Briefcase, Building, Calendar, Tag, UserPlus, FileUp, Frown, Loader2
+  Users, Briefcase, Building, Calendar, Tag, UserPlus, FileUp, Frown, Loader2, Clock
 } from 'lucide-react';
 import api from '../services/api';
 import styles from './Employees.module.css';
@@ -72,7 +72,11 @@ const [editingEmployee, setEditingEmployee] = useState(null)
 const [loading, setLoading] = useState(true) 
 const [error, setError] = useState(null) 
 const [toast, setToast] = useState(null)
-const [openMenuId, setOpenMenuId] = useState(null) 
+const [openMenuId, setOpenMenuId] = useState(null)
+const [employeeAttendance, setEmployeeAttendance] = useState([])
+const [employeePayrolls, setEmployeePayrolls] = useState([])
+const [employeeShift, setEmployeeShift] = useState(null)
+const [employeeTeams, setEmployeeTeams] = useState([]) 
 const [formData, setFormData] = useState({ 
 employeeId: '', 
 name: '',
@@ -507,19 +511,59 @@ setEmployees([])
 setLoading(false) 
 } 
 } 
-const loadDocuments = async (employeeId) => { 
-try { 
-console.log('Loading documents for employee:', employeeId) 
-const data = await api.getEmployeeDocuments(employeeId) 
-console.log('Documents loaded:', data) 
-setDocuments(prev => ({ ...prev, [employeeId]: data })) 
-} catch (error) { 
-console.error('Error loading documents:', error) 
-alert('Error loading documents: ' + (error.message || 'Unknown error')) 
-// Set empty array on error to prevent undefined issues 
-setDocuments(prev => ({ ...prev, [employeeId]: [] })) 
-} 
-} 
+const loadDocuments = async (employeeId) => {
+try {
+console.log('Loading documents for employee:', employeeId)
+const data = await api.getEmployeeDocuments(employeeId)
+console.log('Documents loaded:', data)
+setDocuments(prev => ({ ...prev, [employeeId]: data }))
+} catch (error) {
+console.error('Error loading documents:', error)
+alert('Error loading documents: ' + (error.message || 'Unknown error'))
+// Set empty array on error to prevent undefined issues
+setDocuments(prev => ({ ...prev, [employeeId]: [] }))
+}
+}
+
+const loadEmployeeDetails = async (employeeId) => {
+  try {
+    // Load attendance (last 30 days)
+    const today = new Date()
+    const thirtyDaysAgo = new Date(today)
+    thirtyDaysAgo.setDate(today.getDate() - 30)
+    const startDate = thirtyDaysAgo.toISOString().split('T')[0]
+    const endDate = today.toISOString().split('T')[0]
+    
+    const [attendanceData, payrollData, shiftData, teamsData] = await Promise.all([
+      api.getAttendanceByEmployeeDateRange(employeeId, startDate, endDate).catch(() => []),
+      api.getEmployeePayrolls(employeeId).catch(() => []),
+      api.getShiftByEmployeeId(employeeId).catch(() => null),
+      api.getTeams().catch(() => [])
+    ])
+    
+    setEmployeeAttendance(Array.isArray(attendanceData) ? attendanceData : [])
+    setEmployeePayrolls(Array.isArray(payrollData) ? payrollData : [])
+    setEmployeeShift(shiftData)
+    
+    // Find teams where this employee is a member
+    const empId = employeeId.toString()
+    const teamsWithEmployee = Array.isArray(teamsData) ? teamsData.filter(team => {
+      if (!team.members || !Array.isArray(team.members)) return false
+      return team.members.some(member => {
+        const memberId = member.employeeId ? member.employeeId.toString() : null
+        return memberId === empId || parseInt(memberId) === employeeId
+      })
+    }) : []
+    setEmployeeTeams(teamsWithEmployee)
+  } catch (error) {
+    console.error('Error loading employee details:', error)
+    // Set defaults on error
+    setEmployeeAttendance([])
+    setEmployeePayrolls([])
+    setEmployeeShift(null)
+    setEmployeeTeams([])
+  }
+}
 
 // Auto-view employee when navigated from Users page - directly fetch and show
 useEffect(() => {
@@ -886,6 +930,8 @@ const handleViewEmployee = async (employee) => {
 			setSelectedEmployee(employee)
 			await loadDocuments(employee.id)
 		}
+		// Load additional details (attendance, payroll, shift, teams)
+		await loadEmployeeDetails(employee.id)
 	} catch (err) {
 		console.error('Error fetching full employee for view:', err)
 		// Fallback to partial data if fetch fails
@@ -893,8 +939,9 @@ const handleViewEmployee = async (employee) => {
 		// Still try to load documents even if employee fetch fails
 		try {
 		await loadDocuments(employee.id)
+		await loadEmployeeDetails(employee.id)
 		} catch (docErr) {
-			console.error('Error loading documents:', docErr)
+			console.error('Error loading documents/details:', docErr)
 		}
 	} finally {
 		setShowViewModal(true)
@@ -1610,6 +1657,199 @@ onClick={() => {
                 <p className="text-center text-gray-500 py-4">No documents uploaded</p>
               )}
             </div>
+            {/* Attendance Details */}
+            {(userRole === 'HR_ADMIN' || userRole === 'EMPLOYEE' || userRole === 'FINANCE' || userRole === 'MANAGER' || userRole === 'SUPER_ADMIN') && (
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Calendar size={24} className="text-blue-600" />
+                  Attendance Details (Last 30 Days)
+                </h4>
+                {employeeAttendance && employeeAttendance.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xs text-gray-600 font-semibold">Total Present Days</div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {employeeAttendance.filter(a => a.status === 'Present' || a.checkIn).length}
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xs text-gray-600 font-semibold">Total Absent Days</div>
+                        <div className="text-2xl font-bold text-red-600">
+                          {employeeAttendance.filter(a => a.status === 'Absent').length}
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xs text-gray-600 font-semibold">Total Working Hours</div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {employeeAttendance.reduce((sum, a) => {
+                            const hours = parseFloat(a.workingHours) || 0
+                            return sum + hours
+                          }, 0).toFixed(1)}h
+                        </div>
+                      </div>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-blue-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Date</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Status</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Check In</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Check Out</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Working Hours</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-100">
+                          {employeeAttendance.slice(0, 10).map((att, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-900">{att.date ? new Date(att.date).toLocaleDateString() : 'N/A'}</td>
+                              <td className="px-3 py-2">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  att.status === 'Present' || att.checkIn ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {att.status || (att.checkIn ? 'Present' : 'Absent')}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-gray-700">{att.checkIn || att.checkInTime || '-'}</td>
+                              <td className="px-3 py-2 text-gray-700">{att.checkOut || att.checkOutTime || '-'}</td>
+                              <td className="px-3 py-2 text-gray-700">{att.workingHours ? `${parseFloat(att.workingHours).toFixed(1)}h` : '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {employeeAttendance.length > 10 && (
+                        <p className="text-xs text-gray-500 mt-2 text-center">Showing last 10 records of {employeeAttendance.length} total</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 py-4">No attendance records found</p>
+                )}
+              </div>
+            )}
+
+            {/* Payroll Details */}
+            {(userRole === 'HR_ADMIN' || userRole === 'EMPLOYEE' || userRole === 'FINANCE' || userRole === 'MANAGER' || userRole === 'SUPER_ADMIN') && (
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Briefcase size={24} className="text-green-600" />
+                  Payroll Details
+                </h4>
+                {employeePayrolls && employeePayrolls.length > 0 ? (
+                  <div className="space-y-3">
+                    {employeePayrolls.slice(0, 5).map((payroll, idx) => (
+                      <div key={idx} className="bg-white rounded-lg p-4 border border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <div className="text-xs text-gray-600 font-semibold">Period</div>
+                            <div className="text-base font-medium text-gray-900">
+                              {payroll.month && payroll.year ? `${payroll.month}/${payroll.year}` : payroll.payPeriod || 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 font-semibold">Gross Salary</div>
+                            <div className="text-base font-medium text-gray-900">
+                              {payroll.grossSalary ? `₹${parseFloat(payroll.grossSalary).toLocaleString()}` : 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 font-semibold">Net Salary</div>
+                            <div className="text-base font-bold text-green-600">
+                              {payroll.netSalary ? `₹${parseFloat(payroll.netSalary).toLocaleString()}` : 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 font-semibold">Status</div>
+                            <div>
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                payroll.status === 'Paid' ? 'bg-green-100 text-green-800' :
+                                payroll.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {payroll.status || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {employeePayrolls.length > 5 && (
+                      <p className="text-xs text-gray-500 text-center">Showing last 5 records of {employeePayrolls.length} total</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 py-4">No payroll records found</p>
+                )}
+              </div>
+            )}
+
+            {/* Shift Details */}
+            {(userRole === 'HR_ADMIN' || userRole === 'EMPLOYEE' || userRole === 'FINANCE' || userRole === 'MANAGER' || userRole === 'SUPER_ADMIN') && (
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Clock size={24} className="text-purple-600" />
+                  Shift Details
+                </h4>
+                {employeeShift ? (
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs text-gray-600 font-semibold">Shift Name</div>
+                        <div className="text-base font-medium text-gray-900">{employeeShift.shiftName || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 font-semibold">Start Time</div>
+                        <div className="text-base font-medium text-gray-900">{employeeShift.startTime || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 font-semibold">End Time</div>
+                        <div className="text-base font-medium text-gray-900">{employeeShift.endTime || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 font-semibold">Duration</div>
+                        <div className="text-base font-medium text-gray-900">
+                          {employeeShift.startTime && employeeShift.endTime ? 
+                            (() => {
+                              const start = new Date(`2000-01-01 ${employeeShift.startTime}`)
+                              const end = new Date(`2000-01-01 ${employeeShift.endTime}`)
+                              const diff = (end - start) / (1000 * 60 * 60)
+                              return `${diff.toFixed(1)} hours`
+                            })() : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 py-4">No shift assigned</p>
+                )}
+              </div>
+            )}
+
+            {/* Team Details */}
+            {(userRole === 'HR_ADMIN' || userRole === 'EMPLOYEE' || userRole === 'FINANCE' || userRole === 'MANAGER' || userRole === 'SUPER_ADMIN') && (
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Users size={24} className="text-indigo-600" />
+                  Team Details
+                </h4>
+                {employeeTeams && employeeTeams.length > 0 ? (
+                  <div className="space-y-3">
+                    {employeeTeams.map((team, idx) => (
+                      <div key={idx} className="bg-white rounded-lg p-4 border border-gray-200">
+                        <div className="text-base font-semibold text-gray-900">{team.teamName || 'N/A'}</div>
+                        {team.description && (
+                          <div className="text-sm text-gray-600 mt-1">{team.description}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 py-4">Not assigned to any team</p>
+                )}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
 <button 
