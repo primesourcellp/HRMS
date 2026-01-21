@@ -8,6 +8,7 @@ const Payroll = () => {
   const [salaryStructures, setSalaryStructures] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState(null)
   // For employees and managers, default to empty (show all months), for admins default to current month
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const userType = localStorage.getItem('userType')
@@ -233,6 +234,12 @@ const Payroll = () => {
     }
   }, [openAnnualCtcDropdownId])
 
+  // Helper function to show success message
+  const showSuccessMessage = (message) => {
+    setSuccessMessage(message)
+    setTimeout(() => setSuccessMessage(null), 3000)
+  }
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -435,14 +442,14 @@ const Payroll = () => {
       if (editingPayroll) {
         const result = await api.updatePayroll(editingPayroll.id, payrollData)
         if (result.success) {
-          alert('Payroll updated successfully')
+          showSuccessMessage('Payroll updated successfully')
         } else {
           alert('Error updating payroll: ' + (result.message || 'Failed to update'))
         }
       } else {
         const result = await api.createPayroll(payrollData)
         if (result.success) {
-          alert('Payroll created successfully')
+          showSuccessMessage('Payroll created successfully')
         } else {
           alert('Error creating payroll: ' + (result.message || 'Failed to create'))
         }
@@ -642,7 +649,14 @@ const Payroll = () => {
   // Helper function to calculate employer and employee contributions
   const calculateContributions = (payroll, salaryStructure) => {
     if (!salaryStructure) {
-      return { employeeContribution: 0, employerContribution: 0 }
+      return { 
+        employeeContribution: 0, 
+        employerContribution: 0,
+        pfEmployee: 0,
+        esiEmployee: 0,
+        pfEmployer: 0,
+        esiEmployer: 0
+      }
     }
 
     const basicSalary = parseFloat(salaryStructure.basicSalary) || 0
@@ -657,15 +671,24 @@ const Payroll = () => {
     // PF Employer = Employee PF (typically 12% of basic, same as employee)
     const pfEmployer = pfEmployee
 
-    // ESI Employer = 4.75% of gross (if ESI is applicable)
-    // Employee ESI = 1.75% of gross, so employer = (4.75/1.75) * employee ESI
-    const esiEmployer = esiEmployee > 0 ? (esiEmployee * 4.75 / 1.75) : 0
+    // ESI Employer calculation:
+    // Standard rates in India:
+    // - Employee ESI = 0.75% of gross salary
+    // - Employer ESI = 3.25% of gross salary
+    // Calculate employer ESI directly from gross salary for accuracy
+    // If employee ESI exists, calculate employer ESI as (3.25 / 0.75) = 4.33 times employee ESI
+    // But to be safe, calculate directly from gross: 3.25% of gross
+    const esiEmployer = esiEmployee > 0 ? (grossSalary * 0.0325) : 0
 
     const employerContribution = pfEmployer + esiEmployer
 
     return {
       employeeContribution: employeeContribution.toFixed(2),
-      employerContribution: employerContribution.toFixed(2)
+      employerContribution: employerContribution.toFixed(2),
+      pfEmployee: pfEmployee.toFixed(2),
+      esiEmployee: esiEmployee.toFixed(2),
+      pfEmployer: pfEmployer.toFixed(2),
+      esiEmployer: esiEmployer.toFixed(2)
     }
   }
 
@@ -716,13 +739,13 @@ const Payroll = () => {
     
     try {
       setLoading(true)
-      const result = await api.deletePayroll(payrollId)
-      if (result.success) {
-        alert('Payroll deleted successfully')
-        await loadData()
-      } else {
-        alert('Error deleting payroll: ' + (result.message || 'Failed to delete payroll'))
-      }
+        const result = await api.deletePayroll(payrollId)
+        if (result.success) {
+          showSuccessMessage('Payroll deleted successfully')
+          await loadData()
+        } else {
+          alert('Error deleting payroll: ' + (result.message || 'Failed to delete payroll'))
+        }
     } catch (error) {
       alert('Error deleting payroll: ' + error.message)
     } finally {
@@ -735,7 +758,7 @@ const Payroll = () => {
       try {
         const result = await api.submitPayrollForApproval(payrollId)
         if (result.success) {
-          alert('Payroll submitted for approval successfully')
+          showSuccessMessage('Payroll submitted for approval successfully')
           await loadData()
         } else {
           alert('Error submitting payroll: ' + (result.message || 'Failed to submit'))
@@ -751,7 +774,7 @@ const Payroll = () => {
       try {
         const result = await api.approvePayroll(payrollId)
         if (result.success) {
-          alert('Payroll approved successfully')
+          showSuccessMessage('Payroll approved successfully')
           await loadData()
         } else {
           alert('Error approving payroll: ' + (result.message || 'Failed to approve'))
@@ -767,7 +790,7 @@ const Payroll = () => {
       try {
         const result = await api.finalizePayroll(payrollId)
         if (result.success) {
-          alert('Payroll finalized successfully')
+          showSuccessMessage('Payroll finalized successfully')
           await loadData()
         } else {
           alert('Error finalizing payroll: ' + (result.message || 'Failed to finalize'))
@@ -783,7 +806,7 @@ const Payroll = () => {
       try {
         const result = await api.markPayrollAsPaid(payrollId)
         if (result.success) {
-          alert('Payroll marked as paid successfully')
+          showSuccessMessage('Payroll marked as paid successfully')
           await loadData()
         } else {
           alert('Error marking payroll as paid: ' + (result.message || 'Failed to mark as paid'))
@@ -825,7 +848,7 @@ const Payroll = () => {
           filteredCount: payrolls.filter(p => p.month === processedMonth).length
         })
         
-        alert(`Payroll processed successfully for ${result.count || 0} employees. Viewing Processed Payrolls for ${processedMonth}.`)
+        showSuccessMessage(`Payroll processed successfully for ${result.count || 0} employees. Viewing Processed Payrolls for ${processedMonth}.`)
         setShowBulkProcessModal(false)
       } else {
         alert('Error processing payroll: ' + (result.message || 'Failed to process'))
@@ -872,7 +895,7 @@ const Payroll = () => {
         // Reload data to get the newly processed payroll
         await loadData()
         
-        alert(`Payroll processed successfully for ${employeeName}. Viewing Processed Payrolls for ${processedMonth}.`)
+        showSuccessMessage(`Payroll processed successfully for ${employeeName}. Viewing Processed Payrolls for ${processedMonth}.`)
         setShowIndividualProcessModal(false)
         setIndividualProcessData({
           employeeId: '',
@@ -900,7 +923,7 @@ const Payroll = () => {
       setLoading(true)
       const result = await api.finalizeAllPayrolls(month, year)
       if (result.success) {
-        alert(`Finalized ${result.count || 0} payrolls successfully`)
+        showSuccessMessage(`Finalized ${result.count || 0} payrolls successfully`)
         await loadData()
       } else {
         alert('Error finalizing payrolls: ' + (result.message || 'Failed to finalize'))
@@ -938,8 +961,8 @@ const Payroll = () => {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
       
-      // Show password information alert
-      alert(`Payslip downloaded successfully!\n\nPassword: ${employeeId}\n\nThe PDF is password-protected for your security. Use your Employee ID to open it.`)
+      // Show password information
+      showSuccessMessage(`Payslip downloaded successfully! Password: ${employeeId}`)
     } catch (error) {
       alert('Error downloading payslip: ' + error.message)
     }
@@ -961,7 +984,7 @@ const Payroll = () => {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
       
-      alert('Annual CTC PDF downloaded successfully!')
+      showSuccessMessage('Annual CTC PDF downloaded successfully!')
     } catch (error) {
       console.error('Error downloading Annual CTC PDF:', error)
       alert('Error downloading Annual CTC PDF: ' + (error.message || 'Unknown error'))
@@ -991,7 +1014,7 @@ const Payroll = () => {
       // Reload data to ensure we have the latest payroll records
       await loadData()
       
-      alert(`Annual CTC calculation view filtered for ${employeeName} - Year ${individualAnnualCtcData.year}`)
+      showSuccessMessage(`Annual CTC calculation view filtered for ${employeeName} - Year ${individualAnnualCtcData.year}`)
       setShowIndividualAnnualCtcModal(false)
       setIndividualAnnualCtcData({ employeeId: '', year: '' })
     } catch (error) {
@@ -1019,7 +1042,7 @@ const Payroll = () => {
       // Reload data to ensure we have the latest payroll records
       await loadData()
       
-      alert(`Annual CTC calculation view filtered for all employees - Year ${bulkAnnualCtcData.year}`)
+      showSuccessMessage(`Annual CTC calculation view filtered for all employees - Year ${bulkAnnualCtcData.year}`)
       setShowBulkAnnualCtcModal(false)
       setBulkAnnualCtcData({ year: '' })
     } catch (error) {
@@ -1137,7 +1160,7 @@ const Payroll = () => {
         otherDeductions: formatValue(result.otherDeductions)
       })
 
-      alert('CTC converted to salary structure successfully! Review and edit the values before saving.')
+      showSuccessMessage('CTC converted to salary structure successfully! Review and edit the values before saving.')
       setShowCtcConverter(false)
     } catch (error) {
       console.error('Error converting CTC:', error)
@@ -1171,14 +1194,14 @@ const Payroll = () => {
       if (editingSalary) {
         const result = await api.updateSalaryStructure(editingSalary.id, salaryData)
         if (result.success) {
-          alert('Salary structure updated successfully')
+          showSuccessMessage('Salary structure updated successfully')
         } else {
           alert('Error updating salary structure: ' + (result.message || 'Failed to update'))
         }
       } else {
         const result = await api.createSalaryStructure(salaryData)
         if (result.success) {
-          alert('Salary structure created successfully')
+          showSuccessMessage('Salary structure created successfully')
         } else {
           alert('Error creating salary structure: ' + (result.message || 'Failed to create'))
         }
@@ -1200,7 +1223,7 @@ const Payroll = () => {
       setLoading(true)
       const result = await api.deleteSalaryStructure(salaryId)
       if (result.success) {
-        alert('Salary structure deleted successfully')
+        showSuccessMessage('Salary structure deleted successfully')
         await loadData()
       } else {
         alert('Error deleting salary structure: ' + (result.message || 'Failed to delete'))
@@ -1280,10 +1303,10 @@ const Payroll = () => {
       
       if (editingCtcTemplate) {
         await api.updateCTCTemplate(editingCtcTemplate.id, submitData)
-        alert('CTC Template updated successfully!')
+        showSuccessMessage('CTC Template updated successfully!')
       } else {
         await api.createCTCTemplate(submitData)
-        alert('CTC Template created successfully!')
+        showSuccessMessage('CTC Template created successfully!')
       }
       await loadData()
       setShowCtcTemplateModal(false)
@@ -1308,7 +1331,7 @@ const Payroll = () => {
     try {
       setLoading(true)
       await api.deleteCTCTemplate(id)
-      alert('Template deleted successfully!')
+      showSuccessMessage('Template deleted successfully!')
       await loadData()
     } catch (error) {
       console.error('Error deleting template:', error)
@@ -1620,7 +1643,7 @@ const Payroll = () => {
       }
 
       if (result.success) {
-        alert(editingGratuity ? 'Gratuity updated successfully' : 'Gratuity created successfully')
+        showSuccessMessage(editingGratuity ? 'Gratuity updated successfully' : 'Gratuity created successfully')
         await loadData()
         setShowGratuityModal(false)
         setEditingGratuity(null)
@@ -1649,7 +1672,7 @@ const Payroll = () => {
       setLoading(true)
       const result = await api.deleteGratuity(gratuityId)
       if (result.success) {
-        alert('Gratuity deleted successfully')
+        showSuccessMessage('Gratuity deleted successfully')
         await loadData()
       } else {
         alert('Error deleting gratuity: ' + (result.message || 'Failed to delete'))
@@ -1668,7 +1691,7 @@ const Payroll = () => {
       const userId = localStorage.getItem('userId')
       const result = await api.approveGratuity(gratuityId, userId ? parseInt(userId) : null)
       if (result.success) {
-        alert('Gratuity approved successfully')
+        showSuccessMessage('Gratuity approved successfully')
         await loadData()
       } else {
         alert('Error approving gratuity: ' + (result.message || 'Failed to approve'))
@@ -1686,7 +1709,7 @@ const Payroll = () => {
       const userId = localStorage.getItem('userId')
       const result = await api.markGratuityAsPaid(gratuityId, paymentDate || undefined, userId ? parseInt(userId) : null)
       if (result.success) {
-        alert('Gratuity marked as paid successfully')
+        showSuccessMessage('Gratuity marked as paid successfully')
         await loadData()
       } else {
         alert('Error marking gratuity as paid: ' + (result.message || 'Failed to mark as paid'))
@@ -1703,7 +1726,7 @@ const Payroll = () => {
     try {
       const result = await api.rejectGratuity(gratuityId, reason)
       if (result.success) {
-        alert('Gratuity rejected successfully')
+        showSuccessMessage('Gratuity rejected successfully')
         await loadData()
       } else {
         alert('Error rejecting gratuity: ' + (result.message || 'Failed to reject'))
@@ -2863,17 +2886,45 @@ const Payroll = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-white rounded-lg p-4 border-2 border-orange-200">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Contribution</label>
-                      <div className="text-lg font-bold text-orange-600">
+                      <div className="text-lg font-bold text-orange-600 mb-3">
                         ₹{contributions.employeeContribution}
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">PF + ESI (deducted from salary)</p>
+                      <div className="space-y-2 border-t border-orange-100 pt-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">PF (Provident Fund)</span>
+                          <span className="text-sm font-semibold text-gray-800">₹{contributions.pfEmployee}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">ESI (Employee State Insurance)</span>
+                          <span className="text-sm font-semibold text-gray-800">₹{contributions.esiEmployee}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-orange-100">
+                          <span className="text-xs font-semibold text-gray-700">Total</span>
+                          <span className="text-sm font-bold text-orange-600">₹{contributions.employeeContribution}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Deducted from salary</p>
                     </div>
                     <div className="bg-white rounded-lg p-4 border-2 border-blue-200">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Employer Contribution</label>
-                      <div className="text-lg font-bold text-blue-600">
+                      <div className="text-lg font-bold text-blue-600 mb-3">
                         ₹{contributions.employerContribution}
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">PF + ESI (employer's share)</p>
+                      <div className="space-y-2 border-t border-blue-100 pt-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">PF (Provident Fund)</span>
+                          <span className="text-sm font-semibold text-gray-800">₹{contributions.pfEmployer}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">ESI (Employee State Insurance)</span>
+                          <span className="text-sm font-semibold text-gray-800">₹{contributions.esiEmployer}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-blue-100">
+                          <span className="text-xs font-semibold text-gray-700">Total</span>
+                          <span className="text-sm font-bold text-blue-600">₹{contributions.employerContribution}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Employer's share</p>
                     </div>
                   </div>
                 </div>
@@ -3207,6 +3258,19 @@ const Payroll = () => {
 
   return (
     <div className="space-y-4 sm:space-y-5 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
+      {/* Success Message Toast */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 bg-green-50 border border-green-200 text-green-800 px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2 max-w-md">
+          <CheckCircle className="w-5 h-5 flex-shrink-0 text-green-600" />
+          <span>{successMessage}</span>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="ml-2 text-green-600 hover:text-green-800 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Toggle Buttons for Salary Details, Processed Payrolls, CTC Templates, Gratuity, and Annual CTC - Admin Only */}
       {isAdmin && (
         <div className="bg-white rounded-xl shadow-md p-3 sm:p-4">
@@ -5221,7 +5285,10 @@ const Payroll = () => {
         const totalEmployeeDeductions = pfEmployee + esiEmployee + professionalTax + tds + otherDeductions
         
         const pfEmployer = pfEmployee // Employer PF is equal to employee PF
-        const esiEmployer = esiEmployee > 0 ? (esiEmployee * 1.75 / 0.75) : 0 // ESI employer is 1.75% of gross, employee is 0.75%
+        // ESI Employer calculation:
+        // Standard rates in India: Employee ESI = 0.75% of gross, Employer ESI = 3.25% of gross
+        // Calculate directly from gross salary for accuracy: 3.25% of gross
+        const esiEmployer = esiEmployee > 0 ? (grossSalary * 0.0325) : 0
         const totalEmployerContribution = pfEmployer + esiEmployer
         
         const ctc = grossSalary + totalEmployerContribution

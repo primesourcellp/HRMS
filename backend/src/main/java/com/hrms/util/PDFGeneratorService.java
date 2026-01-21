@@ -120,42 +120,7 @@ public class PDFGeneratorService {
             document.add(new Paragraph("\n"));
         }
         
-        // Attendance Information (if available)
-        Double workingDays = getDoubleValue.apply(payslipData.get("workingDays"));
-        Double presentDays = getDoubleValue.apply(payslipData.get("presentDays"));
-        Double leaveDays = getDoubleValue.apply(payslipData.get("leaveDays"));
-        Double lopDays = getDoubleValue.apply(payslipData.get("lopDays"));
-        Double payableDays = presentDays + leaveDays; // Payable days = Present + Approved Leave
-        
-        if (workingDays > 0 || presentDays > 0) {
-            Table attendanceTable = new Table(2).useAllAvailableWidth();
-            attendanceTable.addCell(createCell("ATTENDANCE INFORMATION", true));
-            attendanceTable.addCell(createCell("", true));
-            
-            if (workingDays > 0) {
-                attendanceTable.addCell(createCell("Total Working Days", false));
-                attendanceTable.addCell(createCell(String.format("%.0f days", workingDays), false));
-            }
-            if (presentDays > 0) {
-                attendanceTable.addCell(createCell("Present Days", false));
-                attendanceTable.addCell(createCell(String.format("%.0f days", presentDays), false));
-            }
-            if (leaveDays > 0) {
-                attendanceTable.addCell(createCell("Approved Leave Days", false));
-                attendanceTable.addCell(createCell(String.format("%.1f days", leaveDays), false));
-            }
-            if (payableDays > 0) {
-                attendanceTable.addCell(createCell("Payable Days (Present + Leave)", false));
-                attendanceTable.addCell(createCell(String.format("%.1f days", payableDays), false));
-            }
-            if (lopDays > 0) {
-                attendanceTable.addCell(createCell("LOP (Loss of Pay) Days", false));
-                attendanceTable.addCell(createCell(String.format("%.1f days", lopDays), false));
-            }
-            
-            document.add(attendanceTable);
-            document.add(new Paragraph("\n"));
-        }
+        // Attendance Information section removed as per user request
 
         // Helper method to format currency
         java.util.function.Function<Object, String> formatCurrency = (value) -> {
