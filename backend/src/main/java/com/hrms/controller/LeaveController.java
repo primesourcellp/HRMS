@@ -304,6 +304,72 @@ public class LeaveController {
         return ResponseEntity.ok(updated);
     }
 
+    @PostMapping("/{id}/revoke")
+    public ResponseEntity<Map<String, Object>> revokeLeave(
+            @PathVariable Long id, @RequestBody Map<String, Long> requestBody, HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            // Get userId from request if not provided
+            Long revokedBy = requestBody.get("revokedBy");
+            Long currentUserId = revokedBy != null ? revokedBy : getCurrentUserId(request);
+            
+            // Get old leave state before revocation
+            Optional<Leave> oldLeaveOpt = leaveService.getLeaveById(id);
+            Leave oldLeave = oldLeaveOpt.orElse(null);
+            
+            Leave revoked = leaveService.revokeLeave(id, currentUserId);
+            
+            // Log audit event
+            if (currentUserId != null && revoked != null) {
+                User employee = userRepository.findById(revoked.getEmployeeId()).orElse(null);
+                String employeeName = employee != null ? employee.getName() : "Unknown";
+                auditLogService.logEvent(
+                    "LEAVE",
+                    revoked.getId(),
+                    "REVOKE",
+                    currentUserId,
+                    oldLeave,
+                    revoked,
+                    String.format("Revoked leave request for %s from %s to %s. Leave balance restored.", employeeName, revoked.getStartDate(), revoked.getEndDate()),
+                    request
+                );
+                
+                // Send notification to employee when leave is revoked
+                try {
+                    String leaveTypeName = "Leave";
+                    if (revoked.getLeaveTypeId() != null) {
+                        Optional<LeaveType> leaveTypeOpt = leaveTypeRepository.findById(revoked.getLeaveTypeId());
+                        if (leaveTypeOpt.isPresent()) {
+                            leaveTypeName = leaveTypeOpt.get().getName();
+                        }
+                    }
+                    notificationService.notifyLeaveRejected(
+                        revoked.getId(),
+                        revoked.getEmployeeId(),
+                        employeeName,
+                        leaveTypeName,
+                        revoked.getStartDate().toString(),
+                        revoked.getEndDate().toString(),
+                        "Your approved leave has been revoked. You can apply for leave on other days.",
+                        currentUserId
+                    );
+                } catch (Exception e) {
+                    // Log but don't fail the request if notification fails
+                    System.err.println("Failed to send leave revocation notification: " + e.getMessage());
+                }
+            }
+            
+            response.put("success", true);
+            response.put("message", "Leave revoked successfully. Leave balance has been restored.");
+            response.put("leave", revoked);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
     /**
      * Get current user ID from request (set by JwtAuthenticationFilter)
      */

@@ -15,6 +15,7 @@ const LeaveManagement = () => {
   const [approverNames, setApproverNames] = useState({})
   const [showModal, setShowModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [detailsOnlyMode, setDetailsOnlyMode] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showBalanceModal, setShowBalanceModal] = useState(false)
   const [showLeaveTypeModal, setShowLeaveTypeModal] = useState(false)
@@ -48,8 +49,7 @@ const LeaveManagement = () => {
   const [formData, setFormData] = useState({
     employeeId: '',
     leaveTypeId: '',
-    startDate: '',
-    endDate: '',
+    leaveDate: '',
     reason: '',
     halfDay: false,
     halfDayType: 'FIRST_HALF'
@@ -138,6 +138,7 @@ const LeaveManagement = () => {
           if (leave) {
             setSelectedLeave(leave)
             setShowDetailsModal(true)
+            setDetailsOnlyMode(true)
             // Clear the sessionStorage and URL param
             sessionStorage.removeItem('viewLeaveId')
             if (leaveIdFromUrl) {
@@ -163,13 +164,13 @@ const LeaveManagement = () => {
   }, [canApplyLeave, currentUserId, formData.employeeId])
 
   useEffect(() => {
-    // Calculate days when dates change
-    if (formData.startDate && formData.endDate) {
+    // Calculate days when date changes
+    if (formData.leaveDate) {
       calculateDays()
     } else {
       setCalculatedDays(0)
     }
-  }, [formData.startDate, formData.endDate, formData.halfDay])
+  }, [formData.leaveDate, formData.halfDay])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -413,15 +414,7 @@ const LeaveManagement = () => {
   }
 
   const calculateDays = () => {
-    if (!formData.startDate || !formData.endDate) {
-      setCalculatedDays(0)
-      return
-    }
-
-    const start = parseISO(formData.startDate)
-    const end = parseISO(formData.endDate)
-
-    if (isAfter(start, end)) {
+    if (!formData.leaveDate) {
       setCalculatedDays(0)
       return
     }
@@ -429,8 +422,7 @@ const LeaveManagement = () => {
     if (formData.halfDay) {
       setCalculatedDays(0.5)
     } else {
-      const days = differenceInDays(end, start) + 1
-      setCalculatedDays(days)
+      setCalculatedDays(1)
     }
   }
 
@@ -442,28 +434,22 @@ const LeaveManagement = () => {
       return false
     }
 
-    if (!formData.startDate || !formData.endDate) {
-      setValidationError('Please select both start and end dates')
+    if (!formData.leaveDate) {
+      setValidationError('Please select a date')
       return false
     }
 
-    const start = parseISO(formData.startDate)
-    const end = parseISO(formData.endDate)
+    const selectedDate = parseISO(formData.leaveDate)
     const today = startOfToday()
 
-    if (isBefore(start, today)) {
-      setValidationError('Start date cannot be in the past')
-      return false
-    }
-
-    if (isAfter(start, end)) {
-      setValidationError('End date must be after start date')
+    if (isBefore(selectedDate, today)) {
+      setValidationError('Date cannot be in the past')
       return false
     }
 
     // Check leave balance
     const balance = getLeaveBalance(parseInt(formData.leaveTypeId))
-    const requiredDays = formData.halfDay ? 0.5 : calculatedDays
+    const requiredDays = formData.halfDay ? 0.5 : 1
 
     if (balance < requiredDays) {
       const selectedType = leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))
@@ -592,8 +578,8 @@ const LeaveManagement = () => {
         employeeId: employeeIdValue,
         leaveTypeId: leaveTypeIdValue,
         type: selectedLeaveType.name || 'Leave',
-        startDate: formData.startDate,
-        endDate: formData.endDate,
+        startDate: formData.leaveDate,
+        endDate: formData.leaveDate,
         reason: formData.reason || '',
         halfDay: formData.halfDay || false,
         halfDayType: formData.halfDay ? (formData.halfDayType || 'FIRST_HALF') : null,
@@ -638,8 +624,7 @@ const LeaveManagement = () => {
       setFormData({
       employeeId: canApplyLeave ? currentUserId : '',
         leaveTypeId: '',
-        startDate: '',
-        endDate: '',
+        leaveDate: '',
         reason: '',
         halfDay: false,
         halfDayType: 'FIRST_HALF'
@@ -714,8 +699,7 @@ const LeaveManagement = () => {
     setFormData({
       employeeId: leave.employeeId.toString(),
       leaveTypeId: leave.leaveTypeId.toString(),
-      startDate: format(new Date(leave.startDate), 'yyyy-MM-dd'),
-      endDate: format(new Date(leave.endDate), 'yyyy-MM-dd'),
+      leaveDate: format(new Date(leave.startDate), 'yyyy-MM-dd'),
       reason: leave.reason,
       halfDay: leave.halfDay || false,
       halfDayType: leave.halfDayType || 'FIRST_HALF'
@@ -736,7 +720,9 @@ const LeaveManagement = () => {
         ...formData,
         employeeId: parseInt(formData.employeeId),
         leaveTypeId: parseInt(formData.leaveTypeId),
-        type: leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))?.name || 'Leave'
+        type: leaveTypes.find(t => t.id === parseInt(formData.leaveTypeId))?.name || 'Leave',
+        startDate: formData.leaveDate,
+        endDate: formData.leaveDate
       }
 
       // For editing, we need to create a new leave and cancel the old one
@@ -772,6 +758,7 @@ const LeaveManagement = () => {
       await api.approveLeave(leaveId, parseInt(currentUserId))
       await loadData()
       setShowDetailsModal(false)
+      setDetailsOnlyMode(false)
       setSelectedLeave(null)
       alert('Leave approved successfully')
     } catch (error) {
@@ -791,11 +778,47 @@ const LeaveManagement = () => {
       await api.rejectLeave(leaveId, parseInt(currentUserId), rejectionReason)
       await loadData()
       setShowDetailsModal(false)
+      setDetailsOnlyMode(false)
       setSelectedLeave(null)
       setRejectionReason('')
       alert('Leave rejected')
     } catch (error) {
       alert('Error rejecting leave: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Helper function to check if leave has finished (end date is in the past, not including today)
+  const isLeaveFinished = (leave) => {
+    if (!leave || !leave.endDate) return false
+    try {
+      const endDate = parseISO(leave.endDate)
+      const today = startOfToday()
+      // Leave is finished if end date is before today (not including today)
+      return isBefore(endDate, today)
+    } catch (error) {
+      console.error('Error parsing leave end date:', error)
+      return false
+    }
+  }
+
+  const handleRevoke = async (leaveId) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to revoke this approved leave? The leave balance will be restored and the employee will need to apply for leave on other days.'
+    )
+    if (!confirmed) return
+
+    setLoading(true)
+    try {
+      await api.revokeLeave(leaveId, parseInt(currentUserId))
+      await loadData()
+      setShowDetailsModal(false)
+      setDetailsOnlyMode(false)
+      setSelectedLeave(null)
+      alert('Leave revoked successfully. Leave balance has been restored.')
+    } catch (error) {
+      alert('Error revoking leave: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -1153,15 +1176,17 @@ const LeaveManagement = () => {
 
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
-      {/* Success/Error Messages */}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
+      {detailsOnlyMode && showDetailsModal && selectedLeave ? null : (
+        <>
+          {/* Success/Error Messages */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+              <span className="block sm:inline">{error}</span>
+            </div>
+          )}
 
       {/* Finance User, Employee, and Manager - My Leaves Layout */}
-      {(isFinance || isEmployee || isManager) ? (
+          {(isFinance || isEmployee || isManager) ? (
         <div className="space-y-4">
           {/* Header Card with Title and Apply Leave Button - Matching MyAttendance style */}
           <div className="bg-white rounded-xl shadow-md p-4">
@@ -1177,8 +1202,8 @@ const LeaveManagement = () => {
             </div>
           </div>
         </div>
-      ) : (
-        <>
+          ) : (
+            <>
           {/* Statistics Cards - Only for Admin/HR_ADMIN */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-lg shadow-md p-4">
@@ -1198,9 +1223,8 @@ const LeaveManagement = () => {
               <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
             </div>
           </div>
-        </>
-      )}
-
+            </>
+          )}
       {/* Toggle Buttons for Leave Applications and Leave Types - Admin and HR_ADMIN (not Finance) */}
       {(isAdmin || isHrAdmin) && !isFinance && (
         <div className="bg-white rounded-lg shadow-md p-4">
@@ -1690,6 +1714,10 @@ const LeaveManagement = () => {
                          ? 'bg-green-100 text-green-800'
                          : leave.status === 'REJECTED' || leave.status === 'Rejected'
                          ? 'bg-red-100 text-red-800'
+                         : leave.status === 'REVOKED' || leave.status === 'Revoked'
+                         ? 'bg-orange-100 text-orange-800'
+                         : leave.status === 'CANCELLED' || leave.status === 'Cancelled'
+                         ? 'bg-gray-100 text-gray-800'
                          : 'bg-yellow-100 text-yellow-800'
                      }`}>
                        {leave.status}
@@ -1807,17 +1835,18 @@ const LeaveManagement = () => {
                                 </button>
                               </>
                             )}
-                            {(isFinance || (isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId))) && leave.status !== 'APPROVED' && (
+                            {/* Revoke option for APPROVED leaves - Only for SUPER_ADMIN and HR_ADMIN, and only if leave hasn't finished */}
+                            {(isSuperAdmin || isHrAdmin) && (leave.status === 'APPROVED' || leave.status === 'Approved') && !isLeaveFinished(leave) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleDeleteLeave(leave.id)
+                                  handleRevoke(leave.id)
                                   setOpenDropdownId(null)
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
                               >
-                                <Trash2 size={16} />
-                                Delete
+                                <XCircle size={16} />
+                                Revoke Leave
                               </button>
                             )}
                           </div>
@@ -2134,25 +2163,33 @@ const LeaveManagement = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
                   <input
                     type="date"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    value={formData.leaveDate}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value
+                      // Check if user has enough balance for this date
+                      if (formData.leaveTypeId) {
+                        const balance = getLeaveBalance(parseInt(formData.leaveTypeId))
+                        const requiredDays = formData.halfDay ? 0.5 : 1
+                        if (balance < requiredDays) {
+                          setValidationError(`Insufficient leave balance. Available: ${balance.toFixed(1)} days, Required: ${requiredDays} days.`)
+                          return
+                        }
+                      }
+                      setFormData({ ...formData, leaveDate: selectedDate })
+                      setValidationError('')
+                    }}
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
+                    min={format(new Date(), 'yyyy-MM-dd')}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
-                  <input
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                    min={formData.startDate || undefined}
-                  />
+                  {formData.leaveTypeId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Available balance: {getLeaveBalance(parseInt(formData.leaveTypeId)).toFixed(1)} days
+                    </p>
+                  )}
                 </div>
               </div>
               {calculatedDays > 0 && (
@@ -2268,25 +2305,32 @@ const LeaveManagement = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input
                     type="date"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    value={formData.leaveDate}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value
+                      if (formData.leaveTypeId) {
+                        const balance = getLeaveBalance(parseInt(formData.leaveTypeId))
+                        const requiredDays = formData.halfDay ? 0.5 : 1
+                        if (balance < requiredDays) {
+                          setValidationError(`Insufficient leave balance. Available: ${balance.toFixed(1)} days, Required: ${requiredDays} days.`)
+                          return
+                        }
+                      }
+                      setFormData({ ...formData, leaveDate: selectedDate })
+                      setValidationError('')
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     required
+                    min={format(new Date(), 'yyyy-MM-dd')}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    required
-                    min={formData.startDate || undefined}
-                  />
+                  {formData.leaveTypeId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Available balance: {getLeaveBalance(parseInt(formData.leaveTypeId)).toFixed(1)} days
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Half Day</label>
@@ -2353,6 +2397,8 @@ const LeaveManagement = () => {
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* View Details Modal - Redesigned */}
       {showDetailsModal && selectedLeave && (
@@ -2368,6 +2414,7 @@ const LeaveManagement = () => {
                   setShowDetailsModal(false)
                   setSelectedLeave(null)
                   setRejectionReason('')
+                  setDetailsOnlyMode(false)
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -2401,6 +2448,7 @@ const LeaveManagement = () => {
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     selectedLeave.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
                     selectedLeave.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                    selectedLeave.status === 'REVOKED' ? 'bg-orange-100 text-orange-800' :
                     selectedLeave.status === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
                     'bg-yellow-100 text-yellow-800'
                   }`}>
@@ -2473,6 +2521,25 @@ const LeaveManagement = () => {
                     </button>
                   </div>
                 </>
+              )}
+
+              {/* Revoke Section - Only show for APPROVED leaves that haven't finished, and SUPER_ADMIN/HR_ADMIN */}
+              {(isSuperAdmin || isHrAdmin) && selectedLeave.status === 'APPROVED' && !isLeaveFinished(selectedLeave) && (
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-orange-800 font-medium">
+                      <AlertCircle size={16} className="inline mr-2" />
+                      Revoking this leave will restore the leave balance. The employee will need to apply for leave on other days.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRevoke(selectedLeave.id)}
+                    disabled={loading}
+                    className="w-full bg-orange-600 text-white px-6 py-3 rounded-xl hover:bg-orange-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                  >
+                    {loading ? 'Revoking...' : 'Revoke Leave'}
+                  </button>
+                </div>
               )}
             </div>
             <div className="mt-6 flex justify-end">

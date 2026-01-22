@@ -886,6 +886,11 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ approvedBy, rejectionReason })
   }).then(res => res.json()),
+  revokeLeave: (id, revokedBy) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/revoke`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revokedBy })
+  }).then(res => res.json()),
   updateLeaveStatus: (id, status) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/status`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -1846,25 +1851,6 @@ const api = {
     }
   },
 
-  // Recruitment
-  getJobPostings: () => fetchWithAuth(`${API_BASE_URL}/recruitment/jobs`).then(res => res.json()),
-  createJobPosting: (jobPosting) => fetchWithAuth(`${API_BASE_URL}/recruitment/jobs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(jobPosting)
-  }).then(res => res.json()),
-  getApplicants: (jobPostingId) => fetchWithAuth(`${API_BASE_URL}/recruitment/applicants/job/${jobPostingId}`).then(res => res.json()),
-  createApplicant: (applicant) => fetchWithAuth(`${API_BASE_URL}/recruitment/applicants`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(applicant)
-  }).then(res => res.json()),
-  updateApplicantStatus: (id, status, feedback) => fetchWithAuth(`${API_BASE_URL}/recruitment/applicants/${id}/status`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, feedback })
-  }).then(res => res.json()),
-
   // Payroll
   getPayrolls: async () => {
     try {
@@ -2778,6 +2764,9 @@ const api = {
   }).then(res => res.json()),
   markAllNotificationsAsRead: () => fetchWithAuth(`${API_BASE_URL}/notifications/read-all`, {
     method: 'PUT'
+  }).then(res => res.json()),
+  deleteNotification: (id) => fetchWithAuth(`${API_BASE_URL}/notifications/${id}`, {
+    method: 'DELETE'
   }).then(res => res.json())
 }
 

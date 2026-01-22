@@ -49,8 +49,7 @@ export const useRolePermissions = () => {
       hasPermission: (permission) => hasPermission(role, permission),
       canManageEmployees: canManageEmployees(role),
       canManagePayroll: canManagePayroll(role),
-      canApproveLeaves: canApproveLeaves(role),
-      canManageRecruitment: role === ROLES.SUPER_ADMIN || role === ROLES.HR_ADMIN
+      canApproveLeaves: canApproveLeaves(role)
     }
   }, [userRole])
 }

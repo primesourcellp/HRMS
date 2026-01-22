@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Calendar, CheckCircle, LogOut, X, LogIn, Timer, ChevronLeft, ChevronRight, Search, FileText } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Calendar, CheckCircle, LogOut, X, LogIn, Timer, ChevronLeft, ChevronRight, Search, FileText, Eye } from 'lucide-react'
 import api from '../services/api'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, getDaysInMonth, getDay, differenceInDays, parseISO, isAfter, isBefore, startOfToday } from 'date-fns'
 
 const MyAttendance = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [myAttendanceData, setMyAttendanceData] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -18,9 +19,19 @@ const MyAttendance = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [calendarAttendance, setCalendarAttendance] = useState([])
+  const [calendarSummary, setCalendarSummary] = useState({ workedDays: 0, leaveDays: 0, totalWorkingHours: 0 })
   
   // View toggle: 'attendance' or 'myLeaves' (for HR_ADMIN)
-  const [activeView, setActiveView] = useState('attendance')
+  // Initialize from URL parameter to persist on refresh
+  const getInitialActiveView = () => {
+    const urlParams = new URLSearchParams(location.search)
+    const viewParam = urlParams.get('view')
+    if (viewParam === 'leaves' || viewParam === 'myLeaves') {
+      return 'myLeaves'
+    }
+    return 'attendance'
+  }
+  const [activeView, setActiveView] = useState(getInitialActiveView())
   
   // Leave application modal state
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -28,14 +39,18 @@ const MyAttendance = () => {
   const [leaveFilter, setLeaveFilter] = useState('All')
   const [leaveTypes, setLeaveTypes] = useState([])
   const [leaveBalances, setLeaveBalances] = useState([])
+  const [users, setUsers] = useState([])
   const [leaveFormData, setLeaveFormData] = useState({
     leaveTypeId: '',
-    startDate: '',
-    endDate: '',
+    leaveDate: '',
     reason: '',
     halfDay: false,
     halfDayType: 'FIRST_HALF'
   })
+  const [showLeaveDetailsModal, setShowLeaveDetailsModal] = useState(false)
+  const [selectedMyLeave, setSelectedMyLeave] = useState(null)
+  const [detailsOnlyMode, setDetailsOnlyMode] = useState(false)
+  const [openingLeaveFromNotification, setOpeningLeaveFromNotification] = useState(false)
   const [calculatedDays, setCalculatedDays] = useState(0)
   const [validationError, setValidationError] = useState('')
   
@@ -44,19 +59,43 @@ const MyAttendance = () => {
   const isHrAdmin = userRole === 'HR_ADMIN'
   const currentUserId = localStorage.getItem('userId')
 
+  // Sync activeView with URL parameter on mount and URL changes
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search)
+    const viewParam = urlParams.get('view')
+    if (viewParam === 'leaves' || viewParam === 'myLeaves') {
+      if (activeView !== 'myLeaves') {
+        setActiveView('myLeaves')
+      }
+    } else if (viewParam === null && activeView === 'myLeaves') {
+      // If no view param but we're on myLeaves, sync to attendance
+      setActiveView('attendance')
+    }
+  }, [location.search])
+
   useEffect(() => {
     const allowedRoles = ['HR_ADMIN', 'FINANCE']
     if (!allowedRoles.includes(userRole) || !employeeId) {
       setError('Access denied. This page is only for HR Administrators and Finance users.')
       return
     }
-    loadTodayAttendance()
-    if (viewType === 'calendar') {
-      loadCalendarData()
+    
+    // Load data based on activeView
+    if (activeView === 'myLeaves') {
+      // Load leave data when on myLeaves view
+      loadLeaveData()
+      loadMyLeaves()
     } else {
-      loadMyAttendance()
+      // Load attendance data when on attendance view
+      loadTodayAttendance()
+      if (viewType === 'calendar') {
+        loadCalendarData()
+      } else {
+        loadMyAttendance()
+      }
     }
-  }, [employeeId, selectedDate, viewType])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, selectedDate, viewType, activeView])
 
   useEffect(() => {
     if (viewType === 'calendar') {
@@ -130,8 +169,57 @@ const MyAttendance = () => {
         return
       }
       
-      const attendanceData = await api.getAttendanceByEmployeeDateRange(employeeId, startDate, endDate)
-      setCalendarAttendance(Array.isArray(attendanceData) ? attendanceData : [])
+      const [attendanceData, leavesData] = await Promise.all([
+        api.getAttendanceByEmployeeDateRange(employeeId, startDate, endDate),
+        api.getLeavesByEmployee(parseInt(employeeId)).catch(() => [])
+      ])
+      const attList = Array.isArray(attendanceData) ? attendanceData : []
+      setCalendarAttendance(attList)
+
+      // Summary: worked days + total working hours (month)
+      const workedDays = attList.filter(r => {
+        const status = (r?.status || '').toString().toLowerCase()
+        if (status === 'absent') return false
+        return status === 'present' || r?.checkIn || r?.checkInTime
+      }).length
+
+      const totalWorkingHours = attList.reduce((sum, r) => {
+        const status = (r?.status || '').toString().toLowerCase()
+        if (status === 'absent') return sum
+        const wh = r?.workingHours
+        const whNum = typeof wh === 'string' ? parseFloat(wh) : wh
+        if (Number.isFinite(whNum)) return sum + whNum
+        // Fallback compute from checkIn/checkOut if available
+        const inT = r?.checkIn || r?.checkInTime
+        const outT = r?.checkOut || r?.checkOutTime
+        if (inT && outT) {
+          const diffMs = new Date(`2000-01-01 ${outT}`) - new Date(`2000-01-01 ${inT}`)
+          if (Number.isFinite(diffMs) && diffMs > 0) return sum + (diffMs / (1000 * 60 * 60))
+        }
+        return sum
+      }, 0)
+
+      // Summary: leave taken days (approved leaves overlapping month)
+      const monthStart = new Date(selectedYear, selectedMonth - 1, 1)
+      const monthEnd = new Date(selectedYear, selectedMonth, 0)
+      const leavesList = Array.isArray(leavesData) ? leavesData : []
+      const leaveDays = leavesList
+        .filter(l => (l?.status || '').toString().toUpperCase() === 'APPROVED')
+        .reduce((sum, l) => {
+          try {
+            const ls = new Date(l.startDate)
+            const le = new Date(l.endDate)
+            const start = ls > monthStart ? ls : monthStart
+            const end = le < monthEnd ? le : monthEnd
+            if (end < start) return sum
+            if (l.halfDay) return sum + 0.5
+            return sum + (differenceInDays(end, start) + 1)
+          } catch {
+            return sum
+          }
+        }, 0)
+
+      setCalendarSummary({ workedDays, leaveDays, totalWorkingHours })
     } catch (error) {
       console.error('Error loading calendar data:', error)
       setError('Failed to load calendar data')
@@ -242,6 +330,45 @@ const MyAttendance = () => {
     } else {
       return '0m'
     }
+  }
+
+  const formatTimeAmPm = (timeStr) => {
+    if (!timeStr) return '-'
+    const parts = String(timeStr).trim().split(':')
+    if (parts.length < 2) return String(timeStr)
+    const hRaw = parseInt(parts[0], 10)
+    const mRaw = parseInt(parts[1], 10)
+    if (!Number.isFinite(hRaw) || !Number.isFinite(mRaw)) return String(timeStr)
+    const h12 = ((hRaw % 12) || 12)
+    const ampm = hRaw >= 12 ? 'PM' : 'AM'
+    const mm = String(mRaw).padStart(2, '0')
+    return `${h12}:${mm} ${ampm}`
+  }
+
+  const getAttendanceTooltip = (record) => {
+    if (!record) return ''
+    const status = (record.status || '').toString().toLowerCase()
+    if (status === 'absent') return 'Absent'
+    const checkIn = formatTimeAmPm(record.checkIn || record.checkInTime)
+    const checkOut = formatTimeAmPm(record.checkOut || record.checkOutTime)
+    const wh = record.workingHours ? formatWorkingHours(record.workingHours) : '-'
+    const hasAnyTime = (record.checkIn || record.checkInTime || record.checkOut || record.checkOutTime || record.workingHours)
+    if (!hasAnyTime) return ''
+    return `Login: ${checkIn}\nLogout: ${checkOut}\nWorking: ${wh}`
+  }
+
+  const AttendanceHoverTooltip = ({ record }) => {
+    if (!record) return null
+    const text = getAttendanceTooltip(record)
+    if (!text) return null
+    return (
+      <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 z-50 hidden group-hover:block">
+        <div className="bg-gray-900 text-white text-xs rounded-lg shadow-xl px-3 py-2 whitespace-pre-line min-w-[160px]">
+          {text}
+        </div>
+        <div className="absolute left-1/2 -top-1 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45" />
+      </div>
+    )
   }
 
   const loadTodayAttendance = async () => {
@@ -360,17 +487,20 @@ const MyAttendance = () => {
     if (!currentUserId) return
     
     try {
-      const [types, balances] = await Promise.all([
+      const [types, balances, usersData] = await Promise.all([
         api.getActiveLeaveTypes(),
-        api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear())
+        api.getLeaveBalances(parseInt(currentUserId), new Date().getFullYear()),
+        api.getUsers().catch(() => [])
       ])
       
       setLeaveTypes(Array.isArray(types) ? types : [])
       setLeaveBalances(Array.isArray(balances) ? balances : [])
+      setUsers(Array.isArray(usersData) ? usersData : [])
     } catch (error) {
       console.error('Error loading leave data:', error)
       setLeaveTypes([])
       setLeaveBalances([])
+      setUsers([])
     }
   }
 
@@ -387,15 +517,7 @@ const MyAttendance = () => {
 
   // Calculate total leave days
   const calculateLeaveDays = () => {
-    if (!leaveFormData.startDate || !leaveFormData.endDate) {
-      setCalculatedDays(0)
-      return
-    }
-
-    const start = parseISO(leaveFormData.startDate)
-    const end = parseISO(leaveFormData.endDate)
-
-    if (isAfter(start, end)) {
+    if (!leaveFormData.leaveDate) {
       setCalculatedDays(0)
       return
     }
@@ -403,8 +525,7 @@ const MyAttendance = () => {
     if (leaveFormData.halfDay) {
       setCalculatedDays(0.5)
     } else {
-      const days = differenceInDays(end, start) + 1
-      setCalculatedDays(days)
+      setCalculatedDays(1)
     }
   }
 
@@ -417,28 +538,22 @@ const MyAttendance = () => {
       return false
     }
 
-    if (!leaveFormData.startDate || !leaveFormData.endDate) {
-      setValidationError('Please select both start and end dates')
+    if (!leaveFormData.leaveDate) {
+      setValidationError('Please select a date')
       return false
     }
 
-    const start = parseISO(leaveFormData.startDate)
-    const end = parseISO(leaveFormData.endDate)
+    const selectedDate = parseISO(leaveFormData.leaveDate)
     const today = startOfToday()
 
-    if (isBefore(start, today)) {
-      setValidationError('Start date cannot be in the past')
-      return false
-    }
-
-    if (isAfter(start, end)) {
-      setValidationError('End date must be after start date')
+    if (isBefore(selectedDate, today)) {
+      setValidationError('Date cannot be in the past')
       return false
     }
 
     // Check leave balance
     const balance = getLeaveBalance(parseInt(leaveFormData.leaveTypeId))
-    const requiredDays = leaveFormData.halfDay ? 0.5 : calculatedDays
+    const requiredDays = leaveFormData.halfDay ? 0.5 : 1
 
     if (balance < requiredDays) {
       const selectedType = leaveTypes.find(t => t.id === parseInt(leaveFormData.leaveTypeId))
@@ -481,8 +596,8 @@ const MyAttendance = () => {
       const leaveData = {
         employeeId: parseInt(currentUserId),
         leaveTypeId: parseInt(leaveFormData.leaveTypeId),
-        startDate: leaveFormData.startDate,
-        endDate: leaveFormData.endDate,
+        startDate: leaveFormData.leaveDate,
+        endDate: leaveFormData.leaveDate,
         reason: leaveFormData.reason,
         halfDay: leaveFormData.halfDay,
         halfDayType: leaveFormData.halfDay ? leaveFormData.halfDayType : null
@@ -511,8 +626,7 @@ const MyAttendance = () => {
   const resetLeaveForm = () => {
     setLeaveFormData({
       leaveTypeId: '',
-      startDate: '',
-      endDate: '',
+      leaveDate: '',
       reason: '',
       halfDay: false,
       halfDayType: 'FIRST_HALF'
@@ -526,10 +640,13 @@ const MyAttendance = () => {
     if (!currentUserId) return
     try {
       const leavesData = await api.getLeavesByEmployee(parseInt(currentUserId))
-      setMyLeaves(Array.isArray(leavesData) ? leavesData : [])
+      const list = Array.isArray(leavesData) ? leavesData : []
+      setMyLeaves(list)
+      return list
     } catch (error) {
       console.error('Error loading my leaves:', error)
       setMyLeaves([])
+      return []
     }
   }
 
@@ -537,6 +654,8 @@ const MyAttendance = () => {
   const handleApplyLeave = async () => {
     try {
       setActiveView('myLeaves')
+      // Update URL to persist view on refresh
+      navigate('/my-attendance?view=leaves', { replace: true })
       // Load data in parallel for better performance
       await Promise.all([
         loadLeaveData(),
@@ -548,20 +667,78 @@ const MyAttendance = () => {
     }
   }
 
-  // Calculate days when dates change
+  // Calculate days when date or half day changes
   useEffect(() => {
-    if (leaveFormData.startDate && leaveFormData.endDate) {
+    if (leaveFormData.leaveDate) {
       calculateLeaveDays()
     } else {
       setCalculatedDays(0)
     }
-  }, [leaveFormData.startDate, leaveFormData.endDate, leaveFormData.halfDay])
+  }, [leaveFormData.leaveDate, leaveFormData.halfDay])
 
   // Get leave type name
   const getLeaveTypeName = (leaveTypeId) => {
     const type = leaveTypes.find(t => t.id === parseInt(leaveTypeId))
     return type ? type.name : 'Unknown'
   }
+
+  const getApproverName = (userId) => {
+    if (!userId) return 'N/A'
+    const u = users.find(x => {
+      const id = typeof x.id === 'string' ? parseInt(x.id) : x.id
+      return id === userId
+    })
+    return u?.name || `User ${userId}`
+  }
+
+  const openMyLeaveDetails = (leave) => {
+    setSelectedMyLeave(leave)
+    setShowLeaveDetailsModal(true)
+  }
+
+  // Auto-open My Leave Details from notifications (HR_ADMIN own leave approved/rejected)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search)
+    const leaveIdFromUrl = urlParams.get('leaveId')
+    const leaveIdFromStorage = sessionStorage.getItem('viewMyLeaveId')
+    const leaveId = leaveIdFromUrl || leaveIdFromStorage
+
+    if (!leaveId) return
+
+    const open = async () => {
+      try {
+        setOpeningLeaveFromNotification(true)
+        setActiveView('myLeaves')
+        // Update URL to include view parameter
+        navigate('/my-attendance?view=leaves&leaveId=' + leaveId, { replace: true })
+        const [, leavesList] = await Promise.all([loadLeaveData(), loadMyLeaves()])
+
+        const found = (Array.isArray(leavesList) ? leavesList : []).find(l => l?.id === parseInt(leaveId))
+        if (found) {
+          // details-only: hide list/balances behind the modal ONLY after we have data
+          setDetailsOnlyMode(true)
+          openMyLeaveDetails(found)
+        } else {
+          setDetailsOnlyMode(false)
+          setError('Leave details not found.')
+        }
+        sessionStorage.removeItem('viewMyLeaveId')
+        if (leaveIdFromUrl) {
+          // Keep view parameter when removing leaveId
+          navigate('/my-attendance?view=leaves', { replace: true })
+        }
+      } catch (e) {
+        console.error('Failed to auto-open my leave details:', e)
+        setDetailsOnlyMode(false)
+        setError('Failed to open leave details.')
+      } finally {
+        setOpeningLeaveFromNotification(false)
+      }
+    }
+
+    open()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search])
 
   // Filter leaves
   const filteredMyLeaves = myLeaves.filter(leave => {
@@ -578,7 +755,10 @@ const MyAttendance = () => {
         <div className="flex items-center gap-2">
           {activeView === 'myLeaves' && (
             <button
-              onClick={() => setActiveView('attendance')}
+              onClick={() => {
+                setActiveView('attendance')
+                navigate('/my-attendance', { replace: true })
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium text-sm"
             >
               <X className="w-4 h-4" />
@@ -614,6 +794,13 @@ const MyAttendance = () => {
       {/* My Leaves View */}
       {activeView === 'myLeaves' && (
         <div className="space-y-4">
+          {/* When opened from notification, show ONLY the details modal (no list/balances behind) */}
+          {openingLeaveFromNotification ? (
+            <div className="bg-white rounded-xl shadow-md p-8 text-center text-gray-600">
+              Loading leave details...
+            </div>
+          ) : detailsOnlyMode ? null : (
+            <>
           {/* Leave Balances */}
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="flex items-center justify-between mb-4">
@@ -695,11 +882,16 @@ const MyAttendance = () => {
                       <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Days</th>
                       <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Reason</th>
                       <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Status</th>
+                      <th className="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider text-gray-700">View</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredMyLeaves.map((leave, index) => (
-                      <tr key={leave.id} className="hover:bg-gray-50">
+                      <tr
+                        key={leave.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => openMyLeaveDetails(leave)}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{getLeaveTypeName(leave.leaveTypeId)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -718,11 +910,143 @@ const MyAttendance = () => {
                             {leave.status}
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openMyLeaveDetails(leave)
+                            }}
+                            className="inline-flex items-center justify-center p-2 rounded-lg hover:bg-gray-100 text-gray-700"
+                            title="View details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* My Leave Details Modal */}
+      {showLeaveDetailsModal && selectedMyLeave && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <FileText className="w-6 h-6 text-blue-600" />
+                Leave Details
+              </h3>
+              <button
+                onClick={() => {
+                  setShowLeaveDetailsModal(false)
+                  setSelectedMyLeave(null)
+                  if (detailsOnlyMode) {
+                    setDetailsOnlyMode(false)
+                    setActiveView('myLeaves')
+                    navigate('/my-attendance?view=leaves', { replace: true })
+                  }
+                }}
+                className="text-gray-500 hover:text-gray-700"
+                title="Close"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-600">Leave Type</p>
+                <p className="font-semibold text-gray-900">{getLeaveTypeName(selectedMyLeave.leaveTypeId)}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-600">Status</p>
+                <span className={`inline-flex mt-1 px-3 py-1 text-sm font-semibold rounded-full ${
+                  selectedMyLeave.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                  selectedMyLeave.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                  selectedMyLeave.status === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {selectedMyLeave.status}
+                </span>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-600">Start Date</p>
+                <p className="font-semibold text-gray-900">{format(new Date(selectedMyLeave.startDate), 'MMM dd, yyyy')}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-600">End Date</p>
+                <p className="font-semibold text-gray-900">{format(new Date(selectedMyLeave.endDate), 'MMM dd, yyyy')}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-600">Total Days</p>
+                <p className="font-semibold text-gray-900">{selectedMyLeave.totalDays} {selectedMyLeave.totalDays === 1 ? 'day' : 'days'}</p>
+              </div>
+              {selectedMyLeave.appliedDate && (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <p className="text-sm text-gray-600">Applied Date</p>
+                  <p className="font-semibold text-gray-900">{format(new Date(selectedMyLeave.appliedDate), 'MMM dd, yyyy')}</p>
+                </div>
+              )}
+              {selectedMyLeave.approvedBy && (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <p className="text-sm text-gray-600">Action By</p>
+                  <p className="font-semibold text-gray-900">{getApproverName(selectedMyLeave.approvedBy)}</p>
+                </div>
+              )}
+              {selectedMyLeave.approvedDate && (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <p className="text-sm text-gray-600">Action Date</p>
+                  <p className="font-semibold text-gray-900">{format(new Date(selectedMyLeave.approvedDate), 'MMM dd, yyyy')}</p>
+                </div>
+              )}
+              {selectedMyLeave.halfDay && (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <p className="text-sm text-gray-600">Half Day</p>
+                  <p className="font-semibold text-gray-900">{selectedMyLeave.halfDayType || 'Yes'}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Reason</p>
+              <p className="text-gray-900 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                {selectedMyLeave.reason || '-'}
+              </p>
+            </div>
+
+            {selectedMyLeave.rejectionReason && (
+              <div className="mb-4">
+                <p className="text-sm text-red-700 mb-2 font-semibold">Rejection Reason</p>
+                <p className="text-red-900 bg-red-50 p-4 rounded-xl border border-red-200">
+                  {selectedMyLeave.rejectionReason}
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaveDetailsModal(false)
+                  setSelectedMyLeave(null)
+                  if (detailsOnlyMode) {
+                    setDetailsOnlyMode(false)
+                    setActiveView('myLeaves')
+                    navigate('/my-attendance?view=leaves', { replace: true })
+                  }
+                }}
+                className="px-6 py-3 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-colors font-semibold"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -885,117 +1209,200 @@ const MyAttendance = () => {
       {/* Calendar View */}
       {viewType === 'calendar' && (
         <div className="bg-white rounded-xl shadow-md overflow-hidden p-4 sm:p-6">
-          <div className="mb-4">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Calendar View</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={1}>January</option>
-                <option value={2}>February</option>
-                <option value={3}>March</option>
-                <option value={4}>April</option>
-                <option value={5}>May</option>
-                <option value={6}>June</option>
-                <option value={7}>July</option>
-                <option value={8}>August</option>
-                <option value={9}>September</option>
-                <option value={10}>October</option>
-                <option value={11}>November</option>
-                <option value={12}>December</option>
-              </select>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
               <button
-                onClick={loadCalendarData}
-                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                type="button"
+                onClick={() => {
+                  if (selectedMonth === 1) {
+                    setSelectedMonth(12)
+                    setSelectedYear(prev => prev - 1)
+                  } else {
+                    setSelectedMonth(prev => prev - 1)
+                  }
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-700"
+                title="Previous month"
               >
-                <Search className="w-3.5 h-3.5" />
-                Search
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  <option value={1}>January</option>
+                  <option value={2}>February</option>
+                  <option value={3}>March</option>
+                  <option value={4}>April</option>
+                  <option value={5}>May</option>
+                  <option value={6}>June</option>
+                  <option value={7}>July</option>
+                  <option value={8}>August</option>
+                  <option value={9}>September</option>
+                  <option value={10}>October</option>
+                  <option value={11}>November</option>
+                  <option value={12}>December</option>
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedMonth === 12) {
+                    setSelectedMonth(1)
+                    setSelectedYear(prev => prev + 1)
+                  } else {
+                    setSelectedMonth(prev => prev + 1)
+                  }
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-700"
+                title="Next month"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date()
+                  setSelectedMonth(now.getMonth() + 1)
+                  setSelectedYear(now.getFullYear())
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={loadCalendarData}
+                className="px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <Search className="w-4 h-4" />
+                Refresh
               </button>
             </div>
           </div>
 
-          {/* Calendar Grid Table */}
           {loading ? (
             <div className="text-center py-8">
               <div className="text-gray-500">Loading calendar data...</div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px] border-collapse">
-                <thead>
-                  <tr className="bg-blue-50">
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700 border border-gray-200 sticky left-0 bg-blue-50 z-10">
-                      Employee Name
-                    </th>
-                    {getDaysInSelectedMonth().map(day => {
-                      const date = new Date(selectedYear, selectedMonth - 1, day)
-                      const dayOfWeek = getDay(date)
-                      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+            <>
+              {/* Month Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="text-xs text-blue-700 font-semibold">TOTAL WORKING HOURS</div>
+                  <div className="text-lg font-bold text-blue-900">{calendarSummary.totalWorkingHours.toFixed(1)} hrs</div>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                  <div className="text-xs text-green-700 font-semibold">WORKED DAYS</div>
+                  <div className="text-lg font-bold text-green-900">{calendarSummary.workedDays}</div>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <div className="text-xs text-amber-700 font-semibold">LEAVE TAKEN DAYS</div>
+                  <div className="text-lg font-bold text-amber-900">{calendarSummary.leaveDays.toFixed(1)}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 text-xs font-semibold text-gray-600 mb-2">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                  <div key={d} className="text-center py-1">{d}</div>
+                ))}
+              </div>
+
+              {(() => {
+                const firstDayIndex = getDay(new Date(selectedYear, selectedMonth - 1, 1)) // 0=Sun
+                const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth - 1))
+                const totalCells = Math.ceil((firstDayIndex + daysInMonth) / 7) * 7
+                const todayStr = format(new Date(), 'yyyy-MM-dd')
+
+                return (
+                  <div className="grid grid-cols-7 gap-1">
+                    {Array.from({ length: totalCells }, (_, i) => {
+                      const dayNum = i - firstDayIndex + 1
+                      const isValidDay = dayNum >= 1 && dayNum <= daysInMonth
+
+                      if (!isValidDay) {
+                        return <div key={i} className="h-14 sm:h-16 rounded-lg bg-gray-50" />
+                      }
+
+                      const dateObj = new Date(selectedYear, selectedMonth - 1, dayNum)
+                      const dateStr = format(dateObj, 'yyyy-MM-dd')
+                      const attendanceRecord = getAttendanceForDay(dayNum)
+                      const statusLower = (attendanceRecord?.status || '').toString().toLowerCase()
+                      const isExplicitAbsent = statusLower === 'absent'
+                      // If SUPER_ADMIN marked Absent but old time still exists, Absent must win.
+                      const isPresent =
+                        !!attendanceRecord &&
+                        !isExplicitAbsent &&
+                        (
+                          statusLower === 'present' ||
+                          attendanceRecord.checkIn ||
+                          attendanceRecord.checkInTime
+                        )
+                      const isSunday = getDay(dateObj) === 0
+                      const isPast = isBefore(dateObj, startOfToday())
+                      // Absent if: past date, not Sunday, and no record OR record explicitly not present
+                      const isAbsent = (!isSunday && isPast && !attendanceRecord) || (!!attendanceRecord && !isPresent && !isSunday)
+                      const isToday = dateStr === todayStr
+
                       return (
-                        <th
-                          key={day}
-                          className={`px-2 py-3 text-center text-xs font-bold uppercase tracking-wider border border-gray-200 min-w-[50px] ${
-                            isWeekend ? 'bg-yellow-50' : 'bg-blue-50'
-                          }`}
+                        <div
+                          key={i}
+                          className={`relative group h-14 sm:h-16 rounded-lg border px-2 py-1 flex flex-col justify-between transition-colors ${
+                            isPresent
+                              ? 'bg-green-50 border-green-200'
+                              : isAbsent
+                                ? 'bg-red-50 border-red-200'
+                                : isSunday
+                                  ? 'bg-yellow-50 border-yellow-200'
+                                : 'bg-white border-gray-200'
+                          } ${isToday ? 'ring-2 ring-blue-500' : ''}`}
                         >
-                          {day}
-                        </th>
+                          <AttendanceHoverTooltip record={attendanceRecord} />
+                          <div className="text-sm font-semibold text-gray-800">{dayNum}</div>
+                          <div className="flex items-center justify-center pb-1">
+                            {(isPresent || isAbsent || isSunday) ? (
+                              <div className="inline-flex justify-center">
+                                {isPresent && <span className="w-3.5 h-3.5 rounded-full bg-green-600 shadow-sm ring-2 ring-white" />}
+                                {isAbsent && <span className="w-3.5 h-3.5 rounded-full bg-red-600 shadow-sm ring-2 ring-white" />}
+                                {isSunday && !isPresent && !isAbsent && <span className="text-[10px] font-bold text-yellow-700">H</span>}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       )
                     })}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="hover:bg-gray-50">
-                    <td className="px-4 py-3 border border-gray-200 sticky left-0 bg-white z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold">
-                          {userName.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{userName}</div>
-                          <div className="text-xs text-gray-500">{userEmail}</div>
-                        </div>
-                      </div>
-                    </td>
-                    {getDaysInSelectedMonth().map(day => {
-                      const date = new Date(selectedYear, selectedMonth - 1, day)
-                      const dayOfWeek = getDay(date)
-                      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-                      const attendanceRecord = getAttendanceForDay(day)
-                      const isPresent = attendanceRecord && attendanceRecord.status === 'Present'
-                      
-                      return (
-                        <td
-                          key={day}
-                          className={`px-2 py-3 text-center border border-gray-200 ${
-                            isWeekend ? 'bg-yellow-50' : ''
-                          }`}
-                        >
-                          {isPresent ? (
-                            <CheckCircle className="w-5 h-5 text-green-600 mx-auto" />
-                          ) : attendanceRecord ? (
-                            <X className="w-5 h-5 text-red-600 mx-auto" />
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                  </div>
+                )
+              })()}
+
+              <div className="flex items-center gap-4 mt-4 text-sm text-gray-700">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-600" />
+                  Present
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-600" />
+                  Absent
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1259,25 +1666,33 @@ const MyAttendance = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
                   <input
                     type="date"
-                    value={leaveFormData.startDate}
-                    onChange={(e) => setLeaveFormData({ ...leaveFormData, startDate: e.target.value })}
+                    value={leaveFormData.leaveDate}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value
+                      // Check if user has enough balance for this date
+                      if (leaveFormData.leaveTypeId) {
+                        const balance = getLeaveBalance(parseInt(leaveFormData.leaveTypeId))
+                        const requiredDays = leaveFormData.halfDay ? 0.5 : 1
+                        if (balance < requiredDays) {
+                          setValidationError(`Insufficient leave balance. Available: ${balance.toFixed(1)} days, Required: ${requiredDays} days.`)
+                          return
+                        }
+                      }
+                      setLeaveFormData({ ...leaveFormData, leaveDate: selectedDate })
+                      setValidationError('')
+                    }}
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
+                    min={format(new Date(), 'yyyy-MM-dd')}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
-                  <input
-                    type="date"
-                    value={leaveFormData.endDate}
-                    onChange={(e) => setLeaveFormData({ ...leaveFormData, endDate: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                    min={leaveFormData.startDate || undefined}
-                  />
+                  {leaveFormData.leaveTypeId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Available balance: {getLeaveBalance(parseInt(leaveFormData.leaveTypeId)).toFixed(1)} days
+                    </p>
+                  )}
                 </div>
               </div>
               {calculatedDays > 0 && (

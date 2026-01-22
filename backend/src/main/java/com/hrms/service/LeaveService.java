@@ -117,6 +117,42 @@ public class LeaveService {
         return leaveRepository.save(java.util.Objects.requireNonNull(leave));
     }
 
+    public Leave revokeLeave(@NonNull Long id, Long revokedBy) {
+        Leave leave = leaveRepository.findById(java.util.Objects.requireNonNull(id))
+                .orElseThrow(() -> new RuntimeException("Leave not found"));
+
+        // Only allow revoking APPROVED leaves
+        if (!"APPROVED".equals(leave.getStatus())) {
+            throw new RuntimeException("Only approved leaves can be revoked");
+        }
+
+        leave.setStatus("REVOKED");
+        leave.setApprovedBy(revokedBy);
+        leave.setApprovedDate(LocalDate.now());
+
+        // Restore leave balance (subtract from usedDays)
+        if (leave.getLeaveTypeId() != null) {
+            int year = leave.getStartDate().getYear();
+            var balance = leaveBalanceService.getOrCreateLeaveBalance(
+                java.util.Objects.requireNonNull(leave.getEmployeeId()), 
+                java.util.Objects.requireNonNull(leave.getLeaveTypeId()), 
+                year);
+            
+            double newUsedDays = balance.getUsedDays() - leave.getTotalDays();
+            // Ensure usedDays doesn't go negative
+            if (newUsedDays < 0) {
+                newUsedDays = 0;
+            }
+            leaveBalanceService.updateLeaveBalance(
+                java.util.Objects.requireNonNull(leave.getEmployeeId()), 
+                java.util.Objects.requireNonNull(leave.getLeaveTypeId()), 
+                year, 
+                newUsedDays);
+        }
+
+        return leaveRepository.save(java.util.Objects.requireNonNull(leave));
+    }
+
     public List<Leave> getLeavesByStatus(String status) {
         return leaveRepository.findByStatus(status);
     }

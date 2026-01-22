@@ -120,7 +120,15 @@ const Dashboard = () => {
       loadEmployeeLeaves(empId)
       loadEmployeeWeeklyAttendance(empId) // Load personal weekly attendance like employees
     }
-  }, [employees, isEmployee, isExecutiveView, selectedMonth, isFinance]) // Re-run when employees data is loaded or selectedMonth changes
+
+    // Load HR Admin-specific data (personal attendance for check-in/out)
+    if (isHRAdmin && empId) {
+      loadEmployeeShift(empId)
+      loadTodayAttendance(empId)
+      loadEmployeeLeaves(empId)
+      loadEmployeeWeeklyAttendance(empId) // Load personal weekly attendance like employees
+    }
+  }, [employees, isEmployee, isExecutiveView, selectedMonth, isFinance, isHRAdmin]) // Re-run when employees data is loaded or selectedMonth changes
 
   const loadEmployeeShift = async (empId) => {
     try {
@@ -845,7 +853,19 @@ const Dashboard = () => {
     }
   ] : []
 
-  const stats = isFinance ? financeStats : isManager ? managerStats : isEmployee ? [
+  // HR Admin stats (only personal attendance with check-in/out)
+  const hrAdminStats = isHRAdmin ? [
+    {
+      title: 'My Status Today',
+      value: (todayAttendance?.checkIn || dashboardStats?.presentToday > 0) ? 'Present' : 'Absent',
+      change: (todayAttendance?.checkIn || dashboardStats?.presentToday > 0) ? 'Present' : 'Absent',
+      trend: (todayAttendance?.checkIn || dashboardStats?.presentToday > 0) ? 'up' : 'down',
+      icon: Clock,
+      color: (todayAttendance?.checkIn || dashboardStats?.presentToday > 0) ? 'bg-green-500' : 'bg-red-500'
+    }
+  ] : []
+
+  const stats = isFinance ? financeStats : isManager ? managerStats : isHRAdmin ? hrAdminStats : isEmployee ? [
     {
       title: 'My Status Today',
       value: dashboardStats?.presentToday > 0 ? 'Present' : 'Absent',
@@ -1015,11 +1035,11 @@ const Dashboard = () => {
         .sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate))
         .slice(0, 5))
 
-  // Check if employee or manager can check in
-  const canCheckIn = (isEmployee || isManager) && employeeId && (!todayAttendance || !todayAttendance.checkIn)
+  // Check if employee, manager, or HR Admin can check in
+  const canCheckIn = (isEmployee || isManager || isHRAdmin) && employeeId && (!todayAttendance || !todayAttendance.checkIn)
   
-  // Check if employee or manager can check out
-  const canCheckOut = (isEmployee || isManager) && employeeId && todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
+  // Check if employee, manager, or HR Admin can check out
+  const canCheckOut = (isEmployee || isManager || isHRAdmin) && employeeId && todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
 
   // Executive Dashboard KPIs
   const executiveKPIs = executiveData ? [
@@ -1303,6 +1323,71 @@ const Dashboard = () => {
                 <div className="col-span-5 text-center py-3 text-xs">Loading executive data...</div>
               ) : (
                 <>
+                  {/* HR Admin Check-in/out button - Inline with Headcount */}
+                  {isHRAdmin && stats.length > 0 && stats.map((stat, statIndex) => {
+                    const Icon = stat.icon
+                    const isPresentStatus = stat.title === 'My Status Today'
+                    
+                    return (
+                      <div 
+                        key={`hr-admin-stat-${statIndex}`}
+                        className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-2 border ${
+                          isPresentStatus 
+                            ? (stat.value === 'Present' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white' : 'border-red-300 bg-gradient-to-br from-red-50 to-white')
+                            : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className={`p-1 rounded-lg shadow-sm ${
+                            isPresentStatus 
+                              ? (stat.value === 'Present' ? 'bg-green-500' : 'bg-red-500')
+                              : stat.color
+                          }`}>
+                            <Icon className="w-3 h-3 text-white" />
+                          </div>
+                          {isPresentStatus && stat.value === 'Present' && (
+                            <div className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                              <ArrowUp size={12} />
+                              <span>Present</span>
+                            </div>
+                          )}
+                        </div>
+                        <h3 className={`text-base font-bold mb-0.5 ${
+                          isPresentStatus 
+                            ? (stat.value === 'Present' ? 'text-green-700' : 'text-red-700')
+                            : 'text-gray-800'
+                        }`}>
+                          {stat.value}
+                        </h3>
+                        <p className="text-xs font-semibold text-gray-700 mb-1">{stat.title}</p>
+                        
+                        {/* Check Out Button - Only for Present Status card */}
+                        {isPresentStatus && canCheckOut && (
+                          <button
+                            onClick={handleCheckOut}
+                            disabled={checkOutLoading}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs shadow-sm hover:shadow-md mt-2"
+                          >
+                            <LogOut className="w-3 h-3" />
+                            {checkOutLoading ? 'Checking Out...' : '→ Check Out'}
+                          </button>
+                        )}
+                        
+                        {/* Check In Button - Only for Absent Status card */}
+                        {isPresentStatus && canCheckIn && (
+                          <button
+                            onClick={handleCheckIn}
+                            disabled={checkInLoading}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs shadow-sm hover:shadow-md mt-2"
+                          >
+                            <LogIn className="w-3 h-3" />
+                            {checkInLoading ? 'Checking In...' : '→ Please login for a day'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  
                   {executiveKPIs.map((kpi, index) => {
                     const Icon = kpi.icon
                     return (
@@ -1571,7 +1656,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             {stats.map((stat, index) => {
               const Icon = stat.icon
-              const isPresentStatus = (isEmployee || isManager) && stat.title === 'My Status Today'
+              const isPresentStatus = (isEmployee || isManager || isHRAdmin) && stat.title === 'My Status Today'
               
               return (
                 <div 
@@ -1634,7 +1719,7 @@ const Dashboard = () => {
                       className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs shadow-sm hover:shadow-md mt-2"
                     >
                       <LogIn className="w-3 h-3" />
-                      {checkInLoading ? 'Checking In...' : '→ Check In'}
+                      {checkInLoading ? 'Checking In...' : '→ Please login for a day'}
                     </button>
                   )}
                 </div>
@@ -2190,13 +2275,7 @@ const Dashboard = () => {
                 <Clock className="w-5 h-5 text-indigo-600 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-semibold text-gray-800">Manage Shifts</span>
               </button>
-              <button
-                onClick={() => navigate('/recruitment')}
-                className="flex flex-col items-center justify-center p-3 bg-pink-50 hover:bg-pink-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-pink-200 hover:border-pink-400 group"
-              >
-                <FileText className="w-5 h-5 text-pink-600 mb-1.5 group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-semibold text-gray-800">Recruitment</span>
-              </button>
+              {/* Recruitment removed */}
             </>
           ) : isFinance ? (
             <>

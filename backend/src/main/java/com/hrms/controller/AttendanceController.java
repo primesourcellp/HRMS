@@ -322,14 +322,41 @@ public class AttendanceController {
     }
 
     @PostMapping("/mark")
-    public ResponseEntity<Attendance> markAttendance(@RequestBody Map<String, Object> request) {
-        Long employeeId = Long.valueOf(request.get("employeeId").toString());
-        LocalDate date = LocalDate.parse(request.get("date").toString());
-        String status = request.get("status").toString();
-        String checkIn = request.containsKey("checkIn") ? request.get("checkIn").toString() : null;
-        String checkOut = request.containsKey("checkOut") ? request.get("checkOut").toString() : null;
-        
-        return ResponseEntity.ok(attendanceService.markAttendance(employeeId, date, status, checkIn, checkOut));
+    public ResponseEntity<?> markAttendance(@RequestBody Map<String, Object> request) {
+        try {
+            // Validate required fields
+            if (!request.containsKey("employeeId") || request.get("employeeId") == null) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "employeeId is required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+            }
+            
+            if (!request.containsKey("date") || request.get("date") == null) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "date is required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+            }
+            
+            if (!request.containsKey("status") || request.get("status") == null) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "status is required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+            }
+            
+            Long employeeId = Long.valueOf(request.get("employeeId").toString());
+            LocalDate date = LocalDate.parse(request.get("date").toString());
+            String status = request.get("status").toString();
+            String checkIn = request.containsKey("checkIn") && request.get("checkIn") != null 
+                ? request.get("checkIn").toString() : null;
+            String checkOut = request.containsKey("checkOut") && request.get("checkOut") != null 
+                ? request.get("checkOut").toString() : null;
+            
+            return ResponseEntity.ok(attendanceService.markAttendance(employeeId, date, status, checkIn, checkOut));
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error marking attendance: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
     }
 
     @GetMapping("/employee/{employeeId}/range")
