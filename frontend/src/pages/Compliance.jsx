@@ -497,6 +497,7 @@ const Compliance = () => {
                   <option value="SALARY_STRUCTURE">Salary Structure</option>
                   <option value="LEAVE">Leave</option>
                   <option value="ATTENDANCE">Attendance</option>
+                  <option value="HR_TICKET">HR Tickets</option>
                   <option value="COMPLIANCE">Compliance</option>
                 </select>
               </div>

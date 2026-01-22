@@ -1026,28 +1026,28 @@ const Shifts = () => {
         {(successMessage || error) && (
           <div className="fixed top-4 right-4 z-50 space-y-3">
             {successMessage && (
-              <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-4 py-3 shadow-lg min-w-[280px] max-w-[420px]">
-                <CheckCircle size={20} className="mt-0.5 text-green-600 shrink-0" />
-                <div className="flex-1 text-base font-semibold">{successMessage}</div>
+              <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+                <CheckCircle size={24} className="mt-0.5 text-green-600 shrink-0" />
+                <div className="flex-1 text-lg font-semibold">{successMessage}</div>
                 <button
                   onClick={() => setSuccessMessage(null)}
                   className="text-green-700/70 hover:text-green-800"
                   aria-label="Close success message"
                 >
-                  <X size={16} />
+                  <X size={18} />
                 </button>
               </div>
             )}
             {error && (
-              <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-4 py-3 shadow-lg min-w-[280px] max-w-[420px]">
-                <XCircle size={18} className="mt-0.5 text-red-600 shrink-0" />
-                <div className="flex-1 text-base font-semibold">{error}</div>
+              <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+                <XCircle size={24} className="mt-0.5 text-red-600 shrink-0" />
+                <div className="flex-1 text-lg font-semibold">{error}</div>
                 <button
                   onClick={() => setError(null)}
                   className="text-red-700/70 hover:text-red-800"
                   aria-label="Close error message"
                 >
-                  <X size={16} />
+                  <X size={18} />
                 </button>
               </div>
             )}
@@ -1372,28 +1372,28 @@ const Shifts = () => {
       {(successMessage || error) && (
         <div className="fixed top-4 right-4 z-50 space-y-3">
           {successMessage && (
-            <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-4 py-3 shadow-lg min-w-[280px] max-w-[420px]">
-              <CheckCircle size={18} className="mt-0.5 text-green-600 shrink-0" />
-              <div className="flex-1 text-sm font-medium">{successMessage}</div>
+            <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+              <CheckCircle size={24} className="mt-0.5 text-green-600 shrink-0" />
+              <div className="flex-1 text-lg font-semibold">{successMessage}</div>
               <button
                 onClick={() => setSuccessMessage(null)}
                 className="text-green-700/70 hover:text-green-800"
                 aria-label="Close success message"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
           )}
           {error && (
-            <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-4 py-3 shadow-lg min-w-[280px] max-w-[420px]">
-              <XCircle size={18} className="mt-0.5 text-red-600 shrink-0" />
-              <div className="flex-1 text-sm font-medium">{error}</div>
+            <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+              <XCircle size={24} className="mt-0.5 text-red-600 shrink-0" />
+              <div className="flex-1 text-lg font-semibold">{error}</div>
               <button
                 onClick={() => setError(null)}
                 className="text-red-700/70 hover:text-red-800"
                 aria-label="Close error message"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
           )}

@@ -18,7 +18,8 @@ import {
   Building2,
   Receipt,
   UserCheck,
-  FileCheck
+  FileCheck,
+  Briefcase
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getUserRole, hasPermission, ROLES } from '../utils/roles'
