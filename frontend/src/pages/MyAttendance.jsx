@@ -22,7 +22,16 @@ const MyAttendance = () => {
   const [calendarSummary, setCalendarSummary] = useState({ workedDays: 0, leaveDays: 0, totalWorkingHours: 0 })
   
   // View toggle: 'attendance' or 'myLeaves' (for HR_ADMIN)
-  const [activeView, setActiveView] = useState('attendance')
+  // Initialize from URL parameter to persist on refresh
+  const getInitialActiveView = () => {
+    const urlParams = new URLSearchParams(location.search)
+    const viewParam = urlParams.get('view')
+    if (viewParam === 'leaves' || viewParam === 'myLeaves') {
+      return 'myLeaves'
+    }
+    return 'attendance'
+  }
+  const [activeView, setActiveView] = useState(getInitialActiveView())
   
   // Leave application modal state
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -50,19 +59,43 @@ const MyAttendance = () => {
   const isHrAdmin = userRole === 'HR_ADMIN'
   const currentUserId = localStorage.getItem('userId')
 
+  // Sync activeView with URL parameter on mount and URL changes
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search)
+    const viewParam = urlParams.get('view')
+    if (viewParam === 'leaves' || viewParam === 'myLeaves') {
+      if (activeView !== 'myLeaves') {
+        setActiveView('myLeaves')
+      }
+    } else if (viewParam === null && activeView === 'myLeaves') {
+      // If no view param but we're on myLeaves, sync to attendance
+      setActiveView('attendance')
+    }
+  }, [location.search])
+
   useEffect(() => {
     const allowedRoles = ['HR_ADMIN', 'FINANCE']
     if (!allowedRoles.includes(userRole) || !employeeId) {
       setError('Access denied. This page is only for HR Administrators and Finance users.')
       return
     }
-    loadTodayAttendance()
-    if (viewType === 'calendar') {
-      loadCalendarData()
+    
+    // Load data based on activeView
+    if (activeView === 'myLeaves') {
+      // Load leave data when on myLeaves view
+      loadLeaveData()
+      loadMyLeaves()
     } else {
-      loadMyAttendance()
+      // Load attendance data when on attendance view
+      loadTodayAttendance()
+      if (viewType === 'calendar') {
+        loadCalendarData()
+      } else {
+        loadMyAttendance()
+      }
     }
-  }, [employeeId, selectedDate, viewType])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, selectedDate, viewType, activeView])
 
   useEffect(() => {
     if (viewType === 'calendar') {
@@ -621,6 +654,8 @@ const MyAttendance = () => {
   const handleApplyLeave = async () => {
     try {
       setActiveView('myLeaves')
+      // Update URL to persist view on refresh
+      navigate('/my-attendance?view=leaves', { replace: true })
       // Load data in parallel for better performance
       await Promise.all([
         loadLeaveData(),
@@ -674,6 +709,8 @@ const MyAttendance = () => {
       try {
         setOpeningLeaveFromNotification(true)
         setActiveView('myLeaves')
+        // Update URL to include view parameter
+        navigate('/my-attendance?view=leaves&leaveId=' + leaveId, { replace: true })
         const [, leavesList] = await Promise.all([loadLeaveData(), loadMyLeaves()])
 
         const found = (Array.isArray(leavesList) ? leavesList : []).find(l => l?.id === parseInt(leaveId))
@@ -687,7 +724,8 @@ const MyAttendance = () => {
         }
         sessionStorage.removeItem('viewMyLeaveId')
         if (leaveIdFromUrl) {
-          navigate(location.pathname, { replace: true })
+          // Keep view parameter when removing leaveId
+          navigate('/my-attendance?view=leaves', { replace: true })
         }
       } catch (e) {
         console.error('Failed to auto-open my leave details:', e)
@@ -717,7 +755,10 @@ const MyAttendance = () => {
         <div className="flex items-center gap-2">
           {activeView === 'myLeaves' && (
             <button
-              onClick={() => setActiveView('attendance')}
+              onClick={() => {
+                setActiveView('attendance')
+                navigate('/my-attendance', { replace: true })
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium text-sm"
             >
               <X className="w-4 h-4" />
@@ -909,7 +950,8 @@ const MyAttendance = () => {
                   setSelectedMyLeave(null)
                   if (detailsOnlyMode) {
                     setDetailsOnlyMode(false)
-                    setActiveView('attendance')
+                    setActiveView('myLeaves')
+                    navigate('/my-attendance?view=leaves', { replace: true })
                   }
                 }}
                 className="text-gray-500 hover:text-gray-700"
@@ -997,7 +1039,8 @@ const MyAttendance = () => {
                   setSelectedMyLeave(null)
                   if (detailsOnlyMode) {
                     setDetailsOnlyMode(false)
-                    setActiveView('attendance')
+                    setActiveView('myLeaves')
+                    navigate('/my-attendance?view=leaves', { replace: true })
                   }
                 }}
                 className="px-6 py-3 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-colors font-semibold"

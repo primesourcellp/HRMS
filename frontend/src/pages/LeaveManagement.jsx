@@ -789,6 +789,41 @@ const LeaveManagement = () => {
     }
   }
 
+  // Helper function to check if leave has finished (end date is in the past, not including today)
+  const isLeaveFinished = (leave) => {
+    if (!leave || !leave.endDate) return false
+    try {
+      const endDate = parseISO(leave.endDate)
+      const today = startOfToday()
+      // Leave is finished if end date is before today (not including today)
+      return isBefore(endDate, today)
+    } catch (error) {
+      console.error('Error parsing leave end date:', error)
+      return false
+    }
+  }
+
+  const handleRevoke = async (leaveId) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to revoke this approved leave? The leave balance will be restored and the employee will need to apply for leave on other days.'
+    )
+    if (!confirmed) return
+
+    setLoading(true)
+    try {
+      await api.revokeLeave(leaveId, parseInt(currentUserId))
+      await loadData()
+      setShowDetailsModal(false)
+      setDetailsOnlyMode(false)
+      setSelectedLeave(null)
+      alert('Leave revoked successfully. Leave balance has been restored.')
+    } catch (error) {
+      alert('Error revoking leave: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const getEmployeeName = (employeeId) => {
     if (employeeId === null || employeeId === undefined) return 'Unknown'
     
@@ -1679,6 +1714,10 @@ const LeaveManagement = () => {
                          ? 'bg-green-100 text-green-800'
                          : leave.status === 'REJECTED' || leave.status === 'Rejected'
                          ? 'bg-red-100 text-red-800'
+                         : leave.status === 'REVOKED' || leave.status === 'Revoked'
+                         ? 'bg-orange-100 text-orange-800'
+                         : leave.status === 'CANCELLED' || leave.status === 'Cancelled'
+                         ? 'bg-gray-100 text-gray-800'
                          : 'bg-yellow-100 text-yellow-800'
                      }`}>
                        {leave.status}
@@ -1796,17 +1835,18 @@ const LeaveManagement = () => {
                                 </button>
                               </>
                             )}
-                            {(isFinance || (isAdmin || (canApplyLeave && leave.employeeId.toString() === currentUserId))) && leave.status !== 'APPROVED' && (
+                            {/* Revoke option for APPROVED leaves - Only for SUPER_ADMIN and HR_ADMIN, and only if leave hasn't finished */}
+                            {(isSuperAdmin || isHrAdmin) && (leave.status === 'APPROVED' || leave.status === 'Approved') && !isLeaveFinished(leave) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleDeleteLeave(leave.id)
+                                  handleRevoke(leave.id)
                                   setOpenDropdownId(null)
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
                               >
-                                <Trash2 size={16} />
-                                Delete
+                                <XCircle size={16} />
+                                Revoke Leave
                               </button>
                             )}
                           </div>
@@ -2408,6 +2448,7 @@ const LeaveManagement = () => {
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     selectedLeave.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
                     selectedLeave.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                    selectedLeave.status === 'REVOKED' ? 'bg-orange-100 text-orange-800' :
                     selectedLeave.status === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
                     'bg-yellow-100 text-yellow-800'
                   }`}>
@@ -2480,6 +2521,25 @@ const LeaveManagement = () => {
                     </button>
                   </div>
                 </>
+              )}
+
+              {/* Revoke Section - Only show for APPROVED leaves that haven't finished, and SUPER_ADMIN/HR_ADMIN */}
+              {(isSuperAdmin || isHrAdmin) && selectedLeave.status === 'APPROVED' && !isLeaveFinished(selectedLeave) && (
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-orange-800 font-medium">
+                      <AlertCircle size={16} className="inline mr-2" />
+                      Revoking this leave will restore the leave balance. The employee will need to apply for leave on other days.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRevoke(selectedLeave.id)}
+                    disabled={loading}
+                    className="w-full bg-orange-600 text-white px-6 py-3 rounded-xl hover:bg-orange-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                  >
+                    {loading ? 'Revoking...' : 'Revoke Leave'}
+                  </button>
+                </div>
               )}
             </div>
             <div className="mt-6 flex justify-end">

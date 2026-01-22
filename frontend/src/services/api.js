@@ -886,6 +886,11 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ approvedBy, rejectionReason })
   }).then(res => res.json()),
+  revokeLeave: (id, revokedBy) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/revoke`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revokedBy })
+  }).then(res => res.json()),
   updateLeaveStatus: (id, status) => fetchWithAuth(`${API_BASE_URL}/leaves/${id}/status`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

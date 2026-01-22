@@ -26,6 +26,7 @@ const Attendance = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [selectedRecord, setSelectedRecord] = useState(null)
   const [markFormData, setMarkFormData] = useState({
+    date: format(new Date(), 'yyyy-MM-dd'),
     status: 'Present',
     checkIn: '',
     checkOut: ''
@@ -163,7 +164,9 @@ const Attendance = () => {
     if (viewType === 'calendar' && canViewCalendar) {
       loadCalendarData()
     }
-  }, [selectedMonth, selectedYear, employeeNameFilter, viewType, teamMemberIds])
+    // Note: employeeNameFilter is intentionally excluded from dependencies
+    // to avoid reloading data on every keystroke. Filtering happens client-side in filteredEmployees.
+  }, [selectedMonth, selectedYear, viewType, teamMemberIds])
 
   const loadData = async (isEmp = null, empId = null) => {
     try {
@@ -608,13 +611,8 @@ const Attendance = () => {
           })
         }
         
-        // Filter by employee name if provided
-        if (employeeNameFilter) {
-          filteredEmpData = filteredEmpData.filter(emp => 
-            (emp.name || '').toLowerCase().includes(employeeNameFilter.toLowerCase())
-          )
-        }
-        
+        // Don't filter by employeeNameFilter here - let filteredEmployees handle it
+        // This allows filtering by name, email, and department in the UI
         setEmployees(filteredEmpData)
         // Filter attendance to exclude HR_ADMIN's own attendance
         const filteredAttData = Array.isArray(attData) ? attData.filter(att => {
@@ -748,6 +746,11 @@ const Attendance = () => {
       setTimeout(() => setError(null), 5000)
       return
     }
+    if (!markFormData.date) {
+      setError('Please select a date')
+      setTimeout(() => setError(null), 5000)
+      return
+    }
     if (!markFormData.status) {
       setError('Please select a status')
       setTimeout(() => setError(null), 5000)
@@ -758,18 +761,27 @@ const Attendance = () => {
     setError(null)
     try {
       const isAbsent = String(markFormData.status).toLowerCase() === 'absent'
+      const isPresent = String(markFormData.status).toLowerCase() === 'present'
+      
+      // For Present status, use current time if checkIn is not provided
+      let checkInTime = markFormData.checkIn
+      if (isPresent && !checkInTime) {
+        checkInTime = getCurrentTime()
+      }
+      
       const markData = {
-        employeeId: selectedEmployee.id,
-        date: selectedDate,
+        employeeId: selectedEmployee.id || selectedEmployee.employeeId,
+        date: markFormData.date || selectedDate,
         status: markFormData.status,
         // If Absent, clear time fields completely
-        checkIn: isAbsent ? null : (markFormData.checkIn || null),
+        // If Present, use provided time or current time
+        checkIn: isAbsent ? null : (checkInTime || null),
         checkOut: isAbsent ? null : (markFormData.checkOut || null)
       }
       await api.markAttendance(markData)
       await loadData()
       setShowMarkModal(false)
-      setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+      setMarkFormData({ date: format(new Date(), 'yyyy-MM-dd'), status: 'Present', checkIn: '', checkOut: '' })
       setSelectedEmployee(null)
       setSuccessMessage('Attendance marked successfully')
       setTimeout(() => setSuccessMessage(null), 3000)
@@ -792,18 +804,27 @@ const Attendance = () => {
     setError(null)
     try {
       const isAbsent = String(markFormData.status).toLowerCase() === 'absent'
+      const isPresent = String(markFormData.status).toLowerCase() === 'present'
+      
+      // For Present status, use current time if checkIn is not provided
+      let checkInTime = markFormData.checkIn
+      if (isPresent && !checkInTime) {
+        checkInTime = getCurrentTime()
+      }
+      
       const markData = {
         employeeId: selectedRecord.employeeId,
         date: selectedRecord.date,
         status: markFormData.status,
         // If Absent, clear time fields completely
-        checkIn: isAbsent ? null : (markFormData.checkIn || null),
+        // If Present, use provided time or current time
+        checkIn: isAbsent ? null : (checkInTime || null),
         checkOut: isAbsent ? null : (markFormData.checkOut || null)
       }
       await api.markAttendance(markData)
       await loadData()
       setShowEditModal(false)
-      setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+      setMarkFormData({ date: format(new Date(), 'yyyy-MM-dd'), status: 'Present', checkIn: '', checkOut: '' })
       setSelectedRecord(null)
       setSuccessMessage('Attendance updated successfully')
       setTimeout(() => setSuccessMessage(null), 3000)
@@ -815,15 +836,38 @@ const Attendance = () => {
     }
   }
 
-  // If user sets status to Absent in the edit modal, clear entered time fields immediately
+  // Helper function to get current time in HH:MM format
+  const getCurrentTime = () => {
+    const now = new Date()
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
+  // Auto-populate time when status changes to Present, clear when Absent
   useEffect(() => {
-    if (!showEditModal) return
     const isAbsent = String(markFormData.status).toLowerCase() === 'absent'
-    if (isAbsent && (markFormData.checkIn || markFormData.checkOut)) {
+    const isPresent = String(markFormData.status).toLowerCase() === 'present'
+    
+    if (isAbsent) {
+      // Clear time fields for Absent
       setMarkFormData(prev => ({ ...prev, checkIn: '', checkOut: '' }))
+    } else if (isPresent && !markFormData.checkIn) {
+      // Auto-populate current time for Present if checkIn is empty
+      const currentTime = getCurrentTime()
+      setMarkFormData(prev => ({ ...prev, checkIn: currentTime }))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showEditModal, markFormData.status])
+  }, [markFormData.status])
+
+  // Auto-populate time when modal opens with Present status
+  useEffect(() => {
+    if ((showMarkModal || showEditModal) && markFormData.status === 'Present' && !markFormData.checkIn) {
+      const currentTime = getCurrentTime()
+      setMarkFormData(prev => ({ ...prev, checkIn: currentTime }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMarkModal, showEditModal])
 
   const handleExportAttendance = () => {
     try {
@@ -869,7 +913,21 @@ const Attendance = () => {
   }
 
   const filteredEmployees = employees.filter(emp => {
+    // Apply search filter FIRST - this is the most important filter for user experience
+    // For calendar view, use employeeNameFilter; for other views, use searchTerm
+    const searchFilter = viewType === 'calendar' ? employeeNameFilter : searchTerm
+    const searchLower = (searchFilter || '').toLowerCase().trim()
+    const matchesSearch = searchLower === '' || 
+      ((emp.name || '').toLowerCase().includes(searchLower) ||
+       (emp.email || '').toLowerCase().includes(searchLower) ||
+       (emp.department || '').toLowerCase().includes(searchLower))
+    
+    // If search doesn't match, exclude immediately
+    if (!matchesSearch) return false
+    
     // Special handling for HR_ADMIN: show MANAGER, FINANCE, and EMPLOYEE from assigned teams
+    // Note: This is mostly redundant since employees are already filtered in loadData,
+    // but keeping it as a safety check
     if (isHrAdmin && employeeId) {
       const empId = emp.id || emp.employeeId
       const role = (emp.role || emp.designation || '').toUpperCase()
@@ -886,10 +944,11 @@ const Attendance = () => {
       // Only show employees from assigned teams
       if (teamMemberIds.length > 0) {
         const employeeIdNum = empId ? parseInt(empId) : null
-        return employeeIdNum && teamMemberIds.includes(employeeIdNum)
+        if (!employeeIdNum || !teamMemberIds.includes(employeeIdNum)) return false
+      } else {
+        // If no teams assigned, show nothing
+        return false
       }
-      // If no teams assigned, show nothing
-      return false
     }
     // If logged in as other employee roles (EMPLOYEE, MANAGER, FINANCE), ONLY show their own record - strict filtering
     else if ((isEmployee || isEmployeeRole) && !isHrAdmin && employeeId) {
@@ -916,17 +975,28 @@ const Attendance = () => {
       if (role === 'SUPER_ADMIN') return false
     }
     
-    const matchesSearch = searchTerm === '' || 
-      (emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       emp.department?.toLowerCase().includes(searchTerm.toLowerCase()))
+    // For status filter, check attendance records in allAttendance for weekly/monthly views
+    // For daily view, use getAttendanceStatus which checks selectedDate
+    let record = null
+    if (viewType === 'daily') {
+      record = getAttendanceStatus(emp.id)
+    } else if (viewType === 'weekly' || viewType === 'monthly') {
+      // For weekly/monthly, find any attendance record for this employee
+      const empId = emp.id || emp.employeeId
+      record = allAttendance.find(a => {
+        const attEmpId = a.employeeId
+        return attEmpId === empId || 
+               parseInt(attEmpId) === parseInt(empId) ||
+               attEmpId === empId?.toString() ||
+               parseInt(attEmpId) === parseInt(empId)
+      })
+    }
     
-    const record = getAttendanceStatus(emp.id)
     const matchesStatus = statusFilter === 'All' || 
-      (statusFilter === 'Present' && record?.status === 'Present') ||
+      (statusFilter === 'Present' && record && (record.status === 'Present' || record.checkIn || record.checkInTime)) ||
       (statusFilter === 'Absent' && (!record || record.status === 'Absent'))
     
-    return matchesSearch && matchesStatus
+    return matchesStatus
   })
 
   return (
@@ -1133,8 +1203,14 @@ const Attendance = () => {
         <input
           type="text"
           placeholder="Search employees..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          value={viewType === 'calendar' ? employeeNameFilter : searchTerm}
+          onChange={(e) => {
+            if (viewType === 'calendar') {
+              setEmployeeNameFilter(e.target.value)
+            } else {
+              setSearchTerm(e.target.value)
+            }
+          }}
           className="flex-1 min-w-[220px] px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
 
@@ -1162,7 +1238,7 @@ const Attendance = () => {
               }
             }
             setSelectedEmployee(null)
-            setMarkFormData({ status: 'Present', checkIn: '', checkOut: '' })
+            setMarkFormData({ date: selectedDate, status: 'Present', checkIn: '', checkOut: '' })
             setShowMarkModal(true)
           }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 whitespace-nowrap"
@@ -1191,7 +1267,8 @@ const Attendance = () => {
         <div className="bg-white rounded-xl shadow-md p-4 md:p-6 mb-4 md:mb-6">
           {/* Calendar Filters */}
           <div className="mb-6 flex flex-wrap items-center gap-4">
-            {!isEmployee && (
+            {/* Employee name filter is now in the top search bar, so hide this duplicate */}
+            {/* {!isEmployee && (
               <input
                 type="text"
                 placeholder="Employee Name"
@@ -1199,7 +1276,7 @@ const Attendance = () => {
                 onChange={(e) => setEmployeeNameFilter(e.target.value)}
                 className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-            )}
+            )} */}
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
@@ -1299,7 +1376,8 @@ const Attendance = () => {
                             )
                           const isSunday = getDay(dateObj) === 0
                           const isPast = isBefore(dateObj, startOfToday())
-                          const isAbsent = (!isSunday && isPast && !record) || (!!record && !isPresent && !isSunday)
+                          // If no record for a past working day (Mon-Sat), treat as Absent. Sunday stays Holiday.
+                          const isAbsent = isExplicitAbsent || (!isSunday && isPast && !record)
                           const isToday = dateStr === todayStr
 
                           return (
@@ -1415,7 +1493,13 @@ const Attendance = () => {
                                 const dayOfWeek = getDay(date)
                                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
                                 const attendanceRecord = getAttendanceForDay(employee.id || employee.employeeId, day)
-                                const isPresent = attendanceRecord && attendanceRecord.status === 'Present'
+                                const statusLower = (attendanceRecord?.status || '').toString().toLowerCase()
+                                const isExplicitAbsent = statusLower === 'absent'
+                                const isPresent = attendanceRecord && (
+                                  statusLower === 'present' || 
+                                  attendanceRecord.checkIn || 
+                                  attendanceRecord.checkInTime
+                                ) && !isExplicitAbsent
                                 const cellDateObj = new Date(selectedYear, selectedMonth - 1, day)
                                 const isPast = isBefore(cellDateObj, startOfToday())
                                 // If no record for a past working day (Mon-Sat), treat as Absent. Sunday stays Holiday.
@@ -1434,6 +1518,7 @@ const Attendance = () => {
                                         : { employeeId: (employee.id || employee.employeeId), date: dayStr }
                                       setSelectedRecord(recordToEdit)
                                       setMarkFormData({
+                                        date: dayStr,
                                         status: attendanceRecord?.status || 'Present',
                                         checkIn: attendanceRecord?.checkIn || '',
                                         checkOut: attendanceRecord?.checkOut || ''
@@ -1448,9 +1533,7 @@ const Attendance = () => {
                                       <div className="inline-flex justify-center">
                                         <CheckCircle className="w-5 h-5 text-green-600 mx-auto" />
                                       </div>
-                                    ) : attendanceRecord ? (
-                                      <X className="w-5 h-5 text-red-600 mx-auto" />
-                                    ) : isAutoAbsent ? (
+                                    ) : isExplicitAbsent || isAutoAbsent ? (
                                       <X className="w-5 h-5 text-red-600 mx-auto" />
                                     ) : (
                                       <span className="text-gray-300">-</span>
@@ -1619,8 +1702,18 @@ const Attendance = () => {
                         {days.map((day, idx) => {
                           const dayStr = format(day, 'yyyy-MM-dd')
                           const dayRecord = empId ? getAttendanceStatus(empId, dayStr) : null
-                          const isPresent = dayRecord?.status === 'Present'
+                          const statusLower = (dayRecord?.status || '').toString().toLowerCase()
+                          const isExplicitAbsent = statusLower === 'absent'
+                          const isPresent = dayRecord && (
+                            statusLower === 'present' || 
+                            dayRecord.checkIn || 
+                            dayRecord.checkInTime
+                          ) && !isExplicitAbsent
                           const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                          const isPast = isBefore(day, startOfToday())
+                          const dayOfWeek = getDay(day)
+                          // If no record for a past working day (Mon-Sat), treat as Absent. Sunday stays Holiday.
+                          const isAutoAbsent = !dayRecord && isPast && dayOfWeek !== 0
                           
                           return (
                             <td 
@@ -1631,6 +1724,7 @@ const Attendance = () => {
                                 const recordToEdit = dayRecord ? { ...dayRecord, date: dayStr } : { employeeId: empId, date: dayStr }
                                 setSelectedRecord(recordToEdit)
                                 setMarkFormData({
+                                  date: dayStr,
                                   status: dayRecord?.status || 'Present',
                                   checkIn: dayRecord?.checkIn || '',
                                   checkOut: dayRecord?.checkOut || ''
@@ -1642,21 +1736,19 @@ const Attendance = () => {
                             >
                               {/* Hover tooltip (like monthly) */}
                               <AttendanceHoverTooltip record={dayRecord} />
-                              {dayRecord ? (
+                              {isPresent ? (
                                 <div className="flex flex-col items-center gap-1">
-                                  {isPresent ? (
-                                    <div className="inline-flex">
-                                      <CheckCircle className="w-5 h-5 text-green-600" />
-                                    </div>
-                                  ) : (
-                                    <X className="w-5 h-5 text-red-600" />
-                                  )}
+                                  <div className="inline-flex">
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                  </div>
                                   {dayRecord.workingHours && (
                                     <span className="text-xs font-semibold text-gray-700">
                                       {parseFloat(dayRecord.workingHours).toFixed(1)}h
                                     </span>
                                   )}
                                 </div>
+                              ) : isExplicitAbsent || isAutoAbsent ? (
+                                <X className="w-5 h-5 text-red-600" />
                               ) : (
                                 <span className={`text-gray-400 ${isToday ? 'font-semibold' : ''}`}>-</span>
                               )}
@@ -1704,6 +1796,12 @@ const Attendance = () => {
                   
                   // Daily view
                   const record = getAttendanceStatus(empId)
+                  const selectedDateObj = new Date(selectedDate)
+                  const dayOfWeek = getDay(selectedDateObj)
+                  const isPast = isBefore(selectedDateObj, startOfToday())
+                  const isSunday = dayOfWeek === 0
+                  // If no record for a past working day (Mon-Sat), treat as Absent. Sunday stays Holiday.
+                  const isAutoAbsent = !record && isPast && !isSunday
                   return (
                     <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
                       {!hideEmployeeColumnDaily && (
@@ -1760,9 +1858,11 @@ const Attendance = () => {
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                           record?.status === 'Present' 
                             ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
+                            : record?.status === 'Absent' || isAutoAbsent
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {record?.status || 'Absent'}
+                          {record?.status || (isAutoAbsent ? 'Absent' : '-')}
                         </span>
                       </td>
                       {(isAdmin || isHrAdmin) && (
@@ -1771,6 +1871,7 @@ const Attendance = () => {
                             onClick={() => {
                               setSelectedRecord(record || { employeeId: employee.id, date: selectedDate })
                               setMarkFormData({
+                                date: selectedDate,
                                 status: record?.status || 'Present',
                                 checkIn: record?.checkIn || '',
                                 checkOut: record?.checkOut || ''
@@ -1809,6 +1910,16 @@ const Attendance = () => {
             </div>
             <form onSubmit={handleMarkAttendance}>
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
+                  <input
+                    type="date"
+                    value={markFormData.date || selectedDate}
+                    onChange={(e) => setMarkFormData({ ...markFormData, date: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
                   <select
@@ -1859,32 +1970,91 @@ const Attendance = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
                   <select
                     value={markFormData.status}
-                    onChange={(e) => setMarkFormData({ ...markFormData, status: e.target.value })}
+                    onChange={(e) => {
+                      const newStatus = e.target.value
+                      const isPresent = newStatus.toLowerCase() === 'present'
+                      const isAbsent = newStatus.toLowerCase() === 'absent'
+                      
+                      if (isPresent) {
+                        // Auto-populate current time when Present is selected
+                        const currentTime = getCurrentTime()
+                        setMarkFormData({ 
+                          status: newStatus, 
+                          checkIn: currentTime,
+                          checkOut: ''
+                        })
+                      } else if (isAbsent) {
+                        // Clear times when Absent is selected
+                        setMarkFormData({ 
+                          status: newStatus, 
+                          checkIn: '', 
+                          checkOut: '' 
+                        })
+                      } else {
+                        setMarkFormData({ ...markFormData, status: newStatus })
+                      }
+                    }}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   >
                     <option value="Present">Present</option>
                     <option value="Absent">Absent</option>
                   </select>
+                  {markFormData.status === 'Present' && (
+                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                      <Clock size={12} />
+                      Current time auto-captured as check-in time
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Check In (HH:MM)</label>
-                  <input
-                    type="time"
-                    value={markFormData.checkIn}
-                    onChange={(e) => setMarkFormData({ ...markFormData, checkIn: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Check Out (HH:MM)</label>
-                  <input
-                    type="time"
-                    value={markFormData.checkOut}
-                    onChange={(e) => setMarkFormData({ ...markFormData, checkOut: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+                {markFormData.status === 'Present' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Check In (HH:MM) <span className="text-xs text-gray-500 font-normal">(Auto-filled)</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={markFormData.checkIn}
+                        onChange={(e) => setMarkFormData({ ...markFormData, checkIn: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentTime = getCurrentTime()
+                          setMarkFormData({ ...markFormData, checkIn: currentTime })
+                        }}
+                        className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                      >
+                        <Clock size={12} />
+                        Use Current Time
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Check Out (HH:MM) <span className="text-xs text-gray-500 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={markFormData.checkOut}
+                        onChange={(e) => setMarkFormData({ ...markFormData, checkOut: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentTime = getCurrentTime()
+                          setMarkFormData({ ...markFormData, checkOut: currentTime })
+                        }}
+                        className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                      >
+                        <Clock size={12} />
+                        Use Current Time
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="mt-6 flex gap-3">
                 <button
@@ -1977,32 +2147,91 @@ const Attendance = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
                   <select
                     value={markFormData.status}
-                    onChange={(e) => setMarkFormData({ ...markFormData, status: e.target.value })}
+                    onChange={(e) => {
+                      const newStatus = e.target.value
+                      const isPresent = newStatus.toLowerCase() === 'present'
+                      const isAbsent = newStatus.toLowerCase() === 'absent'
+                      
+                      if (isPresent) {
+                        // Auto-populate current time when Present is selected (only if checkIn is empty)
+                        const currentTime = getCurrentTime()
+                        setMarkFormData({ 
+                          status: newStatus, 
+                          checkIn: markFormData.checkIn || currentTime,
+                          checkOut: markFormData.checkOut || ''
+                        })
+                      } else if (isAbsent) {
+                        // Clear times when Absent is selected
+                        setMarkFormData({ 
+                          status: newStatus, 
+                          checkIn: '', 
+                          checkOut: '' 
+                        })
+                      } else {
+                        setMarkFormData({ ...markFormData, status: newStatus })
+                      }
+                    }}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   >
                     <option value="Present">Present</option>
                     <option value="Absent">Absent</option>
                   </select>
+                  {markFormData.status === 'Present' && (
+                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                      <Clock size={12} />
+                      Current time auto-captured as check-in time
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Check In (HH:MM)</label>
-                  <input
-                    type="time"
-                    value={markFormData.checkIn}
-                    onChange={(e) => setMarkFormData({ ...markFormData, checkIn: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Check Out (HH:MM)</label>
-                  <input
-                    type="time"
-                    value={markFormData.checkOut}
-                    onChange={(e) => setMarkFormData({ ...markFormData, checkOut: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+                {markFormData.status === 'Present' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Check In (HH:MM) <span className="text-xs text-gray-500 font-normal">(Auto-filled)</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={markFormData.checkIn}
+                        onChange={(e) => setMarkFormData({ ...markFormData, checkIn: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentTime = getCurrentTime()
+                          setMarkFormData({ ...markFormData, checkIn: currentTime })
+                        }}
+                        className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                      >
+                        <Clock size={12} />
+                        Use Current Time
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Check Out (HH:MM) <span className="text-xs text-gray-500 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={markFormData.checkOut}
+                        onChange={(e) => setMarkFormData({ ...markFormData, checkOut: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentTime = getCurrentTime()
+                          setMarkFormData({ ...markFormData, checkOut: currentTime })
+                        }}
+                        className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                      >
+                        <Clock size={12} />
+                        Use Current Time
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="mt-6 flex gap-3">
                 <button
