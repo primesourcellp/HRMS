@@ -30,6 +30,7 @@ const Payroll = () => {
   const [showBulkProcessModal, setShowBulkProcessModal] = useState(false)
   const [showIndividualProcessModal, setShowIndividualProcessModal] = useState(false)
   const [processingIndividual, setProcessingIndividual] = useState(false)
+  const [individualProcessError, setIndividualProcessError] = useState(null)
   const [individualProcessData, setIndividualProcessData] = useState({
     employeeId: '',
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -62,6 +63,7 @@ const Payroll = () => {
   const [showBulkAnnualCtcModal, setShowBulkAnnualCtcModal] = useState(false)
   const [processingIndividualAnnualCtc, setProcessingIndividualAnnualCtc] = useState(false)
   const [processingBulkAnnualCtc, setProcessingBulkAnnualCtc] = useState(false)
+  const [individualAnnualCtcError, setIndividualAnnualCtcError] = useState(null)
   const [individualAnnualCtcData, setIndividualAnnualCtcData] = useState({
     employeeId: '',
     year: ''
@@ -148,10 +150,13 @@ const Payroll = () => {
   const userId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
   const isManager = userRole === 'MANAGER'
+  const isFinance = userRole === 'FINANCE'
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'FINANCE'
   const isSuperAdmin = userRole === 'SUPER_ADMIN'
   const isHRAdmin = userRole === 'HR_ADMIN'
   const canAccessCTCTemplates = isSuperAdmin || isHRAdmin
+  const canApprovePayroll = userRole === 'ADMIN' || userRole === 'HR_ADMIN' || isSuperAdmin
+  const canSubmitPayrollForApproval = isFinance
   // Check if employee: userType === 'employee' OR userRole === 'EMPLOYEE' OR not admin
   const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && !isManager && userType !== 'admin')
 
@@ -754,6 +759,10 @@ const Payroll = () => {
   }
 
   const handleSubmitForApproval = async (payrollId) => {
+    if (!canSubmitPayrollForApproval) {
+      alert('Only Finance can submit payrolls for approval.')
+      return
+    }
     if (window.confirm('Submit this payroll for approval?')) {
       try {
         const result = await api.submitPayrollForApproval(payrollId)
@@ -769,7 +778,38 @@ const Payroll = () => {
     }
   }
 
+  // SUPER_ADMIN: approve directly from DRAFT by submitting then approving
+  const handleApproveFromDraft = async (payrollId) => {
+    if (!isSuperAdmin) return
+    if (!window.confirm('Approve this payroll directly? (This will submit and approve in one step)')) return
+
+    try {
+      setLoading(true)
+
+      const submitResult = await api.submitPayrollForApproval(payrollId)
+      if (!submitResult?.success) {
+        throw new Error(submitResult?.message || 'Failed to submit payroll for approval')
+      }
+
+      const approveResult = await api.approvePayroll(payrollId)
+      if (!approveResult?.success) {
+        throw new Error(approveResult?.message || 'Failed to approve payroll')
+      }
+
+      showSuccessMessage('Payroll approved successfully')
+      await loadData()
+    } catch (error) {
+      alert('Error approving payroll: ' + (error.message || 'Failed to approve payroll'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleApprovePayroll = async (payrollId) => {
+    if (!canApprovePayroll) {
+      alert('Only Admin / HR Admin / Super Admin can approve payrolls.')
+      return
+    }
     if (window.confirm('Approve this payroll?')) {
       try {
         const result = await api.approvePayroll(payrollId)
@@ -866,22 +906,63 @@ const Payroll = () => {
       return
     }
     
+    if (!individualProcessData.startDate || !individualProcessData.endDate) {
+      alert('Please select both start and end dates')
+      return
+    }
+    
     const employee = employees.find(e => e.id === parseInt(individualProcessData.employeeId))
     const employeeName = employee?.name || `Employee ID: ${individualProcessData.employeeId}`
+    
+    // Extract month from start date (format: yyyy-MM)
+    const startDateObj = new Date(individualProcessData.startDate + 'T00:00:00')
+    const processedMonth = format(startDateObj, 'yyyy-MM')
+    const employeeId = parseInt(individualProcessData.employeeId)
+    
+    // Check if payroll already exists for this employee and month
+    const existingPayroll = payrolls.find(p => {
+      const pEmployeeId = typeof p.employeeId === 'string' ? parseInt(p.employeeId) : p.employeeId
+      const pMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
+      
+      // Match by employee ID and month
+      if (pEmployeeId === employeeId) {
+        // Check if month matches (format: yyyy-MM)
+        if (pMonth === processedMonth) {
+          return true
+        }
+        // Also check if payroll has startDate that falls in the same month
+        if (p.startDate) {
+          const pStartDate = new Date(p.startDate + 'T00:00:00')
+          const pStartMonth = format(pStartDate, 'yyyy-MM')
+          if (pStartMonth === processedMonth) {
+            return true
+          }
+        }
+      }
+      return false
+    })
+    
+    if (existingPayroll) {
+      const existingStatus = existingPayroll.status || 'Unknown'
+      const existingMonthYear = existingPayroll.month || (existingPayroll.startDate ? format(new Date(existingPayroll.startDate + 'T00:00:00'), 'MMM yyyy') : 'N/A')
+      setIndividualProcessError(`Payroll for ${employeeName} already exists for ${existingMonthYear} (Status: ${existingStatus}). Please delete the existing payroll first if you need to reprocess it.`)
+      return
+    }
+    
+    // Clear any previous errors
+    setIndividualProcessError(null)
     
     if (!window.confirm(`Process payroll for ${employeeName} from ${individualProcessData.startDate} to ${individualProcessData.endDate}?`)) return
     
     try {
       setProcessingIndividual(true)
       const result = await api.processPayrollForEmployee(
-        parseInt(individualProcessData.employeeId),
+        employeeId,
         individualProcessData.startDate,
         individualProcessData.endDate
       )
       if (result.success) {
-        // Extract month from start date for filtering
-        const startDateObj = new Date(individualProcessData.startDate + 'T00:00:00')
-        const processedMonth = format(startDateObj, 'yyyy-MM')
+        // Use the processedMonth already calculated above
         
         // Switch to Processed Payrolls view and set appropriate filters
         setActiveView('processedPayrolls')
@@ -902,6 +983,7 @@ const Payroll = () => {
           startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
           endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd')
         })
+        setIndividualProcessError(null)
       } else {
         alert('Error processing payroll: ' + (result.message || 'Failed to process'))
       }
@@ -995,12 +1077,53 @@ const Payroll = () => {
 
   const handleIndividualAnnualCTC = async () => {
     if (!individualAnnualCtcData.employeeId) {
-      alert('Please select an employee')
+      setIndividualAnnualCtcError('Please select an employee')
+      return
+    }
+    
+    if (!individualAnnualCtcData.year) {
+      setIndividualAnnualCtcError('Please select a year')
       return
     }
     
     const employee = employees.find(e => e.id === parseInt(individualAnnualCtcData.employeeId))
     const employeeName = employee?.name || `Employee ID: ${individualAnnualCtcData.employeeId}`
+    const employeeId = parseInt(individualAnnualCtcData.employeeId)
+    const year = parseInt(individualAnnualCtcData.year)
+    
+    // Check if Annual CTC already exists for this employee and year
+    const existingAnnualCTC = payrolls.find(p => {
+      const pEmployeeId = typeof p.employeeId === 'string' ? parseInt(p.employeeId) : p.employeeId
+      
+      // Match by employee ID
+      if (pEmployeeId === employeeId) {
+        // Check year - payroll.year (Integer) or extract from payroll.month (String "yyyy-MM")
+        let payrollYear = null
+        if (p.year != null && p.year !== undefined) {
+          payrollYear = typeof p.year === 'string' ? parseInt(p.year) : p.year
+        } else if (p.month && typeof p.month === 'string') {
+          const monthParts = p.month.split('-')
+          if (monthParts.length > 0) {
+            payrollYear = parseInt(monthParts[0])
+          }
+        }
+        
+        // Match by year
+        if (payrollYear === year) {
+          return true
+        }
+      }
+      return false
+    })
+    
+    if (existingAnnualCTC) {
+      const existingYear = existingAnnualCTC.year || (existingAnnualCTC.month ? existingAnnualCTC.month.split('-')[0] : 'N/A')
+      setIndividualAnnualCtcError(`Annual CTC for ${employeeName} already exists for year ${existingYear}. Please delete the existing record first if you need to recalculate it.`)
+      return
+    }
+    
+    // Clear any previous errors
+    setIndividualAnnualCtcError(null)
     
     if (!window.confirm(`Calculate Annual CTC for ${employeeName} for year ${individualAnnualCtcData.year}?`)) return
     
@@ -1017,8 +1140,9 @@ const Payroll = () => {
       showSuccessMessage(`Annual CTC calculation view filtered for ${employeeName} - Year ${individualAnnualCtcData.year}`)
       setShowIndividualAnnualCtcModal(false)
       setIndividualAnnualCtcData({ employeeId: '', year: '' })
+      setIndividualAnnualCtcError(null)
     } catch (error) {
-      alert('Error calculating Annual CTC: ' + error.message)
+      setIndividualAnnualCtcError('Error calculating Annual CTC: ' + (error.message || 'Unknown error occurred'))
     } finally {
       setProcessingIndividualAnnualCtc(false)
     }
@@ -3941,16 +4065,45 @@ const Payroll = () => {
                                         Edit
                                   </button>
                                       {payroll.status === 'DRAFT' && (
-                                  <button
+                                        <>
+                                          {isSuperAdmin ? (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleApproveFromDraft(payroll.id)
+                                                setOpenPayrollDropdownId(null)
+                                              }}
+                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                            >
+                                              <CheckCircle size={16} className="text-green-600" />
+                                              Approve (Direct)
+                                            </button>
+                                          ) : canSubmitPayrollForApproval ? (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleSubmitForApproval(payroll.id)
+                                                setOpenPayrollDropdownId(null)
+                                              }}
+                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                            >
+                                              <Send size={16} className="text-yellow-600" />
+                                              Submit for Approval
+                                            </button>
+                                          ) : null}
+                                        </>
+                                      )}
+                                      {payroll.status === 'PENDING_APPROVAL' && canApprovePayroll && (
+                                        <button
                                           onClick={(e) => {
                                             e.stopPropagation()
-                                            handleSubmitForApproval(payroll.id)
+                                            handleApprovePayroll(payroll.id)
                                             setOpenPayrollDropdownId(null)
                                           }}
                                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                                         >
-                                          <Send size={16} className="text-yellow-600" />
-                                          Submit for Approval
+                                          <CheckCircle size={16} className="text-green-600" />
+                                          Approve
                                         </button>
                                       )}
                                       <button
@@ -3965,19 +4118,6 @@ const Payroll = () => {
                                         Delete
                                   </button>
                                 </>
-                              )}
-                              {payroll.status === 'PENDING_APPROVAL' && (
-                                <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleApprovePayroll(payroll.id)
-                                        setOpenPayrollDropdownId(null)
-                                      }}
-                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                    >
-                                      <CheckCircle size={16} className="text-green-600" />
-                                      Approve
-                                </button>
                               )}
                               {payroll.status === 'APPROVED' && (
                                 <button
@@ -4227,6 +4367,7 @@ const Payroll = () => {
                     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
                     endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd')
                   })
+                  setIndividualProcessError(null)
                 }}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
@@ -4234,15 +4375,89 @@ const Payroll = () => {
               </button>
             </div>
             <div className="space-y-5">
+              {/* Error Message Display */}
+              {individualProcessError && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle size={20} className="text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-800">{individualProcessError}</p>
+                  </div>
+                  <button
+                    onClick={() => setIndividualProcessError(null)}
+                    className="text-red-600 hover:text-red-800 shrink-0"
+                    aria-label="Close error"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              )}
+              {/* Date Selection - First */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
+                <input
+                  type="date"
+                  value={individualProcessData.startDate}
+                  onChange={(e) => {
+                    // Clear employee selection and error when dates change
+                    setIndividualProcessData({ 
+                      ...individualProcessData, 
+                      startDate: e.target.value,
+                      employeeId: '',
+                      endDate: e.target.value > individualProcessData.endDate ? '' : individualProcessData.endDate
+                    })
+                    setIndividualProcessError(null)
+                  }}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
+                <input
+                  type="date"
+                  value={individualProcessData.endDate}
+                  onChange={(e) => {
+                    // Clear employee selection and error when dates change
+                    setIndividualProcessData({ 
+                      ...individualProcessData, 
+                      endDate: e.target.value,
+                      employeeId: ''
+                    })
+                    setIndividualProcessError(null)
+                  }}
+                  min={individualProcessData.startDate || undefined}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              {/* Employee Selection - After Dates */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-gray-700">Employee *</label>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {individualProcessData.startDate && individualProcessData.endDate
+                      ? `${employees.filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN').length} available`
+                      : 'Select dates first'
+                    }
+                  </span>
+                </div>
                 <select
                   value={individualProcessData.employeeId}
-                  onChange={(e) => setIndividualProcessData({ ...individualProcessData, employeeId: e.target.value })}
+                  onChange={(e) => {
+                    setIndividualProcessData({ ...individualProcessData, employeeId: e.target.value })
+                    setIndividualProcessError(null)
+                  }}
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                   required
+                  disabled={!individualProcessData.startDate || !individualProcessData.endDate}
                 >
-                  <option value="">Select Employee</option>
+                  <option value="">
+                    {!individualProcessData.startDate || !individualProcessData.endDate
+                      ? 'Please select dates first'
+                      : 'Select Employee'
+                    }
+                  </option>
                   {employees
                     .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
                     .map((emp) => {
@@ -4254,26 +4469,9 @@ const Payroll = () => {
                       )
                     })}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
-                <input
-                  type="date"
-                  value={individualProcessData.startDate}
-                  onChange={(e) => setIndividualProcessData({ ...individualProcessData, startDate: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
-                <input
-                  type="date"
-                  value={individualProcessData.endDate}
-                  onChange={(e) => setIndividualProcessData({ ...individualProcessData, endDate: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+                {(!individualProcessData.startDate || !individualProcessData.endDate) && (
+                  <p className="text-xs text-gray-500 mt-1">Please select start and end dates to proceed</p>
+                )}
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
@@ -4284,6 +4482,7 @@ const Payroll = () => {
                       startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
                       endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd')
                     })
+                    setIndividualProcessError(null)
                   }}
                   className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
                 >
@@ -4989,6 +5188,7 @@ const Payroll = () => {
                     employeeId: '',
                     year: ''
                   })
+                  setIndividualAnnualCtcError(null)
                 }}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
@@ -4996,15 +5196,73 @@ const Payroll = () => {
               </button>
             </div>
             <div className="space-y-5">
+              {/* Error Message Display */}
+              {individualAnnualCtcError && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle size={20} className="text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-800">{individualAnnualCtcError}</p>
+                  </div>
+                  <button
+                    onClick={() => setIndividualAnnualCtcError(null)}
+                    className="text-red-600 hover:text-red-800 shrink-0"
+                    aria-label="Close error"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              )}
+              
+              {/* Year Selection - First */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Year *</label>
+                <input
+                  type="number"
+                  value={individualAnnualCtcData.year}
+                  onChange={(e) => {
+                    // Clear employee selection and error when year changes
+                    setIndividualAnnualCtcData({ 
+                      ...individualAnnualCtcData, 
+                      year: e.target.value,
+                      employeeId: ''
+                    })
+                    setIndividualAnnualCtcError(null)
+                  }}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter Year (e.g., 2025)"
+                  min="2000"
+                  max="2100"
+                  required
+                />
+              </div>
+              
+              {/* Employee Selection - After Year */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-gray-700">Employee *</label>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {individualAnnualCtcData.year
+                      ? `${employees.filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN').length} available`
+                      : 'Select year first'
+                    }
+                  </span>
+                </div>
                 <select
                   value={individualAnnualCtcData.employeeId}
-                  onChange={(e) => setIndividualAnnualCtcData({ ...individualAnnualCtcData, employeeId: e.target.value })}
+                  onChange={(e) => {
+                    setIndividualAnnualCtcData({ ...individualAnnualCtcData, employeeId: e.target.value })
+                    setIndividualAnnualCtcError(null)
+                  }}
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                   required
+                  disabled={!individualAnnualCtcData.year}
                 >
-                  <option value="">Select Employee</option>
+                  <option value="">
+                    {!individualAnnualCtcData.year
+                      ? 'Please select year first'
+                      : 'Select Employee'
+                    }
+                  </option>
                   {employees
                     .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
                     .map((emp) => {
@@ -5016,19 +5274,9 @@ const Payroll = () => {
                       )
                     })}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Year *</label>
-                <input
-                  type="number"
-                  value={individualAnnualCtcData.year}
-                  onChange={(e) => setIndividualAnnualCtcData({ ...individualAnnualCtcData, year: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter Year (e.g., 2025)"
-                  min="2000"
-                  max="2100"
-                  required
-                />
+                {!individualAnnualCtcData.year && (
+                  <p className="text-xs text-gray-500 mt-1">Please select a year to proceed</p>
+                )}
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
@@ -5038,6 +5286,7 @@ const Payroll = () => {
                       employeeId: '',
                       year: ''
                     })
+                    setIndividualAnnualCtcError(null)
                   }}
                   className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
                 >
