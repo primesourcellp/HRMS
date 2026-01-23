@@ -53,13 +53,18 @@ const HRTickets = () => {
   const userRole = localStorage.getItem('userRole')
   const currentUserId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
+  const isSuperAdmin = userRole === 'SUPER_ADMIN'
+  const isHRAdmin = userRole === 'HR_ADMIN'
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN'
   const isManager = userRole === 'MANAGER'
   const isFinance = userRole === 'FINANCE'
   // Check if employee: userType === 'employee' OR userRole === 'EMPLOYEE'
   const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE'
-  // Users who can manage tickets (all non-employee roles)
-  const canManageTickets = isAdmin || isManager || isFinance
+  // Users who can manage tickets (all non-employee and non-manager roles)
+  // Managers see only their own tickets, same as employees
+  const canManageTickets = isAdmin || isFinance
+  // Users who can create tickets (exclude SUPER_ADMIN and HR_ADMIN)
+  const canCreateTickets = !isSuperAdmin && !isHRAdmin && (!isFinance || isMyTicketsRoute)
 
   // Ticket Categories and Sub-categories
   const ticketCategories = {
@@ -89,6 +94,10 @@ const HRTickets = () => {
   const [displayTicketId, setDisplayTicketId] = useState('')
 
   const openCreateModal = () => {
+    // SUPER_ADMIN and HR_ADMIN cannot create tickets
+    if (isSuperAdmin || isHRAdmin) {
+      return
+    }
     // Finance can create tickets only from "My Tickets" page
     if (isFinance && !isMyTicketsRoute) {
       return
@@ -101,8 +110,8 @@ const HRTickets = () => {
       subject: '',
       description: '',
       priority: 'MEDIUM',
-      // Employees always create for self. Finance creates for self only on /my-tickets.
-      employeeId: (isEmployee || isMyTicketsRoute) ? currentUserId : '',
+      // Employees and Managers always create for self. Finance creates for self only on /my-tickets.
+      employeeId: (isEmployee || isManager || isMyTicketsRoute) ? currentUserId : '',
       assignedTo: '',
       assignedRole: '',
       ticketId: newTicketId
@@ -361,10 +370,20 @@ const HRTickets = () => {
       setLoading(true)
       setError(null)
       
+      // Load employees and users first (needed for search functionality)
+      const [employeesData, usersData] = await Promise.all([
+        api.getEmployees(),
+        api.getUsers()
+      ])
+      const employeesList = Array.isArray(employeesData) ? employeesData : []
+      const usersList = Array.isArray(usersData) ? usersData : []
+      setEmployees(employeesList)
+      setUsers(usersList)
+      
       let ticketsData
-      // Employees only see their own tickets, all other roles see all tickets
+      // Employees and Managers only see their own tickets, all other roles see all tickets
       // If on /my-tickets route, show only current user's tickets
-      if ((isEmployee && currentUserId) || (isMyTicketsRoute && currentUserId)) {
+      if ((isEmployee && currentUserId) || (isManager && currentUserId) || (isMyTicketsRoute && currentUserId)) {
         ticketsData = await api.getEmployeeTickets(parseInt(currentUserId))
       } else {
         ticketsData = await api.getTickets()
@@ -374,6 +393,7 @@ const HRTickets = () => {
       let filteredTickets = Array.isArray(ticketsData) ? ticketsData : []
       
       // Finance users only see PAYROLL-related tickets (unless on my-tickets route which is already filtered by user)
+      // Managers and Employees already see only their own tickets (filtered above)
       if (isFinance && !isMyTicketsRoute) {
         filteredTickets = filteredTickets.filter(ticket => 
           ticket.ticketType === 'PAYROLL' || 
@@ -391,14 +411,36 @@ const HRTickets = () => {
         filteredTickets = filteredTickets.filter(t => t.priority === priorityFilter)
       }
       
-      // Apply search
+      // Apply search - search by ID, Name, Type, and Priority
       if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase()
-        filteredTickets = filteredTickets.filter(t => 
-          t.subject?.toLowerCase().includes(searchLower) ||
-          t.description?.toLowerCase().includes(searchLower) ||
-          t.ticketType?.toLowerCase().includes(searchLower)
-        )
+        const searchLower = searchTerm.toLowerCase().trim()
+        filteredTickets = filteredTickets.filter(t => {
+          // Search in ticket ID
+          const ticketIdMatch = t.ticketId?.toLowerCase().includes(searchLower) || false
+          
+          // Search in ticket type
+          const ticketTypeMatch = t.ticketType?.toLowerCase().includes(searchLower) || false
+          
+          // Search in priority
+          const priorityMatch = t.priority?.toLowerCase().includes(searchLower) || false
+          
+          // Search in employee name
+          let employeeNameMatch = false
+          if (t.employeeId && employeesList.length > 0) {
+            const employee = employeesList.find(emp => {
+              const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+              const ticketEmpId = typeof t.employeeId === 'string' ? parseInt(t.employeeId) : t.employeeId
+              return empId === ticketEmpId
+            })
+            if (employee) {
+              const empName = (employee.name || '').toLowerCase()
+              employeeNameMatch = empName.includes(searchLower)
+            }
+          }
+          
+          // Return true if any of the specified fields match
+          return ticketIdMatch || ticketTypeMatch || priorityMatch || employeeNameMatch
+        })
       }
       
       // Sort tickets
@@ -433,10 +475,6 @@ const HRTickets = () => {
       })
       
       setTickets(filteredTickets)
-      
-      // Load employees for all users
-      const employeesData = await api.getEmployees()
-      setEmployees(Array.isArray(employeesData) ? employeesData : [])
     } catch (error) {
       console.error('Error loading data:', error)
       setError(error.message || 'Failed to load tickets')
@@ -491,10 +529,10 @@ const HRTickets = () => {
         ...selectedTicket
       }
       
-      // For employees, only allow updating description/comments
-      // For admins, managers, finance, and HR_ADMIN, allow updating status, priority, assignment, and resolution
-      if (isEmployee) {
-        // Employees can only add comments/updates
+      // For employees and managers, only allow updating description/comments
+      // For admins, finance, and HR_ADMIN, allow updating status, priority, assignment, and resolution
+      if (isEmployee || isManager) {
+        // Employees and Managers can only add comments/updates
         if (updateData.resolution) {
           // Append to existing description or resolution as a comment
           const currentDescription = selectedTicket.description || ''
@@ -559,7 +597,7 @@ const HRTickets = () => {
       await loadData()
       setSelectedTicket(null)
       setUpdateData({ status: '', resolution: '', assignedTo: '', priority: '' })
-      setSuccessMessage(isEmployee ? 'Comment added successfully! HR will be notified.' : 'Ticket updated successfully!')
+      setSuccessMessage((isEmployee || isManager) ? 'Comment added successfully! HR will be notified.' : 'Ticket updated successfully!')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
       setError(error.message || 'Error updating ticket')
@@ -607,16 +645,16 @@ const HRTickets = () => {
   }
 
   const openEditModal = (ticket) => {
-    // Check if employee can edit (only their own OPEN tickets)
-    // Managers, Finance, HR_ADMIN, and Admins can edit any ticket
-    if (isEmployee && (ticket.employeeId?.toString() !== currentUserId || ticket.status !== 'OPEN')) {
+    // Check if employee or manager can edit (only their own OPEN tickets)
+    // Finance, HR_ADMIN, and Admins can edit any ticket
+    if ((isEmployee || isManager) && (ticket.employeeId?.toString() !== currentUserId || ticket.status !== 'OPEN')) {
       setError('You can only edit your own open tickets')
       setTimeout(() => setError(null), 3000)
       return
     }
     
-    // Non-employees can edit any ticket, but check if it's closed
-    if (!isEmployee && ticket.status === 'CLOSED') {
+    // Non-employees and non-managers can edit any ticket, but check if it's closed
+    if (!isEmployee && !isManager && ticket.status === 'CLOSED') {
       setError('Cannot edit closed tickets')
       setTimeout(() => setError(null), 3000)
       return
@@ -837,11 +875,11 @@ const HRTickets = () => {
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex flex-1 items-center gap-4 w-full md:w-auto">
-            <div className="relative flex-1">
+          <div className="flex flex-1 items-center gap-4 w-full md:w-auto flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
               <input
                 type="text"
-                placeholder="Search tickets..."
+                placeholder="Search by ID, Name, Type, or Priority..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -896,7 +934,21 @@ const HRTickets = () => {
                 <ArrowUpDown size={18} />
               </button>
             </div>
-            {(!isFinance || isMyTicketsRoute) && (
+            {(searchTerm || filter !== 'All' || priorityFilter !== 'All') && (
+              <button
+                onClick={() => {
+                  setSearchTerm('')
+                  setFilter('All')
+                  setPriorityFilter('All')
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2 transition-colors font-medium whitespace-nowrap"
+                title="Clear all filters"
+              >
+                <X size={18} />
+                Clear Filters
+              </button>
+            )}
+            {canCreateTickets && (
               <button
                 onClick={openCreateModal}
                 className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
@@ -940,10 +992,10 @@ const HRTickets = () => {
                 tickets.map((ticket, idx) => {
                   if (!ticket || !ticket.id) return null
                   const canEdit =
-                    (isEmployee && ticket.employeeId?.toString() === currentUserId && ticket.status === 'OPEN') ||
+                    ((isEmployee || isManager) && ticket.employeeId?.toString() === currentUserId && ticket.status === 'OPEN') ||
                     (isFinance && isMyTicketsRoute && ticket.employeeId?.toString() === currentUserId && ticket.status === 'OPEN')
                   const canUpdate = !canEdit && canManageTickets && ticket.status !== 'CLOSED'
-                  const canDelete = (!isEmployee || (isEmployee && ticket.status === 'OPEN' && ticket.employeeId?.toString() === currentUserId))
+                  const canDelete = (!isEmployee && !isManager) || ((isEmployee || isManager) && ticket.status === 'OPEN' && ticket.employeeId?.toString() === currentUserId)
 
                   return (
                     <tr key={ticket.id} className="hover:bg-gray-50">
@@ -1030,7 +1082,7 @@ const HRTickets = () => {
       </div>
 
       {/* Create Ticket Modal */}
-      {(!isFinance || isMyTicketsRoute) && showModal && (
+      {canCreateTickets && showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
           setShowModal(false)
           setDisplayTicketId('')
@@ -1063,7 +1115,7 @@ const HRTickets = () => {
                 </div>
               </div>
 
-              {(isEmployee || isMyTicketsRoute) ? (
+              {(isEmployee || isManager || isMyTicketsRoute) ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Employee Name</label>
                   <div className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700">

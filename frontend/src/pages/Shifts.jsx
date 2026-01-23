@@ -4,6 +4,7 @@ import api from '../services/api'
 
 const Shifts = () => {
   const [shifts, setShifts] = useState([])
+  const [allAvailableShifts, setAllAvailableShifts] = useState([]) // All shifts for dropdown
   const [employees, setEmployees] = useState([])
   const [employeeShift, setEmployeeShift] = useState(null)
   const [showModal, setShowModal] = useState(false)
@@ -185,7 +186,8 @@ const Shifts = () => {
         workingHours: calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration)
       }))
       
-      setShifts(shiftsWithWorkingHours)
+      // Store all shifts separately for dropdown use
+      setAllAvailableShifts(shiftsWithWorkingHours)
     } catch (error) {
       console.error('Error loading shifts:', error)
       // Don't set error here, just log it - this is for dropdown only
@@ -855,25 +857,29 @@ const Shifts = () => {
     setShowEmployeeModal(true)
   }
 
-  const openAssignModal = (shift = null) => {
+  const openAssignModal = async (shift = null) => {
     setSelectedShift(shift)
-    setAssignFormData({ 
-      shiftId: shift ? shift.id.toString() : '',
+    // Preserve existing dates, only reset employee selection and shift ID
+    setAssignFormData(prev => ({ 
+      shiftId: shift ? shift.id.toString() : prev.shiftId,
       employeeId: '', 
-      startDate: '',
-      endDate: ''
-    })
+      startDate: prev.startDate || '',
+      endDate: prev.endDate || ''
+    }))
+    // Always load all assignments to ensure accurate availability checking
+    await loadAllAssignments()
     setShowAssignModal(true)
   }
 
   const openTeamAssignModal = async (shift = null) => {
     setSelectedShift(shift)
-    setTeamAssignFormData({ 
-      shiftId: shift ? shift.id.toString() : '',
+    // Preserve existing dates, only reset team selection and shift ID
+    setTeamAssignFormData(prev => ({ 
+      shiftId: shift ? shift.id.toString() : prev.shiftId,
       teamId: '',
-      startDate: '',
-      endDate: ''
-    })
+      startDate: prev.startDate || '',
+      endDate: prev.endDate || ''
+    }))
     setSelectedTeamMembers([])
     setShowTeamAssignModal(true)
   }
@@ -1170,33 +1176,86 @@ const Shifts = () => {
     if (role === 'SUPER_ADMIN') return false
     
     // If no dates selected, show all employees
-    if (!startDate) return true
+    if (!startDate || startDate.trim() === '') return true
     
-    // If employee has no shift assignment, they're available
-    if (!employee.shiftId) return true
+    const employeeId = typeof employee.id === 'string' ? parseInt(employee.id) : employee.id
     
-    const existingShiftId = typeof employee.shiftId === 'string' ? parseInt(employee.shiftId) : employee.shiftId
+    // Normalize dates - extract date part if it includes time
+    const normalizeDate = (dateStr) => {
+      if (!dateStr) return null
+      if (typeof dateStr === 'string') {
+        // If date includes time (T), extract just the date part
+        return dateStr.includes('T') ? dateStr.split('T')[0] : dateStr
+      }
+      return dateStr
+    }
     
-    // If it's the same shift, allow (updating existing assignment)
-    if (excludeShiftId && existingShiftId === excludeShiftId) return true
+    const normalizedStartDate = normalizeDate(startDate)
+    const normalizedEndDate = endDate ? normalizeDate(endDate) : null
     
-    // Get existing assignment dates
-    const existingStartDate = employee.shiftAssignmentStartDate || null
-    const existingEndDate = employee.shiftAssignmentEndDate || null
+    // Check against allAssignments first (most comprehensive)
+    if (allAssignments && Array.isArray(allAssignments) && allAssignments.length > 0) {
+      const employeeAssignments = allAssignments.filter(assignment => {
+        const assignmentEmployeeId = typeof assignment.employeeId === 'string' ? parseInt(assignment.employeeId) : assignment.employeeId
+        return assignmentEmployeeId === employeeId
+      })
+      
+      // If employee has any assignments, check for conflicts
+      if (employeeAssignments.length > 0) {
+        for (const assignment of employeeAssignments) {
+          const assignmentStartDate = normalizeDate(assignment.startDate)
+          const assignmentEndDate = normalizeDate(assignment.endDate)
+          
+          // If assignment has no dates, it's permanent - not available for new dates
+          if (!assignmentStartDate && !assignmentEndDate) {
+            return false
+          }
+          
+          // Check if dates overlap
+          const hasConflict = checkDateOverlap(
+            normalizedStartDate,
+            normalizedEndDate,
+            assignmentStartDate,
+            assignmentEndDate
+          )
+          
+          // If dates overlap, exclude the employee (regardless of which shift)
+          if (hasConflict) {
+            return false
+          }
+        }
+        // If we checked all assignments and found no conflicts, employee is available
+        return true
+      }
+    }
     
-    // If employee has no assignment dates, it's a permanent assignment - not available
-    if (!existingStartDate && !existingEndDate) return false
+    // Also check employee's direct shift assignment (fallback if allAssignments not loaded or employee not in allAssignments)
+    if (employee.shiftId) {
+      // Get existing assignment dates and normalize them
+      const existingStartDate = normalizeDate(employee.shiftAssignmentStartDate)
+      const existingEndDate = normalizeDate(employee.shiftAssignmentEndDate)
+      
+      // If employee has no assignment dates, it's a permanent assignment - not available
+      if (!existingStartDate && !existingEndDate) {
+        return false
+      }
+      
+      // Check if dates overlap (regardless of which shift)
+      const hasConflict = checkDateOverlap(
+        normalizedStartDate,
+        normalizedEndDate,
+        existingStartDate,
+        existingEndDate
+      )
+      
+      // Only exclude if dates overlap
+      if (hasConflict) {
+        return false
+      }
+    }
     
-    // Check if dates overlap
-    const hasConflict = checkDateOverlap(
-      startDate,
-      endDate || null,
-      existingStartDate,
-      existingEndDate || null
-    )
-    
-    // Employee is available if there's no conflict
-    return !hasConflict
+    // Employee is available if no conflicts found
+    return true
   }
 
   const getAvailableEmployees = () => {
@@ -1251,55 +1310,67 @@ const Shifts = () => {
   // Employee View - Show only their assigned shift
   if (isEmployee || isManager || isFinance) {
     return (
-      <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
+      <div className="min-h-screen bg-gray-50 p-4 md:p-6 max-w-full overflow-x-hidden">
         {/* Toast Notifications (Top Right) */}
         {(successMessage || error) && (
           <div className="fixed top-4 right-4 z-50 space-y-3">
             {successMessage && (
-              <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
-                <CheckCircle size={24} className="mt-0.5 text-green-600 shrink-0" />
-                <div className="flex-1 text-lg font-semibold">{successMessage}</div>
+              <div className="flex items-start gap-3 bg-white text-green-800 border border-green-200 rounded-lg px-4 py-3 shadow-md min-w-[320px] max-w-[480px]">
+                <CheckCircle size={20} className="mt-0.5 text-green-600 shrink-0" />
+                <div className="flex-1 text-sm font-medium">{successMessage}</div>
                 <button
                   onClick={() => setSuccessMessage(null)}
                   className="text-green-700/70 hover:text-green-800"
                   aria-label="Close success message"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
             )}
             {error && (
-              <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
-                <XCircle size={24} className="mt-0.5 text-red-600 shrink-0" />
-                <div className="flex-1 text-lg font-semibold">{error}</div>
+              <div className="flex items-start gap-3 bg-white text-red-800 border border-red-200 rounded-lg px-4 py-3 shadow-md min-w-[320px] max-w-[480px]">
+                <XCircle size={20} className="mt-0.5 text-red-600 shrink-0" />
+                <div className="flex-1 text-sm font-medium">{error}</div>
                 <button
                   onClick={() => setError(null)}
                   className="text-red-700/70 hover:text-red-800"
                   aria-label="Close error message"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-blue-600">My Shift</h2>
-            <p className="text-gray-600 mt-1">View your assigned work shift details</p>
+        {/* Light Theme Header */}
+        <div className="mb-6">
+          <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+                <Clock className="text-blue-600" size={24} />
+              </div>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">My Shift</h2>
+                <p className="text-sm text-gray-600 mt-0.5">View your assigned work shift details</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Shift Change Request Section - Prominent Position */}
+        {/* Shift Change Request Section - Light Theme */}
         {!loading && employeeShift && (
-          <div className="bg-white rounded-lg shadow-md p-6 border-2 border-blue-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <ArrowLeftRight className="text-blue-600" size={20} />
-                Shift Change Requests
-              </h3>
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center border border-purple-100">
+                  <ArrowLeftRight className="text-purple-600" size={18} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Shift Change Requests</h3>
+                  <p className="text-xs text-gray-500">Request a change to your current shift</p>
+                </div>
+              </div>
               <button
                 onClick={(e) => {
                   e.preventDefault()
@@ -1326,7 +1397,7 @@ const Shifts = () => {
                     setTimeout(() => setError(null), 5000)
                   }
                 }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium transition-colors shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 type="button"
                 disabled={loading}
               >
@@ -1335,16 +1406,19 @@ const Shifts = () => {
               </button>
             </div>
             {shiftChangeRequests.length === 0 ? (
-              <p className="text-gray-500 text-sm">No shift change requests yet</p>
+              <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                <ArrowLeftRight className="text-gray-400 mx-auto mb-2" size={24} />
+                <p className="text-sm text-gray-500 font-medium">No shift change requests yet</p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {shiftChangeRequests.map((request) => (
-                  <div key={request.id} className="border border-gray-200 rounded-lg p-4">
+                  <div key={request.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="font-medium">Requested Shift:</span>
-                          <span>{getShiftName(request.requestedShiftId)}</span>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="text-sm font-medium text-gray-700">Requested Shift:</span>
+                          <span className="text-sm font-semibold text-gray-900">{getShiftName(request.requestedShiftId)}</span>
                           {getRequestStatusBadge(request.status)}
                         </div>
                         {request.reason && (
@@ -1368,84 +1442,107 @@ const Shifts = () => {
 
         {/* Loading State */}
         {loading && (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">Loading shift information...</p>
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-3 border-blue-600 border-t-transparent"></div>
+            <p className="mt-3 text-sm text-gray-600">Loading shift information...</p>
           </div>
         )}
 
-        {/* Employee Shift Card */}
+        {/* Employee Shift Card - Light Theme */}
         {!loading && employeeShift && (
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 md:p-8 border-2 border-blue-200">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            {/* Shift Header */}
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                <Clock className="text-blue-600" size={32} />
+              <div className="w-14 h-14 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+                <Clock className="text-blue-600" size={28} />
               </div>
               <div>
-                <h3 className="text-2xl font-bold text-gray-800">{employeeShift.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <h3 className="text-2xl font-bold text-gray-900">{employeeShift.name}</h3>
+                <div className="mt-1">
                   {employeeShift.active ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
                       Active
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
                       Inactive
                     </span>
                   )}
-                </p>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <Timer className="text-blue-600" size={20} />
-                  <p className="text-sm font-semibold text-blue-800">Shift Timing</p>
+            {/* Key Metrics Grid - Light Theme */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {/* Shift Timing Card */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center border border-blue-200">
+                    <Timer className="text-blue-600" size={18} />
+                  </div>
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Shift Timing</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-900">
                   {formatTime(employeeShift.startTime)} - {formatTime(employeeShift.endTime)}
                 </p>
               </div>
 
-              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="text-green-600" size={20} />
-                  <p className="text-sm font-semibold text-green-800">Working Hours</p>
+              {/* Working Hours Card */}
+              <div className="bg-green-50 rounded-lg p-4 border border-green-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center border border-green-200">
+                    <Clock className="text-green-600" size={18} />
+                  </div>
+                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Working Hours</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-900">
                   {employeeShift.workingHours ? formatWorkingHours(employeeShift.workingHours) : '0 hrs'}
                 </p>
               </div>
 
+              {/* Break Duration Card */}
               {employeeShift.breakDuration && (
-                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Calendar className="text-purple-600" size={20} />
-                    <p className="text-sm font-semibold text-purple-800">Break Duration</p>
+                <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center border border-purple-200">
+                      <Calendar className="text-purple-600" size={18} />
+                    </div>
+                    <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Break Duration</p>
                   </div>
-                  <p className="text-2xl font-bold text-gray-800">{employeeShift.breakDuration} minutes</p>
+                  <p className="text-2xl font-bold text-gray-900">{employeeShift.breakDuration} minutes</p>
                 </div>
               )}
             </div>
 
+            {/* Description Section */}
             {employeeShift.description && (
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 mb-6">
                 <p className="text-sm font-semibold text-gray-700 mb-2">Description</p>
-                <p className="text-gray-600">{employeeShift.description}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{employeeShift.description}</p>
               </div>
             )}
 
-            {/* Assignment Dates - Always show if shift exists */}
-            <div className="bg-orange-50 rounded-lg p-4 border border-orange-200 mt-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Calendar className="text-orange-600" size={20} />
-                <p className="text-sm font-semibold text-orange-800">Assignment Period</p>
+            {/* Assignment Period - Enhanced Design */}
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-5 border border-orange-200 shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center border border-orange-200">
+                  <Calendar className="text-orange-600" size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-orange-900">Assignment Period</p>
+                  <p className="text-xs text-orange-700 mt-0.5">Your shift assignment timeline</p>
+                </div>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600 font-medium">Start Date:</span>
-                  <span className="text-sm font-semibold text-gray-800">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Start Date Card */}
+                <div className="bg-white rounded-lg p-4 border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+                      <Calendar className="text-blue-600" size={14} />
+                    </div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Start Date</p>
+                  </div>
+                  <p className="text-base font-bold text-gray-900">
                     {employeeShift.assignmentStartDate 
                       ? (() => {
                           try {
@@ -1467,12 +1564,19 @@ const Shifts = () => {
                             return employeeShift.assignmentStartDate || 'Not specified'
                           }
                         })()
-                      : 'Not specified'}
-                  </span>
+                      : <span className="text-gray-400">Not specified</span>}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600 font-medium">End Date:</span>
-                  <span className="text-sm font-semibold text-gray-800">
+
+                {/* End Date Card */}
+                <div className="bg-white rounded-lg p-4 border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center border border-green-100">
+                      <Calendar className="text-green-600" size={14} />
+                    </div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">End Date</p>
+                  </div>
+                  <p className="text-base font-bold text-gray-900">
                     {employeeShift.assignmentEndDate 
                       ? (() => {
                           try {
@@ -1494,8 +1598,8 @@ const Shifts = () => {
                             return employeeShift.assignmentEndDate || 'Not specified'
                           }
                         })()
-                      : <span className="text-green-600">Permanent Assignment</span>}
-                  </span>
+                      : <span className="text-green-600 font-semibold">Permanent Assignment</span>}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1503,14 +1607,14 @@ const Shifts = () => {
         )}
 
 
-        {/* No Shift Assigned */}
+        {/* No Shift Assigned - Light Theme */}
         {!loading && !employeeShift && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-200 text-center">
-            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <Clock className="text-gray-400" size={40} />
+          <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-200 text-center">
+            <div className="w-16 h-16 rounded-lg bg-gray-50 flex items-center justify-center mx-auto mb-4 border border-gray-200">
+              <Clock className="text-gray-400" size={32} />
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">No Shift Assigned</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No Shift Assigned</h3>
+            <p className="text-sm text-gray-600">
               You don't have a shift assigned yet. Please contact your administrator to assign a shift.
             </p>
           </div>
@@ -1545,12 +1649,12 @@ const Shifts = () => {
                     <option value="">Select a shift</option>
                     {!employeeShift ? (
                       <option value="" disabled>Loading your shift information...</option>
-                    ) : shifts.length === 0 ? (
+                    ) : allAvailableShifts.length === 0 ? (
                       <option value="" disabled>Loading shifts...</option>
-                    ) : shifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).length === 0 ? (
+                    ) : allAvailableShifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).length === 0 ? (
                       <option value="" disabled>No other active shifts available</option>
                     ) : (
-                      shifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).map((shift) => (
+                      allAvailableShifts.filter(shift => shift.active && Number(shift.id) !== Number(employeeShift.id)).map((shift) => (
                         <option key={shift.id} value={shift.id}>
                           {shift.name} ({formatTime(shift.startTime)} - {formatTime(shift.endTime)})
                         </option>
@@ -2120,85 +2224,88 @@ const Shifts = () => {
 
           {/* Search and Filters */}
           <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  placeholder="Search employees..."
-                  value={assignmentSearchTerm}
-                  onChange={(e) => setAssignmentSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <select
-                value={assignmentStatusFilter}
-                onChange={(e) => setAssignmentStatusFilter(e.target.value)}
-                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
-              >
-                <option value="all">All Status</option>
-                <option value="Permanent">Permanent</option>
-                <option value="Temporary">Temporary</option>
-              </select>
-              <select
-                value={assignmentDepartmentFilter}
-                onChange={(e) => setAssignmentDepartmentFilter(e.target.value)}
-                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
-              >
-                <option value="all">All Departments</option>
-                {[...new Set(allAssignments.map(a => a.department).filter(Boolean))].sort().map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-              <select
-                value={assignmentShiftFilter}
-                onChange={(e) => setAssignmentShiftFilter(e.target.value)}
-                className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
-              >
-                <option value="all">All Shifts</option>
-                {[...new Set(allAssignments.map(a => a.shiftName).filter(Boolean))].sort().map(shiftName => (
-                  <option key={shiftName} value={shiftName}>{shiftName}</option>
-                ))}
-              </select>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="date"
-                  placeholder="Start Date"
-                  value={assignmentStartDateFilter}
-                  onChange={(e) => setAssignmentStartDateFilter(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="date"
-                  placeholder="End Date"
-                  value={assignmentEndDateFilter}
-                  onChange={(e) => setAssignmentEndDateFilter(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-            {(assignmentSearchTerm || assignmentStatusFilter !== 'all' || assignmentDepartmentFilter !== 'all' || assignmentShiftFilter !== 'all' || assignmentStartDateFilter || assignmentEndDateFilter) && (
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => {
-                    setAssignmentSearchTerm('')
-                    setAssignmentStatusFilter('all')
-                    setAssignmentDepartmentFilter('all')
-                    setAssignmentShiftFilter('all')
-                    setAssignmentStartDateFilter('')
-                    setAssignmentEndDateFilter('')
-                  }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2 text-sm font-medium transition-colors"
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Search employees..."
+                    value={assignmentSearchTerm}
+                    onChange={(e) => setAssignmentSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <select
+                  value={assignmentStatusFilter}
+                  onChange={(e) => setAssignmentStatusFilter(e.target.value)}
+                  className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
                 >
-                  <X size={16} />
-                  Clear Filters
-                </button>
+                  <option value="all">All Status</option>
+                  <option value="Permanent">Permanent</option>
+                  <option value="Temporary">Temporary</option>
+                </select>
+                <select
+                  value={assignmentDepartmentFilter}
+                  onChange={(e) => setAssignmentDepartmentFilter(e.target.value)}
+                  className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+                >
+                  <option value="all">All Departments</option>
+                  {[...new Set(allAssignments.map(a => a.department).filter(Boolean))].sort().map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+                <select
+                  value={assignmentShiftFilter}
+                  onChange={(e) => setAssignmentShiftFilter(e.target.value)}
+                  className="px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+                >
+                  <option value="all">All Shifts</option>
+                  {[...new Set(allAssignments.map(a => a.shiftName).filter(Boolean))].sort().map(shiftName => (
+                    <option key={shiftName} value={shiftName}>{shiftName}</option>
+                  ))}
+                </select>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="date"
+                    placeholder="Start Date"
+                    value={assignmentStartDateFilter}
+                    onChange={(e) => setAssignmentStartDateFilter(e.target.value)}
+                    className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="date"
+                    placeholder="End Date"
+                    value={assignmentEndDateFilter}
+                    onChange={(e) => setAssignmentEndDateFilter(e.target.value)}
+                    className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
-            )}
+              {(assignmentSearchTerm || assignmentStatusFilter !== 'all' || assignmentDepartmentFilter !== 'all' || assignmentShiftFilter !== 'all' || assignmentStartDateFilter || assignmentEndDateFilter) && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setAssignmentSearchTerm('')
+                      setAssignmentStatusFilter('all')
+                      setAssignmentDepartmentFilter('all')
+                      setAssignmentShiftFilter('all')
+                      setAssignmentStartDateFilter('')
+                      setAssignmentEndDateFilter('')
+                    }}
+                    className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 flex items-center gap-2 font-medium transition-colors shadow-sm hover:shadow-md"
+                    title="Clear all filters"
+                  >
+                    <X size={18} />
+                    Clear Filters
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {loadingAssignments ? (
@@ -2917,7 +3024,8 @@ const Shifts = () => {
                       const shiftId = e.target.value
                       const shift = shifts.find(s => s.id === parseInt(shiftId))
                       setSelectedShift(shift || null)
-                      setTeamAssignFormData({ ...teamAssignFormData, shiftId: shiftId, teamId: '', startDate: '', endDate: '' })
+                      // Preserve dates when changing shift, only reset team selection
+                      setTeamAssignFormData({ ...teamAssignFormData, shiftId: shiftId, teamId: '' })
                       setSelectedTeamMembers([])
                     }}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -3202,7 +3310,8 @@ const Shifts = () => {
                       const shiftId = e.target.value
                       const shift = shifts.find(s => s.id === parseInt(shiftId))
                       setSelectedShift(shift || null)
-                      setAssignFormData({ ...assignFormData, shiftId: shiftId, employeeId: '', startDate: '', endDate: '' })
+                      // Preserve dates when changing shift, only reset employee selection
+                      setAssignFormData({ ...assignFormData, shiftId: shiftId, employeeId: '' })
                     }}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
@@ -3242,13 +3351,17 @@ const Shifts = () => {
                   <input
                     type="date"
                     value={assignFormData.endDate}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       // Clear employee selection when dates change
                       setAssignFormData({ 
                         ...assignFormData, 
                         endDate: e.target.value,
                         employeeId: ''
                       })
+                      // Reload assignments to ensure accurate filtering
+                      if (e.target.value && assignFormData.startDate) {
+                        await loadAllAssignments()
+                      }
                     }}
                     min={assignFormData.startDate || undefined}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

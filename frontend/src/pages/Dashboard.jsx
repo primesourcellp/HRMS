@@ -844,8 +844,6 @@ const Dashboard = () => {
         setLoadingTeamAttendance(false)
         return
       }
-
-
       
       // Fetch attendance for each day of the past week
       for (let i = 6; i >= 0; i--) {
