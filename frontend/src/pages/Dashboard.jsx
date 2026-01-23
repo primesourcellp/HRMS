@@ -845,6 +845,8 @@ const Dashboard = () => {
         return
       }
 
+
+      
       // Fetch attendance for each day of the past week
       for (let i = 6; i >= 0; i--) {
         const date = new Date(today)
