@@ -395,11 +395,113 @@ const Attendance = () => {
           setAttendance(filteredAttData)
         }
       }
+      
+      // Auto-mark absent for employees who haven't checked in (only for admin/HR admin views)
+      if ((isAdmin || isHrAdmin) && !isEmployeeUser) {
+        await autoMarkAbsentForMissingCheckIns(startDate, endDate, viewType)
+      }
     } catch (error) {
       console.error('Error loading data:', error)
       setError('Failed to load attendance data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Auto-mark absent for employees who haven't checked in for past working days
+  const autoMarkAbsentForMissingCheckIns = async (startDate, endDate, viewType) => {
+    try {
+      const today = startOfToday()
+      const startDateObj = new Date(startDate)
+      const endDateObj = new Date(endDate)
+      
+      // Only process past dates (not future dates)
+      if (isBefore(endDateObj, today) || format(endDateObj, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
+        // Get all employees (already loaded in employees state)
+        const employeesToCheck = employees.filter(emp => {
+          const empId = emp.id || emp.employeeId
+          const role = (emp.role || emp.designation || '').toUpperCase()
+          // Only mark absent for EMPLOYEE, MANAGER, FINANCE roles (not SUPER_ADMIN, HR_ADMIN)
+          return role === 'EMPLOYEE' || role === 'MANAGER' || role === 'FINANCE'
+        })
+        
+        if (employeesToCheck.length === 0) return
+        
+        // Get all dates in the range
+        const datesToCheck = eachDayOfInterval({ start: startDateObj, end: endDateObj })
+          .filter(date => {
+            // Only process past dates or today
+            return isBefore(date, today) || format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
+          })
+          .map(date => format(date, 'yyyy-MM-dd'))
+        
+        let hasMarkedAbsent = false
+        
+        // For each date, check which employees don't have attendance records
+        for (const dateStr of datesToCheck) {
+          // Get attendance for this specific date
+          const dateAttendance = allAttendance.filter(att => {
+            let recordDate
+            if (typeof att.date === 'string') {
+              recordDate = att.date.split('T')[0]
+            } else {
+              try {
+                recordDate = format(new Date(att.date), 'yyyy-MM-dd')
+              } catch {
+                recordDate = ''
+              }
+            }
+            return recordDate === dateStr
+          })
+          
+          // Create a set of employee IDs who have attendance for this date
+          const employeesWithAttendance = new Set()
+          dateAttendance.forEach(att => {
+            const empId = att.employeeId ? parseInt(att.employeeId) : null
+            if (empId) employeesWithAttendance.add(empId)
+          })
+          
+          // Find employees without attendance records for this date
+          const employeesWithoutAttendance = employeesToCheck.filter(emp => {
+            const empId = emp.id || emp.employeeId
+            const normalizedEmpId = empId ? parseInt(empId) : null
+            return normalizedEmpId && !employeesWithAttendance.has(normalizedEmpId)
+          })
+          
+          // Auto-mark absent for employees without attendance records
+          for (const emp of employeesWithoutAttendance) {
+            const empId = emp.id || emp.employeeId
+            if (!empId) continue
+            
+            try {
+              // Mark as absent (no check-in, no check-out)
+              await api.markAttendance({
+                employeeId: empId,
+                date: dateStr,
+                status: 'Absent',
+                checkIn: null,
+                checkOut: null
+              })
+              console.log(`Auto-marked absent for employee ${empId} on ${dateStr}`)
+              hasMarkedAbsent = true
+            } catch (error) {
+              console.error(`Error auto-marking absent for employee ${empId} on ${dateStr}:`, error)
+              // Continue with other employees even if one fails
+            }
+          }
+        }
+        
+        // Reload data after auto-marking to reflect changes
+        if (hasMarkedAbsent) {
+          // Small delay to ensure backend has processed
+          setTimeout(async () => {
+            await loadData()
+          }, 500)
+        }
+      }
+    } catch (error) {
+      console.error('Error in auto-mark absent:', error)
+      // Don't show error to user, just log it
     }
   }
 
@@ -525,11 +627,32 @@ const Attendance = () => {
         setCalendarAttendance(attList)
 
         // Month summary (self-view only)
-        const workedDays = attList.filter(r => {
+        // Count unique dates where employee was present (avoid counting duplicates and absent)
+        const workedDatesSet = new Set()
+        attList.forEach(r => {
           const status = (r?.status || '').toString().toLowerCase()
-          if (status === 'absent') return false
-          return status === 'present' || r?.checkIn || r?.checkInTime
-        }).length
+          // Explicitly exclude absent records - don't count them as worked days
+          if (status === 'absent') return
+          
+          // Only count as present if status is explicitly 'present' (not just having checkIn)
+          const isPresent = status === 'present'
+          if (isPresent) {
+            let recordDate
+            if (typeof r.date === 'string') {
+              recordDate = r.date.split('T')[0]
+            } else {
+              try {
+                recordDate = format(new Date(r.date), 'yyyy-MM-dd')
+              } catch {
+                recordDate = ''
+              }
+            }
+            if (recordDate) {
+              workedDatesSet.add(recordDate)
+            }
+          }
+        })
+        const workedDays = workedDatesSet.size
 
         const totalWorkingHours = attList.reduce((sum, r) => {
           const status = (r?.status || '').toString().toLowerCase()
@@ -637,28 +760,61 @@ const Attendance = () => {
 
         // Build per-employee stats for the month (team/admin view)
         const statsMap = {}
+        
+        // Track unique dates per employee for worked days calculation
+        const employeeWorkedDates = {}
 
         // Attendance-based stats
         filteredAttData.forEach(r => {
           const rawEmpId = r?.employeeId
           const empKey = rawEmpId != null ? String(rawEmpId) : null
           if (!empKey) return
-          if (!statsMap[empKey]) statsMap[empKey] = { workedDays: 0, leaveDays: 0, totalWorkingHours: 0 }
+          if (!statsMap[empKey]) {
+            statsMap[empKey] = { workedDays: 0, leaveDays: 0, totalWorkingHours: 0 }
+            employeeWorkedDates[empKey] = new Set()
+          }
 
           const status = (r?.status || '').toString().toLowerCase()
-          const isPresent = status === 'present' || r?.checkIn || r?.checkInTime
-          if (isPresent) statsMap[empKey].workedDays += 1
-
-          const wh = r?.workingHours
-          const whNum = typeof wh === 'string' ? parseFloat(wh) : wh
-          if (Number.isFinite(whNum)) {
-            statsMap[empKey].totalWorkingHours += whNum
+          
+          // Explicitly exclude absent records - don't count them as worked days or working hours
+          if (status === 'absent') {
+            return // Skip absent records completely
+          }
+          
+          // Only count as present if status is explicitly 'present' (not just having checkIn)
+          const isPresent = status === 'present'
+          
+          // Get the date for this attendance record
+          let recordDate
+          if (typeof r.date === 'string') {
+            recordDate = r.date.split('T')[0]
           } else {
-            const inT = r?.checkIn || r?.checkInTime
-            const outT = r?.checkOut || r?.checkOutTime
-            if (inT && outT) {
-              const diffMs = new Date(`2000-01-01 ${outT}`) - new Date(`2000-01-01 ${inT}`)
-              if (Number.isFinite(diffMs) && diffMs > 0) statsMap[empKey].totalWorkingHours += (diffMs / (1000 * 60 * 60))
+            try {
+              recordDate = format(new Date(r.date), 'yyyy-MM-dd')
+            } catch {
+              recordDate = ''
+            }
+          }
+          
+          // Only count unique dates where status is explicitly 'present' (avoid counting duplicates and absent)
+          if (isPresent && recordDate && !employeeWorkedDates[empKey].has(recordDate)) {
+            employeeWorkedDates[empKey].add(recordDate)
+            statsMap[empKey].workedDays += 1
+          }
+
+          // Only calculate working hours for present records
+          if (isPresent) {
+            const wh = r?.workingHours
+            const whNum = typeof wh === 'string' ? parseFloat(wh) : wh
+            if (Number.isFinite(whNum)) {
+              statsMap[empKey].totalWorkingHours += whNum
+            } else {
+              const inT = r?.checkIn || r?.checkInTime
+              const outT = r?.checkOut || r?.checkOutTime
+              if (inT && outT) {
+                const diffMs = new Date(`2000-01-01 ${outT}`) - new Date(`2000-01-01 ${inT}`)
+                if (Number.isFinite(diffMs) && diffMs > 0) statsMap[empKey].totalWorkingHours += (diffMs / (1000 * 60 * 60))
+              }
             }
           }
         })
