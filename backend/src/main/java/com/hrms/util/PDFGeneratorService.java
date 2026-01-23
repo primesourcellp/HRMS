@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +38,7 @@ public class PDFGeneratorService {
                 .setFontSize(20)
                 .setBold()
                 .setTextAlignment(TextAlignment.CENTER)
+                .setMarginTop(15)
                 .setMarginBottom(20);
         document.add(header);
 
@@ -68,7 +68,7 @@ public class PDFGeneratorService {
         infoTable.addCell(createCell("Pay Period: " + getStringValue.apply(payslipData.get("payPeriod")), false));
         infoTable.addCell(createCell("Pay Date: " + getStringValue.apply(payslipData.get("payDate")), false));
         document.add(infoTable);
-        document.add(new Paragraph("\n"));
+        document.add(new Paragraph().setMarginBottom(15));
         
         // Statutory & Banking Information (if available)
         Object uan = payslipData.get("uan");
@@ -117,17 +117,18 @@ public class PDFGeneratorService {
             }
             
             document.add(accountTable);
-            document.add(new Paragraph("\n"));
+            document.add(new Paragraph().setMarginBottom(15));
         }
         
         // Attendance Information section removed as per user request
 
-        // Helper method to format currency
+        // Helper method to format currency with thousand separators
         java.util.function.Function<Object, String> formatCurrency = (value) -> {
             if (value == null) return "0.00";
             try {
                 double amount = value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString());
-                return String.format("%.2f", amount);
+                java.text.DecimalFormat df = new java.text.DecimalFormat("#,##0.00");
+                return df.format(amount);
             } catch (Exception e) {
                 return "0.00";
             }
@@ -136,109 +137,109 @@ public class PDFGeneratorService {
         // Earnings
         Table earningsTable = new Table(2).useAllAvailableWidth();
         earningsTable.addCell(createCell("EARNINGS", true));
-        earningsTable.addCell(createCell("AMOUNT (₹)", true));
+        earningsTable.addCell(createCell("AMOUNT (₹)", true).setTextAlignment(TextAlignment.RIGHT));
         
         // Basic Salary (always show)
         Double basicSalary = getDoubleValue.apply(payslipData.get("basicSalary"));
         earningsTable.addCell(createCell("Basic Salary", false));
-        earningsTable.addCell(createCell("₹" + formatCurrency.apply(basicSalary), false));
+        earningsTable.addCell(createCell("₹" + formatCurrency.apply(basicSalary), false).setTextAlignment(TextAlignment.RIGHT));
         
         // HRA
         Double hra = getDoubleValue.apply(payslipData.get("hra"));
         if (hra > 0) {
             earningsTable.addCell(createCell("HRA (House Rent Allowance)", false));
-            earningsTable.addCell(createCell("₹" + formatCurrency.apply(hra), false));
+            earningsTable.addCell(createCell("₹" + formatCurrency.apply(hra), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Special Allowance
         Double specialAllowance = getDoubleValue.apply(payslipData.get("specialAllowance"));
         if (specialAllowance > 0) {
             earningsTable.addCell(createCell("Special Allowance", false));
-            earningsTable.addCell(createCell("₹" + formatCurrency.apply(specialAllowance), false));
+            earningsTable.addCell(createCell("₹" + formatCurrency.apply(specialAllowance), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Transport Allowance
         Double transportAllowance = getDoubleValue.apply(payslipData.get("transportAllowance"));
         if (transportAllowance > 0) {
             earningsTable.addCell(createCell("Transport Allowance", false));
-            earningsTable.addCell(createCell("₹" + formatCurrency.apply(transportAllowance), false));
+            earningsTable.addCell(createCell("₹" + formatCurrency.apply(transportAllowance), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Medical Allowance
         Double medicalAllowance = getDoubleValue.apply(payslipData.get("medicalAllowance"));
         if (medicalAllowance > 0) {
             earningsTable.addCell(createCell("Medical Allowance", false));
-            earningsTable.addCell(createCell("₹" + formatCurrency.apply(medicalAllowance), false));
+            earningsTable.addCell(createCell("₹" + formatCurrency.apply(medicalAllowance), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Other Allowances
         Double otherAllowances = getDoubleValue.apply(payslipData.get("otherAllowances"));
         if (otherAllowances > 0) {
             earningsTable.addCell(createCell("Other Allowances", false));
-            earningsTable.addCell(createCell("₹" + formatCurrency.apply(otherAllowances), false));
+            earningsTable.addCell(createCell("₹" + formatCurrency.apply(otherAllowances), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Bonus
         Double bonus = getDoubleValue.apply(payslipData.get("bonus"));
         if (bonus > 0) {
             earningsTable.addCell(createCell("Bonus", false));
-            earningsTable.addCell(createCell("₹" + formatCurrency.apply(bonus), false));
+            earningsTable.addCell(createCell("₹" + formatCurrency.apply(bonus), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Gross Salary - Recalculate as sum of all earnings components shown
         // Calculate gross salary as sum of all earnings: Basic + HRA + All Allowances + Bonus
         Double grossSalary = basicSalary + hra + specialAllowance + transportAllowance + medicalAllowance + otherAllowances + bonus;
         earningsTable.addCell(createCell("Gross Salary", true));
-        earningsTable.addCell(createCell("₹" + formatCurrency.apply(grossSalary), true));
+        earningsTable.addCell(createCell("₹" + formatCurrency.apply(grossSalary), true).setTextAlignment(TextAlignment.RIGHT));
         document.add(earningsTable);
-        document.add(new Paragraph("\n"));
+        document.add(new Paragraph().setMarginBottom(15));
 
         // Deductions
         Table deductionsTable = new Table(2).useAllAvailableWidth();
         deductionsTable.addCell(createCell("DEDUCTIONS", true));
-        deductionsTable.addCell(createCell("AMOUNT (₹)", true));
+        deductionsTable.addCell(createCell("AMOUNT (₹)", true).setTextAlignment(TextAlignment.RIGHT));
         
         // PF (Provident Fund)
         Double pf = getDoubleValue.apply(payslipData.get("pf"));
         if (pf > 0) {
             deductionsTable.addCell(createCell("PF (Provident Fund - Employee Share)", false));
-            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(pf), false));
+            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(pf), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // ESI (Employee State Insurance)
         Double esi = getDoubleValue.apply(payslipData.get("esi"));
         if (esi > 0) {
             deductionsTable.addCell(createCell("ESI (Employee State Insurance)", false));
-            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(esi), false));
+            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(esi), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Professional Tax
         Double professionalTax = getDoubleValue.apply(payslipData.get("professionalTax"));
         if (professionalTax > 0) {
             deductionsTable.addCell(createCell("Professional Tax", false));
-            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(professionalTax), false));
+            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(professionalTax), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // TDS (Tax Deducted at Source)
         Double tds = getDoubleValue.apply(payslipData.get("tds"));
         if (tds > 0) {
             deductionsTable.addCell(createCell("TDS (Tax Deducted at Source)", false));
-            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(tds), false));
+            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(tds), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Other Deductions
         Double otherDeductions = getDoubleValue.apply(payslipData.get("otherDeductions"));
         if (otherDeductions > 0) {
             deductionsTable.addCell(createCell("Other Deductions", false));
-            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(otherDeductions), false));
+            deductionsTable.addCell(createCell("₹" + formatCurrency.apply(otherDeductions), false).setTextAlignment(TextAlignment.RIGHT));
         }
         
         // Total Deductions
         Double totalDeductions = getDoubleValue.apply(payslipData.get("totalDeductions"));
         deductionsTable.addCell(createCell("Total Deductions", true));
-        deductionsTable.addCell(createCell("₹" + formatCurrency.apply(totalDeductions), true));
+        deductionsTable.addCell(createCell("₹" + formatCurrency.apply(totalDeductions), true).setTextAlignment(TextAlignment.RIGHT));
         document.add(deductionsTable);
-        document.add(new Paragraph("\n"));
+        document.add(new Paragraph().setMarginBottom(15));
 
         // Net Salary - Calculate if not provided: Gross Salary (includes bonus) - Total Deductions
         Object netSalaryObj = payslipData.get("netSalary");
@@ -266,8 +267,8 @@ public class PDFGeneratorService {
             netSalaryValue = grossSalary - deductions;
         }
         
-        // Format net salary with 2 decimal places
-        String netSalaryFormatted = String.format("%.2f", netSalaryValue != null ? netSalaryValue : 0.0);
+        // Format net salary with thousand separators
+        String netSalaryFormatted = formatCurrency.apply(netSalaryValue != null ? netSalaryValue : 0.0);
         
         Paragraph netSalary = new Paragraph("NET SALARY: ₹" + netSalaryFormatted)
                 .setFontSize(16)
@@ -275,6 +276,29 @@ public class PDFGeneratorService {
                 .setTextAlignment(TextAlignment.CENTER)
                 .setMarginTop(20);
         document.add(netSalary);
+
+        // Approved By Section
+        document.add(new Paragraph().setMarginTop(30));
+        Table approvalTable = new Table(2).useAllAvailableWidth();
+        approvalTable.setMarginBottom(20);
+        
+        Cell approvedByLabel = createStyledValueCell("Approved By:");
+        approvedByLabel.setBorder(null);
+        Cell approvedByValue = createStyledValueCell("");
+        approvedByValue.setBorder(null);
+        
+        approvalTable.addCell(approvedByLabel);
+        approvalTable.addCell(approvedByValue);
+        
+        Cell signatureLabel = createStyledValueCell("Signature:");
+        signatureLabel.setBorder(null);
+        Cell signatureValue = createStyledValueCell("");
+        signatureValue.setBorder(null);
+        
+        approvalTable.addCell(signatureLabel);
+        approvalTable.addCell(signatureValue);
+        
+        document.add(approvalTable);
 
         document.close();
         return baos.toByteArray();
@@ -368,62 +392,84 @@ public class PDFGeneratorService {
             }
         };
 
+        // Helper method to format currency with thousand separators
         java.util.function.Function<Double, String> formatCurrency = (value) -> {
-            return String.format("%.2f", value);
+            if (value == null) return "0.00";
+            java.text.DecimalFormat df = new java.text.DecimalFormat("#,##0.00");
+            return df.format(value);
         };
 
-        // Header
+        // Header Section with enhanced styling
         Paragraph header = new Paragraph("ANNUAL CTC STATEMENT")
-                .setFontSize(24)
+                .setFontSize(28)
                 .setBold()
                 .setTextAlignment(TextAlignment.CENTER)
-                .setMarginBottom(10);
+                .setMarginTop(15)
+                .setMarginBottom(3);
         document.add(header);
 
         Paragraph subHeader = new Paragraph("Cost to Company")
-                .setFontSize(16)
+                .setFontSize(18)
                 .setTextAlignment(TextAlignment.CENTER)
-                .setMarginBottom(5);
+                .setMarginBottom(8);
         document.add(subHeader);
 
         String employeeName = getStringValue.apply(annualCtcData.get("employeeName"));
         String year = getStringValue.apply(annualCtcData.get("year"));
         Paragraph period = new Paragraph(employeeName + " - " + year)
-                .setFontSize(12)
+                .setFontSize(14)
+                .setBold()
                 .setTextAlignment(TextAlignment.CENTER)
                 .setMarginBottom(5);
         document.add(period);
 
         Paragraph generatedDate = new Paragraph("Generated on: " + LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")))
-                .setFontSize(10)
+                .setFontSize(11)
                 .setTextAlignment(TextAlignment.CENTER)
-                .setMarginBottom(20);
+                .setMarginBottom(15);
         document.add(generatedDate);
 
-        // Employee Information
+        // Employee Information Section with enhanced styling
         Table infoTable = new Table(4).useAllAvailableWidth();
-        infoTable.addCell(createCell("Employee Name", true));
-        infoTable.addCell(createCell(getStringValue.apply(annualCtcData.get("employeeName")), false));
-        infoTable.addCell(createCell("Employee ID", true));
-        infoTable.addCell(createCell(getStringValue.apply(annualCtcData.get("employeeId")), false));
-        infoTable.addCell(createCell("Department", true));
-        infoTable.addCell(createCell(getStringValue.apply(annualCtcData.get("department")), false));
+        infoTable.setMarginBottom(15);
+        
+        // Create header cells with blue background
+        Cell empNameHeader = createStyledHeaderCell("Employee Name");
+        Cell empNameValue = createStyledValueCell(getStringValue.apply(annualCtcData.get("employeeName")));
+        Cell empIdHeader = createStyledHeaderCell("Employee ID");
+        Cell empIdValue = createStyledValueCell(getStringValue.apply(annualCtcData.get("employeeId")));
+        
+        infoTable.addCell(empNameHeader);
+        infoTable.addCell(empNameValue);
+        infoTable.addCell(empIdHeader);
+        infoTable.addCell(empIdValue);
+        
+        Cell deptHeader = createStyledHeaderCell("Department");
+        Cell deptValue = createStyledValueCell(getStringValue.apply(annualCtcData.get("department")));
         
         // Set annual period (January 1 to December 31 of the year)
         String yearStr = getStringValue.apply(annualCtcData.get("year"));
+        String periodStr = yearStr;
         try {
             int yearInt = Integer.parseInt(yearStr);
             LocalDate annualStart = LocalDate.of(yearInt, 1, 1);
             LocalDate annualEnd = LocalDate.of(yearInt, 12, 31);
-            infoTable.addCell(createCell("Payroll Period", true));
-            infoTable.addCell(createCell(annualStart.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")) + " - " + 
-                    annualEnd.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")), false));
+            periodStr = annualStart.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")) + " - " + 
+                    annualEnd.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy"));
         } catch (Exception e) {
-            infoTable.addCell(createCell("Payroll Period", true));
-            infoTable.addCell(createCell(yearStr, false));
+            // Use yearStr as is
         }
+        
+        Cell periodHeader = createStyledHeaderCell("Payroll Period");
+        Cell periodValue = createStyledValueCell(periodStr);
+        
+        infoTable.addCell(deptHeader);
+        infoTable.addCell(deptValue);
+        infoTable.addCell(periodHeader);
+        infoTable.addCell(periodValue);
+        
         document.add(infoTable);
-        document.add(new Paragraph("\n"));
+        document.add(new Paragraph().setMarginBottom(15));
 
         // Annual CTC Summary Table
         Double baseSalary = getDoubleValue.apply(annualCtcData.get("baseSalary"));
@@ -445,115 +491,236 @@ public class PDFGeneratorService {
         Double monthlyCTC = getDoubleValue.apply(annualCtcData.get("monthlyCTC"));
         Double annualCTC = getDoubleValue.apply(annualCtcData.get("annualCTC"));
 
-        Table ctcTable = new Table(3).useAllAvailableWidth();
-        ctcTable.addCell(createCell("Particulars", true));
-        ctcTable.addCell(createCell("Per Month (₹)", true).setTextAlignment(TextAlignment.RIGHT));
-        ctcTable.addCell(createCell("Per Annum (₹)", true).setTextAlignment(TextAlignment.RIGHT));
-
-        // Gross Salary Section
-        ctcTable.addCell(createCell("Gross Salary (A)", true));
-        ctcTable.addCell(createCell("", true));
-        ctcTable.addCell(createCell("", true));
+        // Section Header
+        Paragraph sectionHeader = new Paragraph("CTC BREAKDOWN")
+                .setFontSize(16)
+                .setBold()
+                .setTextAlignment(TextAlignment.LEFT)
+                .setMarginBottom(8);
+        document.add(sectionHeader);
         
-        ctcTable.addCell(createCell("  Basic Salary", false));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(baseSalary), false).setTextAlignment(TextAlignment.RIGHT));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(baseSalary * 12), false).setTextAlignment(TextAlignment.RIGHT));
+        Table ctcTable = new Table(3).useAllAvailableWidth();
+        ctcTable.setMarginBottom(15);
+        
+        // Enhanced header cells
+        Cell particularsHeader = createStyledHeaderCell("Particulars");
+        Cell monthlyHeader = createStyledHeaderCell("Per Month (₹)").setTextAlignment(TextAlignment.RIGHT);
+        Cell annualHeader = createStyledHeaderCell("Per Annum (₹)").setTextAlignment(TextAlignment.RIGHT);
+        
+        ctcTable.addCell(particularsHeader);
+        ctcTable.addCell(monthlyHeader);
+        ctcTable.addCell(annualHeader);
+
+        // Gross Salary Section with section header
+        Cell grossHeader = new Cell(1, 3).add(new Paragraph("GROSS SALARY (A)").setBold().setFontSize(11));
+        grossHeader.setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(229, 231, 235));
+        grossHeader.setPadding(5);
+        ctcTable.addCell(grossHeader);
+        
+        ctcTable.addCell(createStyledValueCell("  Basic Salary"));
+        ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(baseSalary)).setTextAlignment(TextAlignment.RIGHT));
+        ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(baseSalary * 12)).setTextAlignment(TextAlignment.RIGHT));
         
         if (hra > 0) {
-            ctcTable.addCell(createCell("  House Rental Allowance (HRA)", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(hra), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(hra * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  House Rental Allowance (HRA)"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(hra)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(hra * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (medicalAllowance > 0) {
-            ctcTable.addCell(createCell("  Medical Allowance", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(medicalAllowance), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(medicalAllowance * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  Medical Allowance"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(medicalAllowance)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(medicalAllowance * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (transportAllowance > 0) {
-            ctcTable.addCell(createCell("  Travel Allowance", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(transportAllowance), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(transportAllowance * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  Travel Allowance"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(transportAllowance)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(transportAllowance * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (specialAllowance > 0) {
-            ctcTable.addCell(createCell("  Special Allowance", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(specialAllowance), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(specialAllowance * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  Special Allowance"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(specialAllowance)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(specialAllowance * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (otherAllowances > 0) {
-            ctcTable.addCell(createCell("  Other Allowances", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(otherAllowances), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(otherAllowances * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  Other Allowances"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(otherAllowances)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(otherAllowances * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
-        ctcTable.addCell(createCell("Gross Salary (A)", true));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyGross), true).setTextAlignment(TextAlignment.RIGHT));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyGross * 12), true).setTextAlignment(TextAlignment.RIGHT));
+        // Gross Salary Total
+        Cell grossTotalLabel = createStyledTotalCell("Total Gross Salary (A)");
+        Cell grossTotalMonthly = createStyledTotalCell("₹" + formatCurrency.apply(monthlyGross)).setTextAlignment(TextAlignment.RIGHT);
+        Cell grossTotalAnnual = createStyledTotalCell("₹" + formatCurrency.apply(monthlyGross * 12)).setTextAlignment(TextAlignment.RIGHT);
+        ctcTable.addCell(grossTotalLabel);
+        ctcTable.addCell(grossTotalMonthly);
+        ctcTable.addCell(grossTotalAnnual);
+
+        // Employee Deductions Section
+        Cell deductionsHeader = new Cell(1, 3).add(new Paragraph("EMPLOYEE DEDUCTIONS (C)").setBold().setFontSize(11));
+        deductionsHeader.setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(229, 231, 235));
+        deductionsHeader.setPadding(5);
+        ctcTable.addCell(deductionsHeader);
+        
+        if (pfEmployee > 0) {
+            ctcTable.addCell(createStyledValueCell("  PF (Employee Contribution)"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(pfEmployee)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(pfEmployee * 12)).setTextAlignment(TextAlignment.RIGHT));
+        }
+        
+        if (esiEmployee > 0) {
+            ctcTable.addCell(createStyledValueCell("  ESI (Employee Contribution)"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(esiEmployee)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(esiEmployee * 12)).setTextAlignment(TextAlignment.RIGHT));
+        }
+        
+        if (professionalTax > 0) {
+            ctcTable.addCell(createStyledValueCell("  Professional Tax"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(professionalTax)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(professionalTax * 12)).setTextAlignment(TextAlignment.RIGHT));
+        }
+        
+        Double totalMonthlyDeductions = pfEmployee + esiEmployee + professionalTax;
+        Double totalAnnualDeductions = totalMonthlyDeductions * 12;
+        
+        Cell deductionsTotalLabel = createStyledTotalCell("Total Employee Deductions (C)");
+        Cell deductionsTotalMonthly = createStyledTotalCell("₹" + formatCurrency.apply(totalMonthlyDeductions)).setTextAlignment(TextAlignment.RIGHT);
+        Cell deductionsTotalAnnual = createStyledTotalCell("₹" + formatCurrency.apply(totalAnnualDeductions)).setTextAlignment(TextAlignment.RIGHT);
+        ctcTable.addCell(deductionsTotalLabel);
+        ctcTable.addCell(deductionsTotalMonthly);
+        ctcTable.addCell(deductionsTotalAnnual);
 
         // Employer Contribution Section
-        ctcTable.addCell(createCell("Employer Contribution (B)", true));
-        ctcTable.addCell(createCell("", true));
-        ctcTable.addCell(createCell("", true));
+        Cell employerHeader = new Cell(1, 3).add(new Paragraph("EMPLOYER CONTRIBUTION (B)").setBold().setFontSize(11));
+        employerHeader.setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(229, 231, 235));
+        employerHeader.setPadding(5);
+        ctcTable.addCell(employerHeader);
         
         if (pfEmployer > 0) {
-            ctcTable.addCell(createCell("  PF (Employer)", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(pfEmployer), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(pfEmployer * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  PF (Employer)"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(pfEmployer)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(pfEmployer * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (esiEmployer > 0) {
-            ctcTable.addCell(createCell("  ESI (Employer)", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(esiEmployer), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(esiEmployer * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  ESI (Employer)"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(esiEmployer)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(esiEmployer * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (bonus > 0) {
-            ctcTable.addCell(createCell("  Bonus", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(bonus / 12), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(bonus), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  Bonus"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(bonus / 12)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(bonus)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (monthlyGratuity > 0) {
-            ctcTable.addCell(createCell("  Gratuity", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyGratuity), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyGratuity * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  Gratuity"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(monthlyGratuity)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(monthlyGratuity * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
         if (monthlyLTA > 0) {
-            ctcTable.addCell(createCell("  LTA (Leave Travel Allowance)", false));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyLTA), false).setTextAlignment(TextAlignment.RIGHT));
-            ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyLTA * 12), false).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("  LTA (Leave Travel Allowance)"));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(monthlyLTA)).setTextAlignment(TextAlignment.RIGHT));
+            ctcTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(monthlyLTA * 12)).setTextAlignment(TextAlignment.RIGHT));
         }
         
-        ctcTable.addCell(createCell("Total Employer Contribution (B)", true));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyEmployerContribution), true).setTextAlignment(TextAlignment.RIGHT));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyEmployerContribution * 12), true).setTextAlignment(TextAlignment.RIGHT));
+        Cell employerTotalLabel = createStyledTotalCell("Total Employer Contribution (B)");
+        Cell employerTotalMonthly = createStyledTotalCell("₹" + formatCurrency.apply(monthlyEmployerContribution)).setTextAlignment(TextAlignment.RIGHT);
+        Cell employerTotalAnnual = createStyledTotalCell("₹" + formatCurrency.apply(monthlyEmployerContribution * 12)).setTextAlignment(TextAlignment.RIGHT);
+        ctcTable.addCell(employerTotalLabel);
+        ctcTable.addCell(employerTotalMonthly);
+        ctcTable.addCell(employerTotalAnnual);
 
-        // CTC Total
-        ctcTable.addCell(createCell("CTC (A+B)", true));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(monthlyCTC), true).setTextAlignment(TextAlignment.RIGHT));
-        ctcTable.addCell(createCell("₹" + formatCurrency.apply(annualCTC), true).setTextAlignment(TextAlignment.RIGHT));
+        // CTC Total - Highlighted
+        Cell ctcTotalLabel = createStyledHighlightCell("TOTAL CTC (A+B)");
+        Cell ctcTotalMonthly = createStyledHighlightCell("₹" + formatCurrency.apply(monthlyCTC)).setTextAlignment(TextAlignment.RIGHT);
+        Cell ctcTotalAnnual = createStyledHighlightCell("₹" + formatCurrency.apply(annualCTC)).setTextAlignment(TextAlignment.RIGHT);
+        ctcTable.addCell(ctcTotalLabel);
+        ctcTable.addCell(ctcTotalMonthly);
+        ctcTable.addCell(ctcTotalAnnual);
 
         document.add(ctcTable);
-        document.add(new Paragraph("\n"));
+        document.add(new Paragraph().setMarginBottom(15));
 
-        // Annual CTC Highlight
+        // CTC Summary Section
+        Paragraph summarySectionHeader = new Paragraph("CTC SUMMARY")
+                .setFontSize(16)
+                .setBold()
+                .setTextAlignment(TextAlignment.LEFT)
+                .setMarginTop(15)
+                .setMarginBottom(8);
+        document.add(summarySectionHeader);
+        
+        Table summaryTable = new Table(2).useAllAvailableWidth();
+        summaryTable.setMarginBottom(15);
+        
+        Cell summaryHeader = createStyledHeaderCell("Description");
+        Cell summaryAmountHeader = createStyledHeaderCell("Amount (₹)").setTextAlignment(TextAlignment.RIGHT);
+        summaryTable.addCell(summaryHeader);
+        summaryTable.addCell(summaryAmountHeader);
+        
+        summaryTable.addCell(createStyledValueCell("Annual Gross Salary"));
+        summaryTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(monthlyGross * 12)).setTextAlignment(TextAlignment.RIGHT));
+        
+        summaryTable.addCell(createStyledValueCell("Less: Employee Deductions"));
+        summaryTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(totalAnnualDeductions)).setTextAlignment(TextAlignment.RIGHT));
+        
+        Double annualNetSalary = (monthlyGross * 12) - totalAnnualDeductions;
+        summaryTable.addCell(createStyledTotalCell("Annual Net Salary (Take Home)"));
+        summaryTable.addCell(createStyledTotalCell("₹" + formatCurrency.apply(annualNetSalary)).setTextAlignment(TextAlignment.RIGHT));
+        
+        summaryTable.addCell(createStyledValueCell("Add: Employer Contributions"));
+        summaryTable.addCell(createStyledValueCell("₹" + formatCurrency.apply(monthlyEmployerContribution * 12)).setTextAlignment(TextAlignment.RIGHT));
+        
+        summaryTable.addCell(createStyledHighlightCell("ANNUAL CTC (COST TO COMPANY)"));
+        summaryTable.addCell(createStyledHighlightCell("₹" + formatCurrency.apply(annualCTC)).setTextAlignment(TextAlignment.RIGHT));
+        
+        document.add(summaryTable);
+        document.add(new Paragraph().setMarginBottom(15));
+
+        // Annual CTC Highlight Box
         Paragraph annualCtcHighlight = new Paragraph("ANNUAL CTC (COST TO COMPANY): ₹" + formatCurrency.apply(annualCTC))
-                .setFontSize(18)
+                .setFontSize(20)
                 .setBold()
                 .setTextAlignment(TextAlignment.CENTER)
-                .setMarginTop(20)
-                .setMarginBottom(20);
+                .setMarginTop(15)
+                .setMarginBottom(15);
         document.add(annualCtcHighlight);
+
+        // Approved By Section
+        document.add(new Paragraph().setMarginTop(30));
+        Table approvalTable = new Table(2).useAllAvailableWidth();
+        approvalTable.setMarginBottom(20);
+        
+        Cell approvedByLabel = createStyledValueCell("Approved By:");
+        approvedByLabel.setBorder(null);
+        Cell approvedByValue = createStyledValueCell("");
+        approvedByValue.setBorder(null);
+        
+        approvalTable.addCell(approvedByLabel);
+        approvalTable.addCell(approvedByValue);
+        
+        Cell signatureLabel = createStyledValueCell("Signature:");
+        signatureLabel.setBorder(null);
+        Cell signatureValue = createStyledValueCell("");
+        signatureValue.setBorder(null);
+        
+        approvalTable.addCell(signatureLabel);
+        approvalTable.addCell(signatureValue);
+        
+        document.add(approvalTable);
 
         // Footer
         Paragraph footer = new Paragraph("This is a system-generated document. For any discrepancies, please contact HR.")
                 .setFontSize(10)
                 .setTextAlignment(TextAlignment.CENTER)
-                .setMarginTop(30);
+                .setMarginTop(20)
+                .setMarginBottom(20);
         document.add(footer);
 
         document.close();
@@ -827,10 +994,48 @@ public class PDFGeneratorService {
 
     private Cell createCell(String text, boolean isHeader) {
         Cell cell = new Cell().add(new Paragraph(text));
+        cell.setPadding(8); // Add padding to all cells
         if (isHeader) {
             cell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
             cell.setBold();
+            cell.setPadding(10); // Slightly more padding for headers
         }
+        return cell;
+    }
+    
+    // Enhanced cell creation methods for Annual CTC
+    private Cell createStyledHeaderCell(String text) {
+        Cell cell = new Cell().add(new Paragraph(text).setBold().setFontSize(11));
+        cell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        cell.setPadding(8);
+        return cell;
+    }
+    
+    private Cell createStyledValueCell(String text) {
+        Cell cell = new Cell().add(new Paragraph(text).setFontSize(10));
+        cell.setPadding(6);
+        cell.setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.WHITE);
+        return cell;
+    }
+    
+    private Cell createSectionHeaderCell(String text) {
+        Cell cell = new Cell().add(new Paragraph(text).setBold().setFontSize(11));
+        cell.setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(229, 231, 235)); // Light gray
+        cell.setPadding(12);
+        return cell;
+    }
+    
+    private Cell createStyledTotalCell(String text) {
+        Cell cell = new Cell().add(new Paragraph(text).setBold().setFontSize(10));
+        cell.setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(243, 244, 246)); // Very light gray
+        cell.setPadding(6);
+        return cell;
+    }
+    
+    private Cell createStyledHighlightCell(String text) {
+        Cell cell = new Cell().add(new Paragraph(text).setBold().setFontSize(11));
+        cell.setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(243, 244, 246)); // Very light gray
+        cell.setPadding(6);
         return cell;
     }
 }

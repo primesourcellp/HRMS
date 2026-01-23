@@ -18,7 +18,8 @@ import {
   Building2,
   Receipt,
   UserCheck,
-  FileCheck
+  FileCheck,
+  Briefcase
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getUserRole, hasPermission, ROLES } from '../utils/roles'
@@ -84,6 +85,9 @@ const Layout = () => {
         { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
         { path: '/shifts', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Shift' : 'Shifts', permission: 'shifts' },
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
+        { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : userRole === ROLES.FINANCE ? 'Payroll Tickets' : 'HR Tickets', permission: 'tickets' },
+        { path: '/my-tickets', icon: Ticket, label: 'My Tickets', permission: 'tickets', roles: [ROLES.FINANCE] },
+        { path: '/recruitment', icon: Briefcase, label: 'Recruitment', permission: 'recruitment' },
         { path: '/analytics', icon: BarChart3, label: userRole === ROLES.FINANCE ? 'Cost Analytics' : 'Analytics', permission: 'analytics' },
         { path: '/compliance', icon: FileCheck, label: 'Compliance & Audit', permission: 'compliance', roles: [ROLES.SUPER_ADMIN, ROLES.HR_ADMIN, ROLES.FINANCE] },
         { path: '/clients', icon: Building2, label: 'Client Management', permission: 'employees' },

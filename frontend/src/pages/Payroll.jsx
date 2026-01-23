@@ -2150,19 +2150,17 @@ const Payroll = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Client Name *</label>
-                      <input
-                        type="text"
+                      <select
                         value={ctcTemplateFormData.clientName}
                         onChange={(e) => setCtcTemplateFormData({ ...ctcTemplateFormData, clientName: e.target.value })}
-                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                         required
-                        list="ctc-clients-list"
-                      />
-                      <datalist id="ctc-clients-list">
+                      >
+                        <option value="">Select Client</option>
                         {ctcTemplateClients.map(client => (
-                          <option key={client} value={client} />
+                          <option key={client} value={client}>{client}</option>
                         ))}
-                      </datalist>
+                      </select>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
@@ -3260,15 +3258,18 @@ const Payroll = () => {
     <div className="space-y-4 sm:space-y-5 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
       {/* Success Message Toast */}
       {successMessage && (
-        <div className="fixed top-4 right-4 bg-green-50 border border-green-200 text-green-800 px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2 max-w-md">
-          <CheckCircle className="w-5 h-5 flex-shrink-0 text-green-600" />
-          <span>{successMessage}</span>
-          <button
-            onClick={() => setSuccessMessage(null)}
-            className="ml-2 text-green-600 hover:text-green-800 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        <div className="fixed top-4 right-4 z-50 space-y-3">
+          <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+            <CheckCircle size={24} className="mt-0.5 text-green-600 shrink-0" />
+            <div className="flex-1 text-lg font-semibold">{successMessage}</div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="text-green-700/70 hover:text-green-800"
+              aria-label="Close success message"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
       )}
       {/* Toggle Buttons for Salary Details, Processed Payrolls, CTC Templates, Gratuity, and Annual CTC - Admin Only */}

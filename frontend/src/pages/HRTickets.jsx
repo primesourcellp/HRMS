@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { Ticket, Plus, Filter, CheckCircle, XCircle, Clock, Search, Edit, Trash2, User, Calendar, AlertCircle, MessageSquare, X, Eye, UserCheck, ArrowUpDown, PlusCircle, Activity } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
+import { useLocation } from 'react-router-dom'
 
 const HRTickets = () => {
+  const location = useLocation()
+  const isMyTicketsRoute = location.pathname === '/my-tickets'
   const [tickets, setTickets] = useState([])
   const [employees, setEmployees] = useState([])
   const [users, setUsers] = useState([])
@@ -35,6 +38,14 @@ const HRTickets = () => {
     assignedTo: '',
     priority: ''
   })
+  const [editData, setEditData] = useState({
+    subject: '',
+    description: '',
+    ticketType: '',
+    subCategory: '',
+    priority: ''
+  })
+  const [showEditModal, setShowEditModal] = useState(false)
   const [showTimeline, setShowTimeline] = useState(false)
   const [timelineData, setTimelineData] = useState([])
   const [duplicateWarning, setDuplicateWarning] = useState(null)
@@ -43,8 +54,12 @@ const HRTickets = () => {
   const currentUserId = localStorage.getItem('userId')
   const userType = localStorage.getItem('userType')
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN'
+  const isManager = userRole === 'MANAGER'
+  const isFinance = userRole === 'FINANCE'
   // Check if employee: userType === 'employee' OR userRole === 'EMPLOYEE'
   const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE'
+  // Users who can manage tickets (all non-employee roles)
+  const canManageTickets = isAdmin || isManager || isFinance
 
   // Ticket Categories and Sub-categories
   const ticketCategories = {
@@ -74,6 +89,10 @@ const HRTickets = () => {
   const [displayTicketId, setDisplayTicketId] = useState('')
 
   const openCreateModal = () => {
+    // Finance can create tickets only from "My Tickets" page
+    if (isFinance && !isMyTicketsRoute) {
+      return
+    }
     const newTicketId = generateTicketId()
     setDisplayTicketId(newTicketId)
     setFormData({
@@ -82,7 +101,8 @@ const HRTickets = () => {
       subject: '',
       description: '',
       priority: 'MEDIUM',
-      employeeId: '',
+      // Employees always create for self. Finance creates for self only on /my-tickets.
+      employeeId: (isEmployee || isMyTicketsRoute) ? currentUserId : '',
       assignedTo: '',
       assignedRole: '',
       ticketId: newTicketId
@@ -320,7 +340,7 @@ const HRTickets = () => {
 
   useEffect(() => {
     loadData()
-  }, [filter, priorityFilter, searchTerm, sortBy, sortOrder])
+  }, [filter, priorityFilter, searchTerm, sortBy, sortOrder, isMyTicketsRoute])
 
   useEffect(() => {
     // Load users for assignment functionality
@@ -342,7 +362,9 @@ const HRTickets = () => {
       setError(null)
       
       let ticketsData
-      if (isEmployee && currentUserId) {
+      // Employees only see their own tickets, all other roles see all tickets
+      // If on /my-tickets route, show only current user's tickets
+      if ((isEmployee && currentUserId) || (isMyTicketsRoute && currentUserId)) {
         ticketsData = await api.getEmployeeTickets(parseInt(currentUserId))
       } else {
         ticketsData = await api.getTickets()
@@ -350,6 +372,16 @@ const HRTickets = () => {
       
       // Apply filters
       let filteredTickets = Array.isArray(ticketsData) ? ticketsData : []
+      
+      // Finance users only see PAYROLL-related tickets (unless on my-tickets route which is already filtered by user)
+      if (isFinance && !isMyTicketsRoute) {
+        filteredTickets = filteredTickets.filter(ticket => 
+          ticket.ticketType === 'PAYROLL' || 
+          (ticket.ticketType && ticket.ticketType.toUpperCase() === 'PAYROLL')
+        )
+      }
+      
+      // On my-tickets route, finance should see their own tickets across all categories (no PAYROLL-only restriction)
       
       if (filter !== 'All') {
         filteredTickets = filteredTickets.filter(t => t.status === filter)
@@ -456,49 +488,66 @@ const HRTickets = () => {
     
     try {
       const updatePayload = {
-        ...selectedTicket,
-        status: updateData.status || selectedTicket.status,
-        resolution: updateData.resolution || selectedTicket.resolution,
-        priority: updateData.priority || selectedTicket.priority,
-        assignedTo: updateData.assignedTo ? parseInt(updateData.assignedTo) : selectedTicket.assignedTo
+        ...selectedTicket
       }
       
-      // Record what changed for timeline tracking
-      const changes = []
-      if (updateData.status && updateData.status !== selectedTicket.status) {
-        changes.push({
-          type: 'STATUS_CHANGE',
-          from: selectedTicket.status,
-          to: updateData.status
-        })
-      }
-      if (updateData.assignedTo && updateData.assignedTo !== selectedTicket.assignedTo?.toString()) {
-        changes.push({
-          type: 'ASSIGNED',
-          from: selectedTicket.assignedTo,
-          to: updateData.assignedTo
-        })
-      }
-      if (updateData.priority && updateData.priority !== selectedTicket.priority) {
-        changes.push({
-          type: 'MODIFIED',
-          field: 'priority',
-          from: selectedTicket.priority,
-          to: updateData.priority
-        })
-      }
-      if (updateData.resolution && updateData.resolution !== selectedTicket.resolution) {
-        changes.push({
-          type: 'RESOLVED',
-          resolution: updateData.resolution
-        })
-      }
-      
-      // Add change tracking to payload
-      if (changes.length > 0) {
-        updatePayload.changes = changes
-        updatePayload.changedBy = currentUserId
-        updatePayload.changedAt = new Date().toISOString()
+      // For employees, only allow updating description/comments
+      // For admins, managers, finance, and HR_ADMIN, allow updating status, priority, assignment, and resolution
+      if (isEmployee) {
+        // Employees can only add comments/updates
+        if (updateData.resolution) {
+          // Append to existing description or resolution as a comment
+          const currentDescription = selectedTicket.description || ''
+          const comment = `\n\n--- Comment added on ${format(new Date(), 'MMM dd, yyyy HH:mm')} ---\n${updateData.resolution}`
+          updatePayload.description = currentDescription + comment
+        }
+      } else if (canManageTickets) {
+        // Admins, Managers, Finance, and HR_ADMIN can update everything
+        const newStatus = updateData.status || selectedTicket.status
+        updatePayload.status = newStatus
+        updatePayload.resolution = updateData.resolution || selectedTicket.resolution
+        updatePayload.priority = updateData.priority || selectedTicket.priority
+        
+        // When resolving/closing ticket, set assignedTo to current user (handled by backend)
+        // Keep existing assignedTo for other status changes
+        if (newStatus === 'RESOLVED' || newStatus === 'CLOSED') {
+          // Backend will set assignedTo to current user automatically
+          updatePayload.assignedTo = selectedTicket.assignedTo
+        } else {
+          // Keep existing assignedTo for other status changes
+          updatePayload.assignedTo = selectedTicket.assignedTo
+        }
+        
+        // Record what changed for timeline tracking
+        const changes = []
+        if (updateData.status && updateData.status !== selectedTicket.status) {
+          changes.push({
+            type: 'STATUS_CHANGE',
+            from: selectedTicket.status,
+            to: updateData.status
+          })
+        }
+        if (updateData.priority && updateData.priority !== selectedTicket.priority) {
+          changes.push({
+            type: 'MODIFIED',
+            field: 'priority',
+            from: selectedTicket.priority,
+            to: updateData.priority
+          })
+        }
+        if (updateData.resolution && updateData.resolution !== selectedTicket.resolution) {
+          changes.push({
+            type: 'RESOLVED',
+            resolution: updateData.resolution
+          })
+        }
+        
+        // Add change tracking to payload
+        if (changes.length > 0) {
+          updatePayload.changes = changes
+          updatePayload.changedBy = currentUserId
+          updatePayload.changedAt = new Date().toISOString()
+        }
       }
       
       const response = await api.updateTicket(selectedTicket.id, updatePayload)
@@ -510,7 +559,7 @@ const HRTickets = () => {
       await loadData()
       setSelectedTicket(null)
       setUpdateData({ status: '', resolution: '', assignedTo: '', priority: '' })
-      setSuccessMessage('Ticket updated successfully!')
+      setSuccessMessage(isEmployee ? 'Comment added successfully! HR will be notified.' : 'Ticket updated successfully!')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
       setError(error.message || 'Error updating ticket')
@@ -555,6 +604,79 @@ const HRTickets = () => {
       assignedTo: ticket.assignedTo ? ticket.assignedTo.toString() : '',
       priority: ticket.priority || ''
     })
+  }
+
+  const openEditModal = (ticket) => {
+    // Check if employee can edit (only their own OPEN tickets)
+    // Managers, Finance, HR_ADMIN, and Admins can edit any ticket
+    if (isEmployee && (ticket.employeeId?.toString() !== currentUserId || ticket.status !== 'OPEN')) {
+      setError('You can only edit your own open tickets')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+    
+    // Non-employees can edit any ticket, but check if it's closed
+    if (!isEmployee && ticket.status === 'CLOSED') {
+      setError('Cannot edit closed tickets')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+    
+    setSelectedTicket(ticket)
+    setEditData({
+      subject: ticket.subject || '',
+      description: ticket.description || '',
+      ticketType: ticket.ticketType || 'PAYROLL',
+      subCategory: ticket.subCategory || '',
+      priority: ticket.priority || 'MEDIUM'
+    })
+    setShowEditModal(true)
+  }
+
+  const handleEditTicket = async () => {
+    if (!selectedTicket) return
+    
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+    
+    try {
+      // Validate required fields
+      if (!editData.subject || !editData.description || !editData.subCategory) {
+        throw new Error('Please fill in all required fields')
+      }
+      
+      const updatePayload = {
+        ...selectedTicket,
+        subject: editData.subject,
+        description: editData.description,
+        ticketType: editData.ticketType,
+        subCategory: editData.subCategory,
+        priority: editData.priority
+      }
+      
+      // Record edit change
+      updatePayload.changedBy = currentUserId
+      updatePayload.changedAt = new Date().toISOString()
+      
+      const response = await api.updateTicket(selectedTicket.id, updatePayload)
+      
+      if (response.success === false) {
+        throw new Error(response.message || 'Failed to update ticket')
+      }
+      
+      await loadData()
+      setShowEditModal(false)
+      setSelectedTicket(null)
+      setEditData({ subject: '', description: '', ticketType: '', subCategory: '', priority: '' })
+      setSuccessMessage('Ticket updated successfully!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      setError(error.message || 'Error updating ticket')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const openViewModal = (ticket) => {
@@ -656,15 +778,35 @@ const HRTickets = () => {
 
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-          <span className="block sm:inline">{successMessage}</span>
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          <span className="block sm:inline">{error}</span>
+      {/* Toast Notifications (Top Right) */}
+      {(successMessage || error) && (
+        <div className="fixed top-4 right-4 z-50 space-y-3">
+          {successMessage && (
+            <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+              <CheckCircle size={24} className="mt-0.5 text-green-600 shrink-0" />
+              <div className="flex-1 text-lg font-semibold">{successMessage}</div>
+              <button
+                onClick={() => setSuccessMessage(null)}
+                className="text-green-700/70 hover:text-green-800"
+                aria-label="Close success message"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+          {error && (
+            <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+              <XCircle size={24} className="mt-0.5 text-red-600 shrink-0" />
+              <div className="flex-1 text-lg font-semibold">{error}</div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-700/70 hover:text-red-800"
+                aria-label="Close error message"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -754,130 +896,141 @@ const HRTickets = () => {
                 <ArrowUpDown size={18} />
               </button>
             </div>
-            <button
-              onClick={openCreateModal}
-              className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
-            >
-              <Plus size={20} />
-              Create Ticket
-            </button>
+            {(!isFinance || isMyTicketsRoute) && (
+              <button
+                onClick={openCreateModal}
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
+              >
+                <Plus size={20} />
+                Create Ticket
+              </button>
+            )}
           </div>
         </div>
       </div>
 
 
       {/* Tickets List */}
-      <div className="space-y-4">
-        {tickets.length === 0 && !loading && (
-          <div className="text-center py-12 bg-white rounded-2xl shadow-lg border-2 border-gray-200">
-            <Ticket className="mx-auto text-gray-400 mb-4" size={48} />
-            <p className="text-gray-500 text-lg">No tickets found</p>
-            {searchTerm && (
-              <p className="text-gray-400 text-sm mt-2">Try adjusting your search or filters</p>
-            )}
-          </div>
-        )}
-        {tickets.map((ticket) => {
-          if (!ticket || !ticket.id) return null
-          return (
-            <div key={ticket.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-gray-200 hover:border-blue-300">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-3 mb-3">
-                    <Ticket className="text-blue-600" size={24} />
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                        {ticket.ticketId || `TK-${ticket.id}`}
-                      </span>
-                      <h3 className="text-xl font-bold text-gray-800">{ticket.subject || 'No Subject'}</h3>
+      <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-blue-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700 whitespace-nowrap">S.NO</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700 whitespace-nowrap">Employee</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700 whitespace-nowrap">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Subject</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700 whitespace-nowrap">Priority</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700 whitespace-nowrap">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-gray-700 whitespace-nowrap">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+              {tickets.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-10 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <Ticket className="text-gray-300" size={36} />
+                      <div className="font-medium">No tickets found</div>
+                      {searchTerm && <div className="text-sm text-gray-400">Try adjusting your search or filters</div>}
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getPriorityColor(ticket.priority || 'MEDIUM')}`}>
-                      {ticket.priority || 'MEDIUM'}
-                    </span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(ticket.status || 'OPEN')}`}>
-                      {ticket.status || 'OPEN'}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-3">
-                    <span className="flex items-center gap-1">
-                      <AlertCircle size={16} />
-                      <strong>Type:</strong> {getTicketTypeLabel(ticket.ticketType || 'SALARY_ISSUE')}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <User size={16} />
-                      <strong>Employee:</strong> {getEmployeeName(ticket.employeeId)}
-                    </span>
-                    {ticket.assignedTo && (
-                      <span className="flex items-center gap-1">
-                        <UserCheck size={16} />
-                        <strong>Assigned to:</strong> {getUserName(ticket.assignedTo)}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <Calendar size={16} />
-                      {formatDate(ticket.createdAt)}
-                    </span>
-                  </div>
-                  <p className="text-gray-700 mb-3 line-clamp-2">{ticket.description || 'No description'}</p>
-                  {ticket.resolution && (
-                    <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <p className="text-sm font-semibold text-green-800 mb-1">Resolution:</p>
-                      <p className="text-sm text-green-700">{ticket.resolution}</p>
-                      {ticket.resolvedAt && (
-                        <p className="text-xs text-green-600 mt-2">
-                          Resolved on: {formatDate(ticket.resolvedAt)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-200">
-                <div className="text-sm text-gray-500">
-                  {ticket.updatedAt && ticket.updatedAt !== ticket.createdAt && (
-                    <span>Last updated: {formatDate(ticket.updatedAt)}</span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => openViewModal(ticket)}
-                    className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-100 flex items-center gap-2 text-sm font-medium transition-colors"
-                  >
-                    <Eye size={16} />
-                    View
-                  </button>
-                  <button
-                    onClick={() => openTimelineModal(ticket)}
-                    className="bg-purple-50 text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100 flex items-center gap-2 text-sm font-medium transition-colors"
-                  >
-                    <Clock size={16} />
-                    Timeline
-                  </button>
-                  {ticket.status !== 'CLOSED' && (
-                    <button
-                      onClick={() => openUpdateModal(ticket)}
-                      className="bg-yellow-50 text-yellow-600 px-4 py-2 rounded-lg hover:bg-yellow-100 flex items-center gap-2 text-sm font-medium transition-colors"
-                    >
-                      <Edit size={16} />
-                      Update
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDeleteTicket(ticket.id)}
-                    className="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 flex items-center gap-2 text-sm font-medium transition-colors"
-                  >
-                    <Trash2 size={16} />
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
+                  </td>
+                </tr>
+              ) : (
+                tickets.map((ticket, idx) => {
+                  if (!ticket || !ticket.id) return null
+                  const canEdit =
+                    (isEmployee && ticket.employeeId?.toString() === currentUserId && ticket.status === 'OPEN') ||
+                    (isFinance && isMyTicketsRoute && ticket.employeeId?.toString() === currentUserId && ticket.status === 'OPEN')
+                  const canUpdate = !canEdit && canManageTickets && ticket.status !== 'CLOSED'
+                  const canDelete = (!isEmployee || (isEmployee && ticket.status === 'OPEN' && ticket.employeeId?.toString() === currentUserId))
+
+                  return (
+                    <tr key={ticket.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                        {idx + 1}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                        {getEmployeeName(ticket.employeeId)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                        {getTicketTypeLabel(ticket.ticketType || '')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-800">
+                        <div className="font-semibold">{ticket.subject || 'No Subject'}</div>
+                        {ticket.description && <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{ticket.description}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getPriorityColor(ticket.priority || 'MEDIUM')}`}>
+                          {ticket.priority || 'MEDIUM'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(ticket.status || 'OPEN')}`}>
+                          {ticket.status || 'OPEN'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => openViewModal(ticket)}
+                            className="bg-blue-50 text-blue-600 p-2 rounded-lg hover:bg-blue-100 transition-colors"
+                            title="View"
+                            aria-label="View"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={() => openTimelineModal(ticket)}
+                            className="bg-purple-50 text-purple-600 p-2 rounded-lg hover:bg-purple-100 transition-colors"
+                            title="Timeline"
+                            aria-label="Timeline"
+                          >
+                            <Clock size={16} />
+                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => openEditModal(ticket)}
+                              className="bg-yellow-50 text-yellow-600 p-2 rounded-lg hover:bg-yellow-100 transition-colors"
+                              title="Edit"
+                              aria-label="Edit"
+                            >
+                              <Edit size={16} />
+                            </button>
+                          )}
+                          {canUpdate && (
+                            <button
+                              onClick={() => openUpdateModal(ticket)}
+                              className="bg-yellow-50 text-yellow-600 p-2 rounded-lg hover:bg-yellow-100 transition-colors"
+                              title="Update"
+                              aria-label="Update"
+                            >
+                              <Edit size={16} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDeleteTicket(ticket.id)}
+                              className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 transition-colors"
+                              title="Delete"
+                              aria-label="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Create Ticket Modal */}
-      {showModal && (
+      {(!isFinance || isMyTicketsRoute) && showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
           setShowModal(false)
           setDisplayTicketId('')
@@ -910,38 +1063,53 @@ const HRTickets = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Employee Name *</label>
-                <select
-                  value={formData.employeeId}
-                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required={!isEmployee}
-                >
-                  <option value="">Select Employee</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id.toString()}>
-                      {employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {(isEmployee || isMyTicketsRoute) ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee Name</label>
+                  <div className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                    {getEmployeeName(parseInt(currentUserId)) || 'Current User'}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee Name *</label>
+                  <select
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id.toString()}>
+                        {employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unknown'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
-                  <select
-                    value={formData.ticketType}
-                    onChange={(e) => setFormData({ ...formData, ticketType: e.target.value, subCategory: '' })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  >
-                    <option value="PAYROLL">Payroll</option>
-                    <option value="LEAVE">Leave</option>
-                    <option value="IT_SUPPORT">IT Support</option>
-                    <option value="GENERAL_QUERY">General Query</option>
-                    <option value="DOCUMENTS">Documents</option>
-                  </select>
+                  {isFinance && !isMyTicketsRoute ? (
+                    <div className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                      Payroll
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.ticketType}
+                      onChange={(e) => setFormData({ ...formData, ticketType: e.target.value, subCategory: '' })}
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="PAYROLL">Payroll</option>
+                      <option value="LEAVE">Leave</option>
+                      <option value="IT_SUPPORT">IT Support</option>
+                      <option value="GENERAL_QUERY">General Query</option>
+                      <option value="DOCUMENTS">Documents</option>
+                    </select>
+                  )}
                 </div>
                 
                 <div>
@@ -1105,61 +1273,83 @@ const HRTickets = () => {
                 <X size={24} />
               </button>
             </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Subject</label>
-                  <p className="text-lg font-semibold text-gray-800">{selectedTicket.subject}</p>
+            <div className="space-y-6">
+              {/* Ticket Header Info */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Ticket ID</p>
+                    <p className="text-lg font-bold text-blue-800">{selectedTicket.ticketId || `TK-${selectedTicket.id}`}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getPriorityColor(selectedTicket.priority)}`}>
+                      {selectedTicket.priority}
+                    </span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(selectedTicket.status)}`}>
+                      {selectedTicket.status}
+                    </span>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Type</label>
-                  <p className="text-lg font-semibold text-gray-800">{getTicketTypeLabel(selectedTicket.ticketType)}</p>
+                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">Subject</p>
+                  <p className="text-xl font-bold text-gray-800">{selectedTicket.subject}</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Status</label>
-                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(selectedTicket.status)}`}>
-                    {selectedTicket.status}
-                  </span>
+              </div>
+
+              {/* Ticket Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</label>
+                  <p className="text-base font-medium text-gray-800">{getTicketTypeLabel(selectedTicket.ticketType)}</p>
+                  {selectedTicket.subCategory && (
+                    <p className="text-sm text-gray-600 mt-1">{selectedTicket.subCategory}</p>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Priority</label>
-                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getPriorityColor(selectedTicket.priority)}`}>
-                    {selectedTicket.priority}
-                  </span>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</label>
+                  <p className="text-base font-medium text-gray-800">{getEmployeeName(selectedTicket.employeeId)}</p>
                 </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Employee</label>
-                      <p className="text-lg font-semibold text-gray-800">{getEmployeeName(selectedTicket.employeeId)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Assigned To</label>
-                      <p className="text-lg font-semibold text-gray-800">{getUserName(selectedTicket.assignedTo) || 'Unassigned'}</p>
-                    </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Created</label>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Created</label>
                   <p className="text-sm text-gray-800">{formatDate(selectedTicket.createdAt)}</p>
                 </div>
                 {selectedTicket.updatedAt && selectedTicket.updatedAt !== selectedTicket.createdAt && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Last Updated</label>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Last Updated</label>
                     <p className="text-sm text-gray-800">{formatDate(selectedTicket.updatedAt)}</p>
                   </div>
                 )}
                 {selectedTicket.resolvedAt && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Resolved</label>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Resolved</label>
                     <p className="text-sm text-gray-800">{formatDate(selectedTicket.resolvedAt)}</p>
                   </div>
                 )}
+                {(selectedTicket.status === 'RESOLVED' || selectedTicket.status === 'CLOSED') && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Resolved By</label>
+                    <p className="text-base font-medium text-gray-800">
+                      {selectedTicket.assignedTo ? getUserName(selectedTicket.assignedTo) : 'N/A'}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
-                <p className="text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-200">{selectedTicket.description || 'No description'}</p>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</label>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{selectedTicket.description || 'No description'}</p>
+                </div>
               </div>
+
+              {/* Resolution */}
               {selectedTicket.resolution && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Resolution</label>
-                  <p className="text-gray-800 bg-green-50 p-4 rounded-lg border border-green-200">{selectedTicket.resolution}</p>
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Resolution</label>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{selectedTicket.resolution}</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1178,8 +1368,139 @@ const HRTickets = () => {
         </div>
       )}
 
+      {/* Edit Ticket Modal - For Employees */}
+      {showEditModal && selectedTicket && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
+          setShowEditModal(false)
+          setSelectedTicket(null)
+          setEditData({ subject: '', description: '', ticketType: '', subCategory: '', priority: '' })
+        }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
+                <Edit size={28} className="text-blue-600" />
+                Edit Ticket
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setSelectedTicket(null)
+                  setEditData({ subject: '', description: '', ticketType: '', subCategory: '', priority: '' })
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4">
+                <p className="text-sm font-semibold text-blue-800 mb-1">Ticket ID: {selectedTicket.ticketId || `TK-${selectedTicket.id}`}</p>
+                <p className="text-xs text-blue-600">You can edit ticket details below</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+                  <select
+                    value={editData.ticketType}
+                    onChange={(e) => setEditData({ ...editData, ticketType: e.target.value, subCategory: '' })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="PAYROLL">Payroll</option>
+                    <option value="LEAVE">Leave</option>
+                    <option value="IT_SUPPORT">IT Support</option>
+                    <option value="GENERAL_QUERY">General Query</option>
+                    <option value="DOCUMENTS">Documents</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sub-category *</label>
+                  <select
+                    value={editData.subCategory}
+                    onChange={(e) => setEditData({ ...editData, subCategory: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Select Sub-category</option>
+                    {ticketCategories[editData.ticketType]?.map((subCat) => (
+                      <option key={subCat} value={subCat}>
+                        {subCat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
+                  <select
+                    value={editData.priority}
+                    onChange={(e) => setEditData({ ...editData, priority: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="URGENT">Urgent (4 hours)</option>
+                    <option value="HIGH">High (24 hours)</option>
+                    <option value="MEDIUM">Medium (48 hours)</option>
+                    <option value="LOW">Low (72 hours)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">SLA: {prioritySLA[editData.priority]}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
+                <input
+                  type="text"
+                  value={editData.subject}
+                  onChange={(e) => setEditData({ ...editData, subject: e.target.value })}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter ticket subject"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+                <textarea
+                  value={editData.description}
+                  onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={6}
+                  placeholder="Enter ticket description"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4">
+                <button
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setSelectedTicket(null)
+                    setEditData({ subject: '', description: '', ticketType: '', subCategory: '', priority: '' })
+                  }}
+                  className="px-6 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditTicket}
+                  disabled={loading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium transition-colors"
+                >
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Update Ticket Modal */}
-      {selectedTicket && !showViewModal && (
+      {selectedTicket && !showViewModal && !showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedTicket(null)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
@@ -1202,60 +1523,74 @@ const HRTickets = () => {
                 <p className="text-sm font-semibold text-blue-800 mb-1">Ticket: {selectedTicket.subject}</p>
                 <p className="text-xs text-blue-600">Type: {getTicketTypeLabel(selectedTicket.ticketType)}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {canManageTickets ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Status *</label>
+                      <select
+                        value={updateData.status || selectedTicket.status}
+                        onChange={(e) => setUpdateData({ ...updateData, status: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="OPEN">Open</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="RESOLVED">Resolved</option>
+                        <option value="CLOSED">Closed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                      <select
+                        value={updateData.priority || selectedTicket.priority}
+                        onChange={(e) => setUpdateData({ ...updateData, priority: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="HIGH">High</option>
+                        <option value="URGENT">Urgent</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Resolution</label>
+                    <textarea
+                      value={updateData.resolution}
+                      onChange={(e) => setUpdateData({ ...updateData, resolution: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={5}
+                      placeholder="Enter resolution details..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Required when status is Resolved or Closed</p>
+                  </div>
+                </>
+              ) : isEmployee ? (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status *</label>
-                  <select
-                    value={updateData.status || selectedTicket.status}
-                    onChange={(e) => setUpdateData({ ...updateData, status: e.target.value })}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Add Comment/Update</label>
+                  <textarea
+                    value={updateData.resolution || ''}
+                    onChange={(e) => setUpdateData({ ...updateData, resolution: e.target.value })}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="OPEN">Open</option>
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="RESOLVED">Resolved</option>
-                    <option value="CLOSED">Closed</option>
-                  </select>
+                    rows={5}
+                    placeholder="Add a comment or provide additional information about this ticket..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">You can add comments or request updates. Only HR/Admin can change status or priority.</p>
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-800 mb-2">
+                      <strong>Current Status:</strong> {selectedTicket.status}
+                    </p>
+                    <p className="text-xs text-blue-800 mb-2">
+                      <strong>Priority:</strong> {selectedTicket.priority}
+                    </p>
+                    {selectedTicket.assignedTo && (
+                      <p className="text-xs text-blue-800">
+                        <strong>Assigned To:</strong> {getUserName(selectedTicket.assignedTo)}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-                  <select
-                    value={updateData.priority || selectedTicket.priority}
-                    onChange={(e) => setUpdateData({ ...updateData, priority: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Assign To</label>
-                <select
-                  value={updateData.assignedTo || (selectedTicket.assignedTo ? selectedTicket.assignedTo.toString() : '')}
-                  onChange={(e) => setUpdateData({ ...updateData, assignedTo: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Unassigned</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id.toString()}>
-                      {user.name || user.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Resolution</label>
-                <textarea
-                  value={updateData.resolution}
-                  onChange={(e) => setUpdateData({ ...updateData, resolution: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={5}
-                  placeholder="Enter resolution details..."
-                />
-                <p className="text-xs text-gray-500 mt-1">Required when status is Resolved or Closed</p>
-              </div>
+              ) : null}
               <div className="flex gap-3 justify-end pt-4">
                 <button
                   onClick={() => {

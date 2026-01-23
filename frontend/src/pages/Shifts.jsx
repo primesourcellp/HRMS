@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, Plus, Edit, Trash2, Users, Search, Filter, Grid, List, X, Check, UserPlus, UserMinus, Eye, Calendar, Timer, Pencil, Send, ArrowLeftRight, FileText, MoreVertical, CheckCircle, XCircle } from 'lucide-react'
+import { Clock, Plus, Edit, Trash2, Users, Search, Filter, Grid, List, X, Check, UserPlus, UserMinus, Eye, Calendar, Timer, Pencil, Send, ArrowLeftRight, FileText, MoreVertical, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import api from '../services/api'
 
 const Shifts = () => {
@@ -9,6 +9,7 @@ const Shifts = () => {
   const [showModal, setShowModal] = useState(false)
   const [showEmployeeModal, setShowEmployeeModal] = useState(false)
   const [showAssignModal, setShowAssignModal] = useState(false)
+  const [showTeamAssignModal, setShowTeamAssignModal] = useState(false)
   const [showEditAssignmentModal, setShowEditAssignmentModal] = useState(false)
   const [editingShift, setEditingShift] = useState(null)
   const [editingEmployee, setEditingEmployee] = useState(null)
@@ -33,6 +34,14 @@ const Shifts = () => {
     startDate: '',
     endDate: ''
   })
+  const [teamAssignFormData, setTeamAssignFormData] = useState({
+    shiftId: '',
+    teamId: '',
+    startDate: '',
+    endDate: ''
+  })
+  const [teams, setTeams] = useState([])
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState([])
   const [editAssignmentFormData, setEditAssignmentFormData] = useState({
     startDate: '',
     endDate: ''
@@ -59,6 +68,8 @@ const Shifts = () => {
   const [assignmentStatusFilter, setAssignmentStatusFilter] = useState('all')
   const [assignmentDepartmentFilter, setAssignmentDepartmentFilter] = useState('all')
   const [assignmentShiftFilter, setAssignmentShiftFilter] = useState('all')
+  const [assignmentStartDateFilter, setAssignmentStartDateFilter] = useState('')
+  const [assignmentEndDateFilter, setAssignmentEndDateFilter] = useState('')
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
@@ -75,6 +86,7 @@ const Shifts = () => {
     } else {
       loadData()
       loadShiftChangeRequests()
+      loadTeams() // Load teams for team assignment
     }
   }, [isEmployee])
 
@@ -189,10 +201,44 @@ const Shifts = () => {
     }
   }
 
+  const loadTeams = async () => {
+    try {
+      const teamsData = await api.getTeams()
+      setTeams(Array.isArray(teamsData) ? teamsData : [])
+    } catch (error) {
+      console.error('Error loading teams:', error)
+    }
+  }
+
   const loadShiftEmployees = async (shiftId) => {
     try {
-      const data = await api.getEmployeesByShift(shiftId)
-      setShiftEmployees(Array.isArray(data) ? data : [])
+      const [employeesData, teamsData] = await Promise.all([
+        api.getEmployeesByShift(shiftId),
+        api.getTeams()
+      ])
+      const employees = Array.isArray(employeesData) ? employeesData : []
+      
+      // Create a map of employee ID to team names
+      const employeeTeamMap = new Map()
+      teamsData.forEach(team => {
+        if (team.members && Array.isArray(team.members)) {
+          team.members.forEach(member => {
+            const empId = member.employeeId
+            if (!employeeTeamMap.has(empId)) {
+              employeeTeamMap.set(empId, [])
+            }
+            employeeTeamMap.get(empId).push(team.name)
+          })
+        }
+      })
+      
+      // Add team names to each employee
+      const employeesWithTeams = employees.map(emp => ({
+        ...emp,
+        teamNames: employeeTeamMap.get(emp.id) || []
+      }))
+      
+      setShiftEmployees(employeesWithTeams)
     } catch (error) {
       console.error('Error loading shift employees:', error)
       setShiftEmployees([])
@@ -203,22 +249,39 @@ const Shifts = () => {
     setLoadingAssignments(true)
     try {
       const allEmployees = await api.getEmployees()
+      const allTeams = await api.getTeams()
       const assignments = []
+      
+      // Create a map of employee ID to team names
+      const employeeTeamMap = new Map()
+      allTeams.forEach(team => {
+        if (team.members && Array.isArray(team.members)) {
+          team.members.forEach(member => {
+            const empId = member.employeeId
+            if (!employeeTeamMap.has(empId)) {
+              employeeTeamMap.set(empId, [])
+            }
+            employeeTeamMap.get(empId).push(team.name)
+          })
+        }
+      })
       
       for (const employee of allEmployees) {
         if (employee.shiftId) {
           const shift = shifts.find(s => s.id === employee.shiftId)
           if (shift) {
+            const teamNames = employeeTeamMap.get(employee.id) || []
             assignments.push({
               employeeId: employee.id,
               employeeName: employee.name || 'N/A',
               employeeEmail: employee.email || 'N/A',
               employeeIdCode: employee.employeeId || `ID: ${employee.id}`,
               department: employee.department || 'N/A',
+              teamNames: teamNames,
               shiftId: shift.id,
               shiftName: shift.name,
               shiftTime: `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`,
-              workingHours: calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration).toFixed(2),
+              workingHours: calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration), // Store as number for formatting
               startDate: employee.shiftAssignmentStartDate || null,
               endDate: employee.shiftAssignmentEndDate || null,
               status: employee.shiftAssignmentEndDate ? 'Temporary' : 'Permanent'
@@ -564,6 +627,122 @@ const Shifts = () => {
     setShowAssignModal(true)
   }
 
+  const openTeamAssignModal = async (shift = null) => {
+    setSelectedShift(shift)
+    setTeamAssignFormData({ 
+      shiftId: shift ? shift.id.toString() : '',
+      teamId: '',
+      startDate: '',
+      endDate: ''
+    })
+    setSelectedTeamMembers([])
+    setShowTeamAssignModal(true)
+  }
+
+  const handleTeamSelection = async (teamId) => {
+    if (!teamId) {
+      setSelectedTeamMembers([])
+      return
+    }
+    
+    try {
+      const team = await api.getTeamById(teamId)
+      if (team && team.members) {
+        const memberIds = team.members.map(member => member.employeeId)
+        setSelectedTeamMembers(memberIds)
+      } else {
+        setSelectedTeamMembers([])
+      }
+    } catch (error) {
+      console.error('Error loading team members:', error)
+      setError('Failed to load team members')
+      setSelectedTeamMembers([])
+    }
+  }
+
+  const handleAssignTeam = async (e) => {
+    e.preventDefault()
+    if (!teamAssignFormData.teamId) {
+      setError('Please select a team')
+      return
+    }
+
+    if (selectedTeamMembers.length === 0) {
+      setError('Selected team has no members')
+      return
+    }
+
+    if (!teamAssignFormData.startDate) {
+      setError('Please select a start date')
+      return
+    }
+
+    // Validate date range if end date is provided
+    if (teamAssignFormData.endDate && teamAssignFormData.startDate > teamAssignFormData.endDate) {
+      setError('End date must be after start date')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Prepare assignment data with dates
+      const assignmentData = {
+        employeeIds: selectedTeamMembers.map(id => parseInt(id)),
+        startDate: teamAssignFormData.startDate,
+        endDate: teamAssignFormData.endDate || null
+      }
+      
+      // Determine which shift to use
+      const shiftId = selectedShift ? selectedShift.id : (teamAssignFormData.shiftId ? parseInt(teamAssignFormData.shiftId) : null)
+      
+      if (!shiftId) {
+        setError('Please select a shift')
+        setLoading(false)
+        return
+      }
+
+      const response = await api.assignTeamToShift(shiftId, assignmentData)
+      
+      if (response.success === false) {
+        throw new Error(response.message || 'Failed to assign team')
+      }
+
+      if (selectedShift) {
+        await loadShiftEmployees(selectedShift.id)
+      }
+      await loadData() // Reload employees to refresh shift assignments
+      if (activeView === 'assignments') {
+        await loadAllAssignments() // Reload assignments table if on assignments view
+      }
+      
+      setShowTeamAssignModal(false)
+      setTeamAssignFormData({ shiftId: '', teamId: '', startDate: '', endDate: '' })
+      setSelectedTeamMembers([])
+      setSelectedShift(null)
+      
+      const successMsg = response.successCount > 0 
+        ? `Successfully assigned ${response.successCount} employee(s) from team${response.failureCount > 0 ? `. ${response.failureCount} failed.` : ''}`
+        : 'Failed to assign employees'
+      setSuccessMessage(successMsg)
+      setTimeout(() => setSuccessMessage(null), 5000)
+    } catch (error) {
+      setError(error.message || 'Error assigning team')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getTeamMemberNames = () => {
+    if (selectedTeamMembers.length === 0) return []
+    return selectedTeamMembers.map(empId => {
+      const emp = employees.find(e => e.id === parseInt(empId))
+      return emp ? getEmployeeName(emp) : `Employee #${empId}`
+    })
+  }
+
   const formatTime = (timeString) => {
     if (!timeString) return 'N/A'
     // Handle both "HH:mm:ss" and "HH:mm" formats
@@ -572,6 +751,19 @@ const Shifts = () => {
       return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
     }
     return timeString
+  }
+
+  const formatWorkingHours = (hours) => {
+    if (!hours || hours === 0) return '0 hr'
+    
+    // Convert to hours.minutes format (e.g., 7.5 becomes 7.30)
+    const wholeHours = Math.floor(hours)
+    const decimalPart = hours - wholeHours
+    const minutes = Math.round(decimalPart * 60)
+    
+    // Format as "7.30 hr" where minutes are shown as two digits
+    const minutesStr = String(minutes).padStart(2, '0')
+    return `${wholeHours}.${minutesStr} hr`
   }
 
   const calculateWorkingHours = (startTime, endTime, breakDuration = 0) => {
@@ -830,6 +1022,38 @@ const Shifts = () => {
   if (isEmployee) {
     return (
       <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
+        {/* Toast Notifications (Top Right) */}
+        {(successMessage || error) && (
+          <div className="fixed top-4 right-4 z-50 space-y-3">
+            {successMessage && (
+              <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+                <CheckCircle size={24} className="mt-0.5 text-green-600 shrink-0" />
+                <div className="flex-1 text-lg font-semibold">{successMessage}</div>
+                <button
+                  onClick={() => setSuccessMessage(null)}
+                  className="text-green-700/70 hover:text-green-800"
+                  aria-label="Close success message"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            )}
+            {error && (
+              <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+                <XCircle size={24} className="mt-0.5 text-red-600 shrink-0" />
+                <div className="flex-1 text-lg font-semibold">{error}</div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-700/70 hover:text-red-800"
+                  aria-label="Close error message"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -837,18 +1061,6 @@ const Shifts = () => {
             <p className="text-gray-600 mt-1">View your assigned work shift details</p>
           </div>
         </div>
-
-        {/* Success/Error Messages */}
-        {successMessage && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-            <span className="block sm:inline">{successMessage}</span>
-          </div>
-        )}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
 
         {/* Shift Change Request Section - Prominent Position */}
         {!loading && employeeShift && (
@@ -972,7 +1184,7 @@ const Shifts = () => {
                   <p className="text-sm font-semibold text-green-800">Working Hours</p>
                 </div>
                 <p className="text-2xl font-bold text-gray-800">
-                  {employeeShift.workingHours ? employeeShift.workingHours.toFixed(2) : '0'} hours
+                  {employeeShift.workingHours ? formatWorkingHours(employeeShift.workingHours) : '0 hrs'}
                 </p>
               </div>
 
@@ -1156,17 +1368,35 @@ const Shifts = () => {
   // Admin View - Full shift management
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
-  
-
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative">
-          <span className="block sm:inline">{successMessage}</span>
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative">
-          <span className="block sm:inline">{error}</span>
+      {/* Toast Notifications (Top Right) */}
+      {(successMessage || error) && (
+        <div className="fixed top-4 right-4 z-50 space-y-3">
+          {successMessage && (
+            <div className="flex items-start gap-3 bg-green-50 text-green-800 border border-green-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+              <CheckCircle size={24} className="mt-0.5 text-green-600 shrink-0" />
+              <div className="flex-1 text-lg font-semibold">{successMessage}</div>
+              <button
+                onClick={() => setSuccessMessage(null)}
+                className="text-green-700/70 hover:text-green-800"
+                aria-label="Close success message"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+          {error && (
+            <div className="flex items-start gap-3 bg-red-50 text-red-800 border border-red-200 rounded-xl px-5 py-4 shadow-lg min-w-[320px] max-w-[480px]">
+              <XCircle size={24} className="mt-0.5 text-red-600 shrink-0" />
+              <div className="flex-1 text-lg font-semibold">{error}</div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-700/70 hover:text-red-800"
+                aria-label="Close error message"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1353,7 +1583,7 @@ const Shifts = () => {
                 <div className="space-y-2 mb-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Working Hours:</span>
-                    <span className="font-medium">{shift.workingHours?.toFixed(2) || '0'} hours</span>
+                    <span className="font-medium">{shift.workingHours ? formatWorkingHours(shift.workingHours) : '0 hrs'}</span>
                   </div>
                   {shift.breakDuration && (
                     <div className="flex justify-between text-sm">
@@ -1377,6 +1607,13 @@ const Shifts = () => {
                   >
                     <UserPlus size={16} />
                     Assign Employee
+                  </button>
+                  <button
+                    onClick={() => openTeamAssignModal(shift)}
+                    className="flex-1 bg-green-50 text-green-600 px-3 py-2 rounded-xl hover:bg-green-100 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
+                  >
+                    <Users size={16} />
+                    Assign Team
                   </button>
                   <div className="relative inline-block dropdown-menu-container">
                     <button
@@ -1486,7 +1723,7 @@ const Shifts = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{shift.workingHours?.toFixed(2) || '0'} hrs</div>
+                        <div className="text-sm text-gray-900">{shift.workingHours ? formatWorkingHours(shift.workingHours) : '0 hrs'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{shift.breakDuration || '0'} min</div>
@@ -1524,6 +1761,13 @@ const Shifts = () => {
                             title="Assign Employee"
                           >
                             <UserPlus size={18} />
+                          </button>
+                          <button
+                            onClick={() => openTeamAssignModal(shift)}
+                            className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors"
+                            title="Assign Team"
+                          >
+                            <Users size={18} />
                           </button>
                           <div className="relative inline-block dropdown-menu-container">
                             <button
@@ -1623,18 +1867,18 @@ const Shifts = () => {
               )}
               <button
                 onClick={loadAllAssignments}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm transition-colors"
+                className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loadingAssignments}
+                title="Refresh"
               >
-                <Search size={16} />
-                Refresh
+                <RefreshCw size={18} className={loadingAssignments ? 'animate-spin' : ''} />
               </button>
             </div>
           </div>
 
           {/* Search and Filters */}
           <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
@@ -1674,7 +1918,45 @@ const Shifts = () => {
                   <option key={shiftName} value={shiftName}>{shiftName}</option>
                 ))}
               </select>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="date"
+                  placeholder="Start Date"
+                  value={assignmentStartDateFilter}
+                  onChange={(e) => setAssignmentStartDateFilter(e.target.value)}
+                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="date"
+                  placeholder="End Date"
+                  value={assignmentEndDateFilter}
+                  onChange={(e) => setAssignmentEndDateFilter(e.target.value)}
+                  className="pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
+            {(assignmentSearchTerm || assignmentStatusFilter !== 'all' || assignmentDepartmentFilter !== 'all' || assignmentShiftFilter !== 'all' || assignmentStartDateFilter || assignmentEndDateFilter) && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => {
+                    setAssignmentSearchTerm('')
+                    setAssignmentStatusFilter('all')
+                    setAssignmentDepartmentFilter('all')
+                    setAssignmentShiftFilter('all')
+                    setAssignmentStartDateFilter('')
+                    setAssignmentEndDateFilter('')
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2 text-sm font-medium transition-colors"
+                >
+                  <X size={16} />
+                  Clear Filters
+                </button>
+              </div>
+            )}
           </div>
 
           {loadingAssignments ? (
@@ -1696,6 +1978,7 @@ const Shifts = () => {
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Department</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Team</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Shift Name</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Shift Time</th>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Working Hours</th>
@@ -1706,8 +1989,8 @@ const Shifts = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {allAssignments
-                    .filter(assignment => {
+                  {(() => {
+                    const filteredAssignments = allAssignments.filter((assignment) => {
                       // Search filter
                       const matchesSearch = !assignmentSearchTerm || 
                         assignment.employeeName?.toLowerCase().includes(assignmentSearchTerm.toLowerCase()) ||
@@ -1724,9 +2007,62 @@ const Shifts = () => {
                       // Shift filter
                       const matchesShift = assignmentShiftFilter === 'all' || assignment.shiftName === assignmentShiftFilter
                       
-                      return matchesSearch && matchesStatus && matchesDepartment && matchesShift
+                      // Date range filter
+                      let matchesDateRange = true
+                      if (assignmentStartDateFilter || assignmentEndDateFilter) {
+                        // Helper function to parse and normalize dates
+                        const parseAndNormalizeDate = (dateStr) => {
+                          if (!dateStr) return null
+                          try {
+                            const date = new Date(dateStr)
+                            if (isNaN(date.getTime())) return null
+                            date.setHours(0, 0, 0, 0)
+                            return date
+                          } catch (e) {
+                            return null
+                          }
+                        }
+                        
+                        const normAssignmentStart = parseAndNormalizeDate(assignment.startDate)
+                        const normAssignmentEnd = parseAndNormalizeDate(assignment.endDate)
+                        const normFilterStart = parseAndNormalizeDate(assignmentStartDateFilter)
+                        const normFilterEnd = parseAndNormalizeDate(assignmentEndDateFilter)
+                        
+                        if (normFilterStart && normFilterEnd) {
+                          // show assignments that overlap with the date range
+                          matchesDateRange = (
+                            (!normAssignmentStart || normAssignmentStart <= normFilterEnd) &&
+                            (!normAssignmentEnd || normAssignmentEnd >= normFilterStart)
+                          )
+                        } else if (normFilterStart) {
+                          // only start date selected
+                          matchesDateRange = !normAssignmentStart || normAssignmentStart >= normFilterStart || !normAssignmentEnd
+                        } else if (normFilterEnd) {
+                          // only end date selected
+                          matchesDateRange = !normAssignmentEnd || normAssignmentEnd <= normFilterEnd || (!normAssignmentStart || normAssignmentStart <= normFilterEnd)
+                        }
+                      }
+                      
+                      return matchesSearch && matchesStatus && matchesDepartment && matchesShift && matchesDateRange
                     })
-                    .map((assignment) => (
+
+                    if (filteredAssignments.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={11} className="px-6 py-10 text-center">
+                            <div className="flex flex-col items-center gap-2 text-gray-500">
+                              <Filter size={28} className="text-gray-400" />
+                              <div className="text-base font-semibold">No data available</div>
+                              <div className="text-sm text-gray-400">
+                                No assignments match the selected filters / date range.
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    }
+
+                    return filteredAssignments.map((assignment) => (
                     <tr key={`${assignment.employeeId}-${assignment.shiftId}`} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -1744,6 +2080,23 @@ const Shifts = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {assignment.department}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {assignment.teamNames && assignment.teamNames.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {assignment.teamNames.map((teamName, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                              >
+                                <Users size={12} className="mr-1" />
+                                {teamName}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">No team</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                         {assignment.shiftName}
                       </td>
@@ -1751,7 +2104,7 @@ const Shifts = () => {
                         {assignment.shiftTime}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {assignment.workingHours} hrs
+                        {typeof assignment.workingHours === 'number' ? formatWorkingHours(assignment.workingHours) : assignment.workingHours || '0 hrs'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {assignment.startDate 
@@ -1860,7 +2213,8 @@ const Shifts = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    ))
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -2215,6 +2569,7 @@ const Shifts = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Employee</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Department</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Team</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -2242,6 +2597,23 @@ const Shifts = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{employee.department || '-'}</div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {employee.teamNames && employee.teamNames.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {employee.teamNames.map((teamName, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                                >
+                                  <Users size={12} className="mr-1" />
+                                  {teamName}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">No team</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center gap-2">
                             <button
@@ -2268,6 +2640,177 @@ const Shifts = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Team Modal */}
+      {showTeamAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-green-600 flex items-center gap-3">
+                <Users size={24} className="text-green-600" />
+                {selectedShift ? `Assign Team to ${selectedShift.name}` : 'Assign Team to Shift'}
+              </h3>
+              <button
+                onClick={() => { 
+                  setShowTeamAssignModal(false)
+                  setTeamAssignFormData({ shiftId: '', teamId: '', startDate: '', endDate: '' })
+                  setSelectedTeamMembers([])
+                  setSelectedShift(null)
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleAssignTeam} className="space-y-4">
+              {!selectedShift && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Shift *</label>
+                  <select
+                    value={teamAssignFormData.shiftId}
+                    onChange={(e) => {
+                      const shiftId = e.target.value
+                      const shift = shifts.find(s => s.id === parseInt(shiftId))
+                      setSelectedShift(shift || null)
+                      setTeamAssignFormData({ ...teamAssignFormData, shiftId: shiftId })
+                    }}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  >
+                    <option value="">Select a shift</option>
+                    {shifts.filter(s => s.active).map((shift) => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.name} ({formatTime(shift.startTime)} - {formatTime(shift.endTime)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team *</label>
+                <select
+                  value={teamAssignFormData.teamId}
+                  onChange={(e) => {
+                    const teamId = e.target.value
+                    setTeamAssignFormData({ ...teamAssignFormData, teamId: teamId })
+                    handleTeamSelection(teamId)
+                  }}
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  required
+                >
+                  <option value="">Select a team</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} {team.members ? `(${team.members.length} members)` : ''}
+                    </option>
+                  ))}
+                </select>
+                {teams.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">No teams available. Create teams in Team Management first.</p>
+                )}
+              </div>
+
+              {selectedTeamMembers.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">Team Members</label>
+                    <span className="text-xs text-gray-500 font-medium">
+                      {selectedTeamMembers.length} {selectedTeamMembers.length === 1 ? 'member' : 'members'}
+                    </span>
+                  </div>
+                  <div className="border-2 border-gray-300 rounded-xl p-4 max-h-64 overflow-y-auto bg-gray-50">
+                    <div className="space-y-2">
+                      {getTeamMemberNames().map((name, index) => (
+                        <div
+                          key={selectedTeamMembers[index]}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-white border-2 border-gray-200"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-semibold">
+                            {name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{name}</div>
+                            {employees.find(e => e.id === parseInt(selectedTeamMembers[index]))?.email && (
+                              <div className="text-sm text-gray-500">
+                                {employees.find(e => e.id === parseInt(selectedTeamMembers[index]))?.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {teamAssignFormData.teamId && selectedTeamMembers.length === 0 && (
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+                  <p className="text-sm text-yellow-800">
+                    Selected team has no members. Please select a different team or add members to this team first.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+                  <input
+                    type="date"
+                    value={teamAssignFormData.startDate}
+                    onChange={(e) => setTeamAssignFormData({ ...teamAssignFormData, startDate: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={teamAssignFormData.endDate}
+                    onChange={(e) => setTeamAssignFormData({ ...teamAssignFormData, endDate: e.target.value })}
+                    min={teamAssignFormData.startDate || undefined}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for permanent assignment</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => { 
+                    setShowTeamAssignModal(false)
+                    setTeamAssignFormData({ shiftId: '', teamId: '', startDate: '', endDate: '' })
+                    setSelectedTeamMembers([])
+                    setSelectedShift(null)
+                  }}
+                  className="px-6 py-2.5 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !teamAssignFormData.teamId || selectedTeamMembers.length === 0}
+                  className="px-6 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Assigning...
+                    </>
+                  ) : (
+                    <>
+                      <Users size={18} />
+                      Assign Team ({selectedTeamMembers.length})
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useHRMS } from '../context/HRMSContext'
-import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, LogOut, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon, Ticket, AlertCircle } from 'lucide-react'
+import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, LogOut, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon, Ticket, AlertCircle, RefreshCw } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { useState, useEffect, useRef } from 'react'
@@ -15,7 +15,11 @@ const Dashboard = () => {
   const [employeeId, setEmployeeId] = useState(null)
   const [employeeShift, setEmployeeShift] = useState(null)
   const [weeklyAttendanceData, setWeeklyAttendanceData] = useState([])
+  const [dailyAttendanceData, setDailyAttendanceData] = useState([])
+  const [monthlyAttendanceData, setMonthlyAttendanceData] = useState([])
   const [loadingWeeklyAttendance, setLoadingWeeklyAttendance] = useState(false)
+  const [loadingDailyAttendance, setLoadingDailyAttendance] = useState(false)
+  const [loadingMonthlyAttendance, setLoadingMonthlyAttendance] = useState(false)
   const [todayAttendance, setTodayAttendance] = useState(null)
   const [checkInLoading, setCheckInLoading] = useState(false)
   const [checkInMessage, setCheckInMessage] = useState(null)
@@ -28,9 +32,17 @@ const Dashboard = () => {
   const [teamMembers, setTeamMembers] = useState([])
   const [teamAttendanceData, setTeamAttendanceData] = useState([])
   const [loadingTeamAttendance, setLoadingTeamAttendance] = useState(false)
+  const [teamMonthlyAttendanceData, setTeamMonthlyAttendanceData] = useState([])
+  const [teamDailyAttendanceData, setTeamDailyAttendanceData] = useState([])
+  const [loadingTeamMonthlyAttendance, setLoadingTeamMonthlyAttendance] = useState(false)
+  const [loadingTeamDailyAttendance, setLoadingTeamDailyAttendance] = useState(false)
+  const [teamAttendanceView, setTeamAttendanceView] = useState('monthly') // 'monthly' or 'daily'
   const [myAttendanceData, setMyAttendanceData] = useState([])
   const [loadingMyAttendance, setLoadingMyAttendance] = useState(false)
   const [employeeLeaves, setEmployeeLeaves] = useState([])
+  const [leaveBalances, setLeaveBalances] = useState([])
+  const [loadingLeaveBalances, setLoadingLeaveBalances] = useState(false)
+  const [leaveTypes, setLeaveTypes] = useState([])
   const [financePayrolls, setFinancePayrolls] = useState([])
   const [loadingFinancePayrolls, setLoadingFinancePayrolls] = useState(false)
   const [payrollTrendData, setPayrollTrendData] = useState([])
@@ -92,10 +104,12 @@ const Dashboard = () => {
     if (empId && (isEmployee || userType === 'employee')) {
       loadEmployeeShift(empId)
       loadTodayAttendance(empId)
-      // Load weekly attendance for employee view
-      loadEmployeeWeeklyAttendance(empId)
+      // Load monthly attendance for employee view (default)
+      loadEmployeeMonthlyAttendance(empId)
       // Load employee leaves for pending/approved counts
       loadEmployeeLeaves(empId)
+      // Load leave balances
+      loadLeaveBalances(empId)
     }
 
     // Load manager-specific data
@@ -104,6 +118,11 @@ const Dashboard = () => {
       loadTodayAttendance(empId)
       loadMyAttendance(empId)
       loadTeamMembers(empId)
+      // Load manager's own leaves and leave balances
+      loadEmployeeLeaves(empId)
+      loadLeaveBalances(empId)
+      // Load monthly attendance for manager view (like employees)
+      loadEmployeeMonthlyAttendance(empId)
     }
 
     // Load weekly attendance data for admin (overall attendance)
@@ -118,7 +137,7 @@ const Dashboard = () => {
       loadEmployeeShift(empId)
       loadTodayAttendance(empId)
       loadEmployeeLeaves(empId)
-      loadEmployeeWeeklyAttendance(empId) // Load personal weekly attendance like employees
+      loadEmployeeMonthlyAttendance(empId) // Load personal monthly attendance like employees
     }
 
     // Load HR Admin-specific data (personal attendance for check-in/out)
@@ -126,9 +145,9 @@ const Dashboard = () => {
       loadEmployeeShift(empId)
       loadTodayAttendance(empId)
       loadEmployeeLeaves(empId)
-      loadEmployeeWeeklyAttendance(empId) // Load personal weekly attendance like employees
+      loadEmployeeMonthlyAttendance(empId) // Load personal monthly attendance like employees
     }
-  }, [employees, isEmployee, isExecutiveView, selectedMonth, isFinance, isHRAdmin]) // Re-run when employees data is loaded or selectedMonth changes
+  }, [employees, isEmployee, isExecutiveView, selectedMonth, isFinance]) // Re-run when employees data is loaded or selectedMonth changes
 
   const loadEmployeeShift = async (empId) => {
     try {
@@ -374,6 +393,125 @@ const Dashboard = () => {
     }
   }
 
+  const loadEmployeeDailyAttendance = async (empId, month = null) => {
+    try {
+      setLoadingDailyAttendance(true)
+      const dailyData = []
+      
+      // If month is provided, use that month; otherwise use current month
+      const selectedDate = month ? new Date(month + '-01') : new Date()
+      const year = selectedDate.getFullYear()
+      const monthNum = selectedDate.getMonth() + 1
+      const daysInMonth = new Date(year, monthNum, 0).getDate()
+
+      // Fetch attendance for each day of the selected month
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, monthNum - 1, day)
+        const dateStr = format(date, 'yyyy-MM-dd')
+        
+        try {
+          const attendanceRecords = await api.getAttendanceByDate(dateStr)
+          const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+          
+          // Find this employee's attendance
+          const employeeAttendance = attendanceArray.find(a => {
+            const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+            return attEmpId === empId
+          })
+          
+          const dayLabel = format(date, 'MMM dd')
+          dailyData.push({
+            name: dayLabel,
+            present: employeeAttendance && (employeeAttendance.status === 'Present' || employeeAttendance.status === 'PRESENT') ? 1 : 0,
+            absent: employeeAttendance && (employeeAttendance.status === 'Absent' || employeeAttendance.status === 'ABSENT') ? 1 : 0
+          })
+        } catch (error) {
+          console.error(`Error fetching attendance for ${dateStr}:`, error)
+          const dayLabel = format(date, 'MMM dd')
+          dailyData.push({
+            name: dayLabel,
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setDailyAttendanceData(dailyData)
+    } catch (error) {
+      console.error('Error loading employee daily attendance:', error)
+      setDailyAttendanceData([])
+    } finally {
+      setLoadingDailyAttendance(false)
+    }
+  }
+
+  const loadEmployeeMonthlyAttendance = async (empId) => {
+    try {
+      setLoadingMonthlyAttendance(true)
+      const today = new Date()
+      const monthlyData = []
+
+      // Fetch attendance for last 12 months
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(today.getFullYear(), today.getMonth() - i, 1)
+        const year = date.getFullYear()
+        const month = date.getMonth() + 1
+        
+        try {
+          let presentCount = 0
+          let absentCount = 0
+          const daysInMonth = new Date(year, month, 0).getDate()
+          
+          // Fetch attendance for each day of the month
+          for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = format(new Date(year, month - 1, day), 'yyyy-MM-dd')
+            try {
+              const attendanceRecords = await api.getAttendanceByDate(dateStr)
+              const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+              
+              const employeeAttendance = attendanceArray.find(a => {
+                const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+                return attEmpId === empId
+              })
+              
+              if (employeeAttendance) {
+                if (employeeAttendance.status === 'Present' || employeeAttendance.status === 'PRESENT') {
+                  presentCount++
+                } else if (employeeAttendance.status === 'Absent' || employeeAttendance.status === 'ABSENT') {
+                  absentCount++
+                }
+              }
+            } catch (error) {
+              // Skip errors for individual days
+            }
+          }
+          
+          const monthLabel = `${year}-${String(month).padStart(2, '0')}`
+          monthlyData.push({
+            name: monthLabel,
+            present: presentCount,
+            absent: absentCount
+          })
+        } catch (error) {
+          console.error(`Error fetching monthly attendance for ${year}-${month}:`, error)
+          const monthLabel = `${year}-${String(month).padStart(2, '0')}`
+          monthlyData.push({
+            name: monthLabel,
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setMonthlyAttendanceData(monthlyData)
+    } catch (error) {
+      console.error('Error loading employee monthly attendance:', error)
+      setMonthlyAttendanceData([])
+    } finally {
+      setLoadingMonthlyAttendance(false)
+    }
+  }
+
   const loadWeeklyAttendanceData = async () => {
     try {
       setLoadingWeeklyAttendance(true)
@@ -528,6 +666,7 @@ const Dashboard = () => {
       // Load team attendance after team members are loaded
       if (allTeamMembers.length > 0) {
         loadTeamAttendance(managerId, allTeamMembers)
+        loadTeamMonthlyAttendance(managerId, allTeamMembers)
       } else {
         // If no team members, set empty attendance data
         const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -545,6 +684,8 @@ const Dashboard = () => {
           })
         }
         setTeamAttendanceData(weekData)
+        setTeamMonthlyAttendanceData([])
+        setTeamDailyAttendanceData([])
       }
     } catch (error) {
       console.error('Error loading team members:', error)
@@ -611,6 +752,29 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error loading employee leaves:', error)
       setEmployeeLeaves([])
+    }
+  }
+
+  const loadLeaveBalances = async (empId) => {
+    try {
+      setLoadingLeaveBalances(true)
+      const currentYear = new Date().getFullYear()
+      const balancesData = await api.getLeaveBalances(empId, currentYear)
+      const balancesArray = Array.isArray(balancesData) ? balancesData : []
+      setLeaveBalances(balancesArray)
+      
+      // Load leave types to get codes
+      try {
+        const typesData = await api.getLeaveTypes()
+        setLeaveTypes(Array.isArray(typesData) ? typesData : [])
+      } catch (error) {
+        console.error('Error loading leave types:', error)
+      }
+    } catch (error) {
+      console.error('Error loading leave balances:', error)
+      setLeaveBalances([])
+    } finally {
+      setLoadingLeaveBalances(false)
     }
   }
 
@@ -745,6 +909,160 @@ const Dashboard = () => {
     }
   }
 
+  const loadTeamMonthlyAttendance = async (managerId, teamMembersList = null) => {
+    try {
+      setLoadingTeamMonthlyAttendance(true)
+      const today = new Date()
+      const monthlyData = []
+      const membersToUse = teamMembersList || teamMembers
+      const teamMemberIds = membersToUse.map(emp => {
+        const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+        return empId
+      })
+
+      if (teamMemberIds.length === 0) {
+        setTeamMonthlyAttendanceData([])
+        setLoadingTeamMonthlyAttendance(false)
+        return
+      }
+
+      // Fetch attendance for last 12 months
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(today.getFullYear(), today.getMonth() - i, 1)
+        const year = date.getFullYear()
+        const month = date.getMonth() + 1
+        
+        try {
+          let presentCount = 0
+          let absentCount = 0
+          const daysInMonth = new Date(year, month, 0).getDate()
+          
+          // Fetch attendance for each day of the month
+          for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = format(new Date(year, month - 1, day), 'yyyy-MM-dd')
+            try {
+              const attendanceRecords = await api.getAttendanceByDate(dateStr)
+              const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+              
+              // Count present and absent for all team members
+              teamMemberIds.forEach(teamMemberId => {
+                const teamMemberAttendance = attendanceArray.find(a => {
+                  const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+                  return attEmpId === teamMemberId
+                })
+                
+                if (teamMemberAttendance) {
+                  if (teamMemberAttendance.status === 'Present' || teamMemberAttendance.status === 'PRESENT') {
+                    presentCount++
+                  } else if (teamMemberAttendance.status === 'Absent' || teamMemberAttendance.status === 'ABSENT') {
+                    absentCount++
+                  }
+                }
+              })
+            } catch (error) {
+              // Skip errors for individual days
+            }
+          }
+          
+          const monthLabel = format(new Date(year, month - 1), 'MMM yyyy')
+          monthlyData.push({
+            name: monthLabel,
+            present: presentCount,
+            absent: absentCount
+          })
+        } catch (error) {
+          console.error(`Error fetching team monthly attendance for ${year}-${month}:`, error)
+          const monthLabel = format(new Date(year, month - 1), 'MMM yyyy')
+          monthlyData.push({
+            name: monthLabel,
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setTeamMonthlyAttendanceData(monthlyData)
+    } catch (error) {
+      console.error('Error loading team monthly attendance:', error)
+      setTeamMonthlyAttendanceData([])
+    } finally {
+      setLoadingTeamMonthlyAttendance(false)
+    }
+  }
+
+  const loadTeamDailyAttendance = async (managerId, teamMembersList = null, month = null) => {
+    try {
+      setLoadingTeamDailyAttendance(true)
+      const dailyData = []
+      const membersToUse = teamMembersList || teamMembers
+      const teamMemberIds = membersToUse.map(emp => {
+        const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+        return empId
+      })
+
+      if (teamMemberIds.length === 0) {
+        setTeamDailyAttendanceData([])
+        setLoadingTeamDailyAttendance(false)
+        return
+      }
+
+      // If month is provided, use that month; otherwise use current month
+      const selectedDate = month ? new Date(month + '-01') : new Date()
+      const year = selectedDate.getFullYear()
+      const monthNum = selectedDate.getMonth() + 1
+      const daysInMonth = new Date(year, monthNum, 0).getDate()
+
+      // Fetch attendance for each day of the month
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = format(new Date(year, monthNum - 1, day), 'yyyy-MM-dd')
+        
+        try {
+          const attendanceRecords = await api.getAttendanceByDate(dateStr)
+          const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : []
+          
+          // Count present and absent for all team members
+          let presentCount = 0
+          let absentCount = 0
+          
+          teamMemberIds.forEach(teamMemberId => {
+            const teamMemberAttendance = attendanceArray.find(a => {
+              const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+              return attEmpId === teamMemberId
+            })
+            
+            if (teamMemberAttendance) {
+              if (teamMemberAttendance.status === 'Present' || teamMemberAttendance.status === 'PRESENT') {
+                presentCount++
+              } else if (teamMemberAttendance.status === 'Absent' || teamMemberAttendance.status === 'ABSENT') {
+                absentCount++
+              }
+            }
+          })
+          
+          dailyData.push({
+            name: String(day),
+            present: presentCount,
+            absent: absentCount
+          })
+        } catch (error) {
+          console.error(`Error fetching team daily attendance for ${dateStr}:`, error)
+          dailyData.push({
+            name: String(day),
+            present: 0,
+            absent: 0
+          })
+        }
+      }
+      
+      setTeamDailyAttendanceData(dailyData)
+    } catch (error) {
+      console.error('Error loading team daily attendance:', error)
+      setTeamDailyAttendanceData([])
+    } finally {
+      setLoadingTeamDailyAttendance(false)
+    }
+  }
+
   // Filter data based on employee or admin view
   // Ensure arrays exist before filtering
   const safeAttendance = Array.isArray(attendance) ? attendance : []
@@ -770,7 +1088,7 @@ const Dashboard = () => {
     ? safePayrolls.filter(p => p.employeeId === employeeId)
     : safePayrolls
 
-  // Get manager stats
+  // Get manager stats - Enhanced with better metrics
   const managerStats = isManager ? [
     {
       title: 'My Status Today',
@@ -778,54 +1096,74 @@ const Dashboard = () => {
       change: dashboardStats?.presentToday > 0 ? 'Present' : 'Absent',
       trend: dashboardStats?.presentToday > 0 ? 'up' : 'down',
       icon: Clock,
-      color: dashboardStats?.presentToday > 0 ? 'bg-green-500' : 'bg-red-500'
+      color: dashboardStats?.presentToday > 0 ? 'bg-green-500' : 'bg-red-500',
+      gradient: dashboardStats?.presentToday > 0 ? 'from-green-500 to-emerald-600' : 'from-red-500 to-rose-600'
     },
     {
       title: 'Team Members',
       value: teamMembers.length,
-      change: '+0%',
+      change: 'Active',
       trend: 'up',
       icon: Users,
-      color: 'bg-blue-500'
+      color: 'bg-blue-500',
+      gradient: 'from-blue-500 to-indigo-600'
     },
     {
       title: 'Pending Leaves',
-      value: dashboardStats?.pendingLeaves || filteredLeaves.filter(l => l.status === 'PENDING' || l.status === 'Pending').length,
-      change: '-3%',
+      value: dashboardStats?.pendingLeaves || filteredLeaves.filter(l => {
+        const status = (l.status || '').toUpperCase()
+        return status === 'PENDING'
+      }).length,
+      change: 'Requires Action',
       trend: 'down',
       icon: Calendar,
-      color: 'bg-yellow-500'
+      color: 'bg-yellow-500',
+      gradient: 'from-yellow-500 to-amber-600'
     },
     {
-      title: 'Total Payroll',
-      value: `$${dashboardStats?.totalPayroll?.toLocaleString() || filteredPayrolls.reduce((sum, p) => sum + (p.amount || 0), 0).toLocaleString()}`,
-      change: '+8%',
+      title: 'Team Present Today',
+      value: (() => {
+        const today = format(new Date(), 'yyyy-MM-dd')
+        const teamMemberIds = teamMembers.map(m => typeof m.id === 'string' ? parseInt(m.id) : m.id)
+        const todayAttendance = safeAttendance.filter(a => {
+          const attDate = a.date || (a.attendanceDate || '')
+          const matchesDate = attDate === today || attDate.startsWith(today)
+          if (!matchesDate) return false
+          const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+          return teamMemberIds.includes(attEmpId) && (a.status === 'Present' || a.status === 'PRESENT')
+        })
+        return todayAttendance.length
+      })(),
+      change: `of ${teamMembers.length}`,
       trend: 'up',
-      icon: DollarSign,
-      color: 'bg-purple-500'
+      icon: CheckCircle,
+      color: 'bg-emerald-500',
+      gradient: 'from-emerald-500 to-teal-600'
     }
   ] : []
 
-  // Finance-specific stats
+  // Finance-specific stats - Enhanced with better metrics
   const financeStats = isFinance ? [
+    {
+      title: 'My Status Today',
+      value: dashboardStats?.presentToday > 0 ? 'Present' : 'Absent',
+      change: dashboardStats?.presentToday > 0 ? 'Present' : 'Absent',
+      trend: dashboardStats?.presentToday > 0 ? 'up' : 'down',
+      icon: Clock,
+      color: dashboardStats?.presentToday > 0 ? 'bg-green-500' : 'bg-red-500',
+      gradient: dashboardStats?.presentToday > 0 ? 'from-green-500 to-emerald-600' : 'from-red-500 to-rose-600'
+    },
     {
       title: 'Pending Payroll Approvals',
       value: financePayrolls.filter(p => {
         const status = (p.status || '').toUpperCase()
         return status === 'PENDING_APPROVAL'
       }).length,
-      change: '',
+      change: 'Requires Action',
       trend: 'neutral',
       icon: DollarSign,
-      color: 'bg-yellow-500'
-    },
-    {
-      title: 'Total Payroll',
-      value: `$${financePayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0).toLocaleString()}`,
-      change: '',
-      trend: 'neutral',
-      icon: DollarSign,
-      color: 'bg-purple-500'
+      color: 'bg-yellow-500',
+      gradient: 'from-yellow-500 to-amber-600'
     },
     {
       title: 'Monthly Payroll',
@@ -835,21 +1173,24 @@ const Dashboard = () => {
           const payrollMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
           return payrollMonth === currentMonth
         })
-        const total = monthPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0)
-        return `$${total.toLocaleString()}`
+        // Use processed payroll netSalary values
+        const total = monthPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || 0), 0)
+        return `₹${total.toLocaleString('en-IN')}`
       })(),
-      change: '',
+      change: 'This Month',
       trend: 'neutral',
       icon: Calendar,
-      color: 'bg-blue-500'
+      color: 'bg-blue-500',
+      gradient: 'from-blue-500 to-indigo-600'
     },
     {
       title: 'HR Tickets',
       value: tickets.length,
-      change: '',
+      change: tickets.length > 0 ? 'Active' : 'None',
       trend: 'neutral',
       icon: Ticket,
-      color: 'bg-orange-500'
+      color: 'bg-orange-500',
+      gradient: 'from-orange-500 to-red-600'
     }
   ] : []
 
@@ -903,8 +1244,8 @@ const Dashboard = () => {
     {
       title: 'My Total Payroll',
       value: dashboardStats?.totalPayroll !== undefined
-        ? `$${dashboardStats.totalPayroll.toLocaleString()}`
-        : `$${filteredPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0).toLocaleString()}`,
+        ? `₹${dashboardStats.totalPayroll.toLocaleString('en-IN')}`
+        : `₹${filteredPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0).toLocaleString('en-IN')}`,
       change: '', // Dynamic data - no hardcoded change
       trend: 'neutral',
       icon: DollarSign,
@@ -940,7 +1281,7 @@ const Dashboard = () => {
     },
     {
       title: 'Total Payroll',
-      value: `$${dashboardStats?.totalPayroll?.toLocaleString() || (Array.isArray(payrolls) ? payrolls.reduce((sum, p) => sum + (p.amount || p.netSalary || 0), 0).toLocaleString() : '0')}`,
+      value: `₹${dashboardStats?.totalPayroll?.toLocaleString('en-IN') || (Array.isArray(payrolls) ? payrolls.reduce((sum, p) => sum + (p.amount || p.netSalary || 0), 0).toLocaleString('en-IN') : '0')}`,
       change: '+8%',
       trend: 'up',
       icon: DollarSign,
@@ -1069,7 +1410,7 @@ const Dashboard = () => {
     },
     {
       title: 'Payroll Cost',
-      value: `$${(executiveData.payrollCost || 0).toLocaleString()}`,
+      value: `₹${(executiveData.payrollCost || 0).toLocaleString('en-IN')}`,
       subtitle: 'Current Month',
       icon: DollarSign,
       color: 'bg-purple-500',
@@ -1077,8 +1418,61 @@ const Dashboard = () => {
     }
   ] : []
 
+  // Get user name for welcome message
+  const userName = localStorage.getItem('userName') || 'User'
+  const currentDate = format(new Date(), 'EEEE, MMMM dd, yyyy')
+  const currentTime = format(new Date(), 'h:mm a')
+  
+  // Get role display name
+  const getRoleDisplayName = () => {
+    if (isAdmin || isHRAdmin) return 'Administrator'
+    if (isManager) return 'Manager'
+    if (isFinance) return 'Finance'
+    if (isEmployee) return 'Employee'
+    return 'User'
+  }
+
   return (
-    <div className="space-y-3 sm:space-y-4 bg-gray-50 p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
+    <div className="space-y-3 sm:space-y-4 bg-[#f5f7fa] p-2 sm:p-3 md:p-4 max-w-full overflow-x-hidden">
+      {/* Professional Header Section - Light Colors */}
+      {(isEmployee || isManager || isFinance) && (
+        <div className="mb-4 sm:mb-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white px-4 py-6 sm:px-6 sm:py-8">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-3">
+                    Welcome back, {userName.split(' ')[0]}! 
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-3 text-gray-600">
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-semibold">{currentDate}</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                      <Clock className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-semibold">{currentTime}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3 sm:gap-4">
+                  {isEmployee && dashboardStats && (
+                    <div className="bg-gray-50 rounded-xl px-5 py-4 shadow-md border-2 border-gray-200">
+                      <p className="text-gray-600 text-sm font-semibold mb-1.5">Today's Status</p>
+                      <p className={`text-xl font-bold ${
+                        dashboardStats.presentToday > 0 ? 'text-green-600' : 'text-gray-600'
+                      }`}>
+                        {dashboardStats.presentToday > 0 ? 'Present ✓' : 'Not Checked In'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success/Error Messages */}
       {checkInMessage && (
         <div className="p-3 sm:p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center gap-2">
@@ -1110,7 +1504,7 @@ const Dashboard = () => {
         <div className="space-y-4">
           {/* Widget Configuration Modal */}
           {showWidgetConfig && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-white bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -1653,51 +2047,58 @@ const Dashboard = () => {
       {!isExecutiveView && (
         <>
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {stats.map((stat, index) => {
               const Icon = stat.icon
-              const isPresentStatus = (isEmployee || isManager || isHRAdmin) && stat.title === 'My Status Today'
+              const isPresentStatus = (isEmployee || isManager || isHRAdmin || isFinance) && stat.title === 'My Status Today'
+              const hasGradient = stat.gradient && (isManager || isFinance)
               
               return (
                 <div 
                   key={index} 
-                  className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-2 border ${
+                  className={`bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 p-4 sm:p-5 border-2 ${
                     isPresentStatus 
                       ? (stat.value === 'Present' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white' : 'border-red-300 bg-gradient-to-br from-red-50 to-white')
+                      : hasGradient
+                      ? 'border-gray-200 bg-white'
                       : 'border-gray-200'
-                  }`}
+                  } group hover:scale-105`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <div className={`p-1 rounded-lg shadow-sm ${
+                    <div className={`p-2 sm:p-2.5 rounded-xl shadow-md ${
                       isPresentStatus 
                         ? (stat.value === 'Present' ? 'bg-green-500' : 'bg-red-500')
+                        : hasGradient
+                        ? stat.color
                         : stat.color
                     }`}>
-                      <Icon className="w-3 h-3 text-white" />
+                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
                     {!isPresentStatus && stat.change && stat.change.trim() !== '' && (
-                      <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        stat.trend === 'up' ? 'bg-green-100 text-green-700' : stat.trend === 'down' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                      <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
+                        stat.trend === 'up' ? 'bg-green-100 text-green-600' : stat.trend === 'down' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
                       }`}>
                         {stat.trend === 'up' ? <ArrowUp size={12} /> : stat.trend === 'down' ? <ArrowDown size={12} /> : null}
                         <span>{stat.change}</span>
                       </div>
                     )}
                     {isPresentStatus && stat.value === 'Present' && (
-                      <div className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                      <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-600">
                         <ArrowUp size={12} />
                         <span>Present</span>
                       </div>
                     )}
                   </div>
-                  <h3 className={`text-base font-bold mb-0.5 ${
+                  <h3 className={`text-xl sm:text-2xl font-bold mb-1 ${
                     isPresentStatus 
-                      ? (stat.value === 'Present' ? 'text-green-700' : 'text-red-700')
-                      : 'text-gray-800'
+                      ? (stat.value === 'Present' ? 'text-green-600' : 'text-red-600')
+                      : 'text-gray-700'
                   }`}>
                     {stat.value}
                   </h3>
-                  <p className="text-xs font-semibold text-gray-700 mb-1">{stat.title}</p>
+                  <p className="text-xs sm:text-sm font-semibold mb-0.5 text-gray-600">
+                    {stat.title}
+                  </p>
                   
                   {/* Check Out Button - Only for Present Status card */}
                   {isPresentStatus && canCheckOut && (
@@ -1727,35 +2128,586 @@ const Dashboard = () => {
             })}
           </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-        {/* Attendance Chart - Hide for managers (they have My Attendance chart instead) */}
-        {!isManager && (
-          <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              {isEmployee || isFinance ? 'My Weekly Attendance' : 'Weekly Attendance'}
+          {/* Finance-Specific Sections */}
+          {isFinance && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              {/* Finance Overview Card */}
+              <div className="bg-white rounded-2xl shadow-lg border-2 border-purple-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-purple-600 flex items-center gap-2">
+                    <DollarSign className="w-6 h-6" />
+                    Finance Overview
+                  </h3>
+                  <button
+                    onClick={() => navigate('/payroll')}
+                    className="text-sm text-purple-500 hover:text-purple-600 font-medium flex items-center gap-1 hover:underline"
+                  >
+                    View Details
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {/* Payroll Summary - Only unique metrics not in stats cards */}
+                  {(() => {
+                    const approvedCount = financePayrolls.filter(p => {
+                      const status = (p.status || '').toUpperCase()
+                      return status === 'APPROVED' || status === 'FINALIZED' || status === 'PAID'
+                    }).length
+                    const allTotal = financePayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || 0), 0)
+                    
+                    return (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-600 mb-1">Approved Payrolls</p>
+                          <p className="text-lg font-bold text-emerald-700">{approvedCount}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                          <p className="text-xs font-semibold text-purple-600 mb-1">Total Payroll</p>
+                          <p className="text-lg font-bold text-purple-700">₹{(allTotal / 1000).toFixed(1)}k</p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+
+              {/* Pending Payroll Approvals Card */}
+              <div className="bg-white rounded-2xl shadow-lg border-2 border-yellow-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-yellow-600 flex items-center gap-2">
+                    <DollarSign className="w-6 h-6" />
+                    Pending Payroll Approvals
+                  </h3>
+                  <button
+                    onClick={() => navigate('/payroll')}
+                    className="text-sm text-yellow-500 hover:text-yellow-600 font-medium flex items-center gap-1 hover:underline"
+                  >
+                    View All
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+                {loadingFinancePayrolls ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mb-2"></div>
+                      <p className="text-gray-600">Loading payroll data...</p>
+                    </div>
+                  </div>
+                ) : (() => {
+                  const pendingPayrolls = financePayrolls.filter(p => {
+                    const status = (p.status || '').toUpperCase()
+                    return status === 'PENDING_APPROVAL'
+                  }).slice(0, 5)
+                  
+                  if (pendingPayrolls.length === 0) {
+                    return (
+                      <div className="text-center py-8">
+                        <CheckCircle className="w-16 h-16 text-yellow-300 mx-auto mb-3" />
+                        <p className="text-yellow-600 font-medium">No pending payroll approvals</p>
+                        <p className="text-sm text-yellow-500 mt-1">All caught up!</p>
+                      </div>
+                    )
+                  }
+                  
+                  return (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {pendingPayrolls.map((payroll) => {
+                        // Try multiple ways to find the employee
+                        const payrollEmpId = typeof payroll.employeeId === 'string' ? parseInt(payroll.employeeId) : payroll.employeeId
+                        let employee = null
+                        
+                        // First, try to find in safeEmployees array
+                        if (safeEmployees.length > 0) {
+                          employee = safeEmployees.find(emp => {
+                            const empId = typeof emp.id === 'string' ? parseInt(emp.id) : (emp.id || emp.employeeId)
+                            const empEmployeeId = typeof emp.employeeId === 'string' ? parseInt(emp.employeeId) : emp.employeeId
+                            return (empId && payrollEmpId && (empId === payrollEmpId || parseInt(empId) === parseInt(payrollEmpId))) ||
+                                   (empEmployeeId && payrollEmpId && (empEmployeeId === payrollEmpId || parseInt(empEmployeeId) === parseInt(payrollEmpId)))
+                          })
+                        }
+                        
+                        // If not found, try to get from payroll object itself if it has employee info
+                        if (!employee && payroll.employee) {
+                          employee = payroll.employee
+                        }
+                        
+                        // If still not found and payroll has employeeName directly
+                        if (!employee && payroll.employeeName) {
+                          employee = { name: payroll.employeeName }
+                        }
+                        
+                        // Determine employee name with fallbacks
+                        let employeeName = 'Unknown Employee'
+                        if (employee) {
+                          employeeName = employee.name || employee.employeeName || employee.fullName || employee.firstName || 'Unknown Employee'
+                        } else if (payrollEmpId) {
+                          employeeName = `Employee #${payrollEmpId}`
+                        }
+                        // Use the processed payroll value directly from netSalary field
+                        // This is the value calculated during payroll processing
+                        const netSalary = parseFloat(payroll.netSalary) || parseFloat(payroll.amount) || 0
+                        
+                        // Format payroll month properly
+                        let payrollMonth = 'Unknown'
+                        try {
+                          // Check if month is a string in format 'yyyy-MM' (e.g., '2026-01')
+                          if (typeof payroll.month === 'string' && payroll.month.includes('-')) {
+                            const [yearStr, monthStr] = payroll.month.split('-')
+                            const year = parseInt(yearStr)
+                            const month = parseInt(monthStr)
+                            if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+                              const date = new Date(year, month - 1)
+                              if (!isNaN(date.getTime())) {
+                                payrollMonth = format(date, 'MMM yyyy')
+                              }
+                            }
+                          }
+                          // Check if month and year are separate fields
+                          else if (payroll.month && payroll.year) {
+                            const month = parseInt(payroll.month)
+                            const year = parseInt(payroll.year)
+                            if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+                              const date = new Date(year, month - 1)
+                              if (!isNaN(date.getTime())) {
+                                payrollMonth = format(date, 'MMM yyyy')
+                              }
+                            }
+                          }
+                          // Fallback: if month exists but is not in expected format
+                          else if (payroll.month) {
+                            const monthNum = parseInt(payroll.month)
+                            if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+                              const currentYear = new Date().getFullYear()
+                              const date = new Date(currentYear, monthNum - 1)
+                              if (!isNaN(date.getTime())) {
+                                payrollMonth = format(date, 'MMM yyyy')
+                              }
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Error formatting payroll date:', error, payroll)
+                          payrollMonth = payroll.month || 'Unknown'
+                        }
+                        
+                        return (
+                          <div
+                            key={payroll.id}
+                            onClick={() => navigate('/payroll')}
+                            className="bg-white rounded-xl p-4 border border-yellow-200 hover:border-yellow-300 cursor-pointer transition-all hover:shadow-md"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <p className="font-bold text-gray-800 text-base mb-1">{employeeName}</p>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{payrollMonth}</span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-purple-600 text-base mb-1">₹{netSalary.toLocaleString('en-IN')}</p>
+                                <span className="px-2 py-1 bg-yellow-100 text-yellow-600 rounded-full text-xs font-semibold inline-block">
+                                  Pending
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Manager-Specific Sections */}
+          {isManager && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              {/* Team Overview Card */}
+              <div className="bg-white rounded-2xl shadow-lg border-2 border-indigo-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-indigo-600 flex items-center gap-2">
+                    <Users className="w-6 h-6" />
+                    Team Overview
+                  </h3>
+                  <button
+                    onClick={() => navigate('/team-attendance')}
+                    className="text-sm text-indigo-500 hover:text-indigo-600 font-medium flex items-center gap-1 hover:underline"
+                  >
+                    View Details
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+                {teamMembers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="w-16 h-16 text-indigo-300 mx-auto mb-3" />
+                    <p className="text-indigo-600 font-medium">No team members assigned</p>
+                    <p className="text-sm text-indigo-500 mt-1">Contact HR to assign team members</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {(() => {
+                      const today = format(new Date(), 'yyyy-MM-dd')
+                      const teamMemberIds = teamMembers.map(m => typeof m.id === 'string' ? parseInt(m.id) : m.id)
+                      let presentCount = 0
+                      let absentCount = 0
+                      
+                      teamMembers.forEach(member => {
+                        const memberId = typeof member.id === 'string' ? parseInt(member.id) : member.id
+                        const todayAtt = safeAttendance.find(a => {
+                          const attDate = a.date || (a.attendanceDate || '')
+                          const matchesDate = attDate === today || attDate.startsWith(today)
+                          if (!matchesDate) return false
+                          const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+                          return attEmpId === memberId
+                        })
+                        const isPresent = todayAtt && (todayAtt.status === 'Present' || todayAtt.status === 'PRESENT')
+                        if (isPresent) {
+                          presentCount++
+                        } else {
+                          absentCount++
+                        }
+                      })
+                      
+                      return (
+                        <>
+                          {/* Present/Absent Count Summary */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white rounded-xl p-4 text-center border border-emerald-200 shadow-sm">
+                              <p className="text-2xl font-bold text-emerald-600">{presentCount}</p>
+                              <p className="text-xs font-semibold text-emerald-500 mt-1">Present</p>
+                            </div>
+                            <div className="bg-white rounded-xl p-4 text-center border border-red-200 shadow-sm">
+                              <p className="text-2xl font-bold text-red-600">{absentCount}</p>
+                              <p className="text-xs font-semibold text-red-500 mt-1">Absent</p>
+                            </div>
+                          </div>
+                          
+                          {/* Team Member Status List */}
+                          <div className="bg-white rounded-xl p-4 border border-indigo-200">
+                            <p className="text-sm font-semibold text-indigo-600 mb-2">Team Member Status</p>
+                            <div className="space-y-2">
+                              {teamMembers.slice(0, 5).map((member) => {
+                                const memberId = typeof member.id === 'string' ? parseInt(member.id) : member.id
+                                const todayAtt = safeAttendance.find(a => {
+                                  const attDate = a.date || (a.attendanceDate || '')
+                                  const matchesDate = attDate === today || attDate.startsWith(today)
+                                  if (!matchesDate) return false
+                                  const attEmpId = typeof a.employeeId === 'string' ? parseInt(a.employeeId) : a.employeeId
+                                  return attEmpId === memberId
+                                })
+                                const isPresent = todayAtt && (todayAtt.status === 'Present' || todayAtt.status === 'PRESENT')
+                                return (
+                                  <div key={member.id} className="flex items-center justify-between text-sm">
+                                    <span className="font-medium text-gray-600 truncate flex-1">{member.name || `Employee ${member.id}`}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                      isPresent ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {isPresent ? 'Present' : 'Absent'}
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                              {teamMembers.length > 5 && (
+                                <p className="text-xs text-indigo-500 font-medium text-center pt-1">
+                                  +{teamMembers.length - 5} more members
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Leave Approvals Card */}
+              <div className="bg-white rounded-2xl shadow-lg border-2 border-amber-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-amber-600 flex items-center gap-2">
+                    <Calendar className="w-6 h-6" />
+                    Pending Leave Approvals
+                  </h3>
+                  <button
+                    onClick={() => navigate('/leave')}
+                    className="text-sm text-amber-500 hover:text-amber-600 font-medium flex items-center gap-1 hover:underline"
+                  >
+                    View All
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+                {(() => {
+                  // Get team member IDs
+                  const teamMemberIds = teamMembers.map(m => {
+                    const memberId = typeof m.id === 'string' ? parseInt(m.id) : m.id
+                    return memberId
+                  })
+                  
+                  // Filter leaves to only show team members' pending leaves
+                  const pendingLeaves = safeLeaves.filter(l => {
+                    const status = (l.status || '').toUpperCase()
+                    if (status !== 'PENDING') return false
+                    
+                    // Check if the leave belongs to a team member
+                    const leaveEmpId = typeof l.employeeId === 'string' ? parseInt(l.employeeId) : l.employeeId
+                    return teamMemberIds.includes(leaveEmpId) || teamMemberIds.includes(parseInt(leaveEmpId))
+                  }).slice(0, 5)
+                  
+                  if (pendingLeaves.length === 0) {
+                    return (
+                      <div className="text-center py-8">
+                        <CheckCircle className="w-16 h-16 text-amber-300 mx-auto mb-3" />
+                        <p className="text-amber-600 font-medium">No pending leave requests</p>
+                        <p className="text-sm text-amber-500 mt-1">All caught up!</p>
+                      </div>
+                    )
+                  }
+                  
+                  return (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {pendingLeaves.map((leave) => {
+                        const employee = safeEmployees.find(emp => {
+                          const empId = emp.id || emp.employeeId
+                          const leaveEmpId = leave.employeeId
+                          return empId === leaveEmpId || parseInt(empId) === leaveEmpId || parseInt(empId) === parseInt(leaveEmpId)
+                        })
+                        const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
+                        const startDate = leave.startDate ? format(new Date(leave.startDate), 'MMM dd') : 'N/A'
+                        const endDate = leave.endDate ? format(new Date(leave.endDate), 'MMM dd, yyyy') : 'N/A'
+                        const days = leave.days || (leave.startDate && leave.endDate ? 
+                          Math.ceil((new Date(leave.endDate) - new Date(leave.startDate)) / (1000 * 60 * 60 * 24)) + 1 : 1)
+                        
+                        return (
+                          <div
+                            key={leave.id}
+                            onClick={() => navigate('/leave')}
+                            className="bg-white rounded-xl p-4 border border-amber-200 hover:border-amber-300 cursor-pointer transition-all hover:shadow-md"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <p className="font-bold text-gray-700 text-sm">{employeeName}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">{leave.type || 'Leave'}</p>
+                              </div>
+                              <span className="px-2 py-1 bg-amber-100 text-amber-600 rounded-full text-xs font-semibold">
+                                {days} {days === 1 ? 'day' : 'days'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <Calendar className="w-3 h-3" />
+                              <span>{startDate} - {endDate}</span>
+                            </div>
+                            {leave.reason && (
+                              <p className="text-xs text-gray-400 mt-2 line-clamp-2">{leave.reason}</p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+
+      {/* Monthly Attendance Trends Chart - Employee/Finance */}
+      {(isEmployee || isFinance) && (
+        <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">
+              {attendanceView === 'monthly' ? 'Monthly Attendance Trends' : `Daily Attendance Trends - ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
             </h3>
-          {loadingWeeklyAttendance && !isEmployee && !isManager && !isFinance ? (
+            <div className="flex items-center gap-3">
+              {/* Month Filter */}
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => {
+                  setSelectedMonth(e.target.value)
+                  if (employeeId && (isEmployee || isFinance)) {
+                    if (attendanceView === 'daily') {
+                      loadEmployeeDailyAttendance(employeeId, e.target.value)
+                    } else {
+                      loadEmployeeMonthlyAttendance(employeeId)
+                    }
+                  }
+                }}
+                className="px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                title="Select month"
+              />
+              {/* Toggle Switch */}
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => {
+                    setAttendanceView('monthly')
+                    if (employeeId && (isEmployee || isFinance)) {
+                      loadEmployeeMonthlyAttendance(employeeId)
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    attendanceView === 'monthly'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => {
+                    setAttendanceView('daily')
+                    if (employeeId && (isEmployee || isFinance)) {
+                      loadEmployeeDailyAttendance(employeeId, selectedMonth)
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    attendanceView === 'daily'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Daily
+                </button>
+              </div>
+            </div>
+          </div>
+          {attendanceView === 'monthly' ? (
+            loadingMonthlyAttendance ? (
             <div className="flex items-center justify-center h-[300px]">
               <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                <p className="text-gray-600">Loading attendance data...</p>
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                  <p className="text-gray-600 text-sm">Loading...</p>
+                </div>
+              </div>
+            ) : monthlyAttendanceData.length === 0 ? (
+              <div className="flex items-center justify-center h-[300px]">
+                <p className="text-gray-500 text-sm">No attendance data available</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={monthlyAttendanceData} barCategoryGap="10%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <YAxis 
+                    domain={[0, 'auto']}
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#fff', 
+                      border: '1px solid #e5e7eb', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="square"
+                  />
+                  <Bar 
+                    dataKey="present" 
+                    fill="#10b981" 
+                    name="Present" 
+                    barSize={50}
+                  />
+                  <Bar 
+                    dataKey="absent" 
+                    fill="#ef4444" 
+                    name="Absent" 
+                    barSize={50}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          ) : (
+            loadingDailyAttendance ? (
+              <div className="flex items-center justify-center h-[300px]">
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                  <p className="text-gray-600 text-sm">Loading...</p>
+                </div>
+              </div>
+            ) : dailyAttendanceData.length === 0 ? (
+              <div className="flex items-center justify-center h-[300px]">
+                <p className="text-gray-500 text-sm">No attendance data available</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dailyAttendanceData} barCategoryGap="10%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis 
+                    domain={[0, 1]}
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#fff', 
+                      border: '1px solid #e5e7eb', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="square"
+                  />
+                  <Bar 
+                    dataKey="present" 
+                    fill="#10b981" 
+                    name="Present" 
+                    barSize={50}
+                  />
+                  <Bar 
+                    dataKey="absent" 
+                    fill="#ef4444" 
+                    name="Absent" 
+                    barSize={50}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          )}
+        </div>
+      )}
+
+      {/* Charts Row - Weekly Attendance for Admin/HR Admin */}
+      {!isManager && !isEmployee && !isFinance && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Weekly Attendance</h3>
+          {loadingWeeklyAttendance ? (
+            <div className="flex items-center justify-center h-[300px]">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                <p className="text-gray-600 text-sm">Loading...</p>
               </div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={attendanceData} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                 <XAxis 
                   dataKey="name" 
                   tick={{ fill: '#6b7280', fontSize: 12 }}
-                  axisLine={{ stroke: '#d1d5db' }}
+                  axisLine={{ stroke: '#e5e7eb' }}
                 />
                 <YAxis 
-                  domain={isEmployee || isFinance ? [0, 1] : isManager ? [0, 'auto'] : [0, 'auto']}
+                  domain={[0, 'auto']}
                   tick={{ fill: '#6b7280', fontSize: 12 }}
-                  axisLine={{ stroke: '#d1d5db' }}
+                  axisLine={{ stroke: '#e5e7eb' }}
                 />
                 <Tooltip 
                   contentStyle={{ 
@@ -1787,138 +2739,369 @@ const Dashboard = () => {
             </ResponsiveContainer>
           )}
           </div>
+          </div>
         )}
 
         {/* Manager-specific sections: My Attendance and Team Attendance */}
         {isManager && (
           <>
-            {/* My Attendance Chart */}
-            <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
-              <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                My Attendance
-              </h3>
-              {loadingMyAttendance ? (
-                <div className="flex items-center justify-center h-[300px]">
-                  <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                    <p className="text-gray-600">Loading my attendance data...</p>
+            {/* My Attendance Trends Chart - Manager */}
+            <div className="bg-gradient-to-br from-white to-blue-50/30 rounded-2xl shadow-lg p-6 border-2 border-blue-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-blue-600 flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  {attendanceView === 'monthly' ? 'My Attendance Trends' : `My Daily Attendance - ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
+                </h3>
+                <div className="flex items-center gap-3">
+                  {/* Month Filter */}
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value)
+                      if (employeeId && isManager) {
+                        if (attendanceView === 'daily') {
+                          loadEmployeeDailyAttendance(employeeId, e.target.value)
+                        } else {
+                          loadEmployeeMonthlyAttendance(employeeId)
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    title="Select month"
+                  />
+                  {/* Toggle Switch */}
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => {
+                        setAttendanceView('monthly')
+                        if (employeeId && isManager) {
+                          loadEmployeeMonthlyAttendance(employeeId)
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        attendanceView === 'monthly'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAttendanceView('daily')
+                        if (employeeId && isManager) {
+                          loadEmployeeDailyAttendance(employeeId, selectedMonth)
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        attendanceView === 'daily'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Daily
+                    </button>
                   </div>
                 </div>
+              </div>
+              {attendanceView === 'monthly' ? (
+                loadingMonthlyAttendance ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                      <p className="text-gray-600 text-sm">Loading...</p>
+                    </div>
+                  </div>
+                ) : monthlyAttendanceData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-gray-500 text-sm">No attendance data available</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={monthlyAttendanceData} barCategoryGap="10%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <YAxis 
+                        domain={[0, 'auto']}
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e5e7eb', 
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="square"
+                      />
+                      <Bar 
+                        dataKey="present" 
+                        fill="#10b981" 
+                        name="Present" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                      <Bar 
+                        dataKey="absent" 
+                        fill="#ef4444" 
+                        name="Absent" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={myAttendanceData} barCategoryGap="20%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fill: '#6b7280', fontSize: 12 }}
-                      axisLine={{ stroke: '#d1d5db' }}
-                    />
-                    <YAxis 
-                      domain={[0, 1]}
-                      tick={{ fill: '#6b7280', fontSize: 12 }}
-                      axisLine={{ stroke: '#d1d5db' }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: '1px solid #e5e7eb', 
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                      }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ paddingTop: '20px' }}
-                      iconType="square"
-                    />
-                    <Bar 
-                      dataKey="present" 
-                      fill="#10b981" 
-                      name="Present" 
-                      radius={[8, 8, 0, 0]}
-                      maxBarSize={60}
-                    />
-                    <Bar 
-                      dataKey="absent" 
-                      fill="#ef4444" 
-                      name="Absent" 
-                      radius={[8, 8, 0, 0]}
-                      maxBarSize={60}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                loadingDailyAttendance ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                      <p className="text-gray-600 text-sm">Loading...</p>
+                    </div>
+                  </div>
+                ) : dailyAttendanceData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-gray-500 text-sm">No attendance data available</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={dailyAttendanceData} barCategoryGap="10%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <YAxis 
+                        domain={[0, 'auto']}
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e5e7eb', 
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="square"
+                      />
+                      <Bar 
+                        dataKey="present" 
+                        fill="#10b981" 
+                        name="Present" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                      <Bar 
+                        dataKey="absent" 
+                        fill="#ef4444" 
+                        name="Absent" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )
               )}
             </div>
 
-            {/* Team Attendance Chart */}
-            <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
-              <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Team Attendance ({teamMembers.length} {teamMembers.length === 1 ? 'Employee' : 'Employees'})
-              </h3>
-              {loadingTeamAttendance ? (
-                <div className="flex items-center justify-center h-[300px]">
-                  <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                    <p className="text-gray-600">Loading team attendance data...</p>
-                  </div>
-                </div>
-              ) : teamMembers.length === 0 ? (
-                <div className="flex items-center justify-center h-[300px]">
-                  <div className="text-center">
-                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No team members assigned</p>
-                  </div>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={teamAttendanceData} barCategoryGap="20%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fill: '#6b7280', fontSize: 12 }}
-                      axisLine={{ stroke: '#d1d5db' }}
-                    />
-                    <YAxis 
-                      domain={[0, 'auto']}
-                      tick={{ fill: '#6b7280', fontSize: 12 }}
-                      axisLine={{ stroke: '#d1d5db' }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: '1px solid #e5e7eb', 
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+            {/* Team Attendance Trends Chart - Manager */}
+            <div className="bg-gradient-to-br from-white to-indigo-50/30 rounded-2xl shadow-lg p-6 border-2 border-indigo-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-indigo-600 flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  {teamAttendanceView === 'monthly' ? 'Team Attendance Trends' : `Team Daily Attendance - ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
+                </h3>
+                <div className="flex items-center gap-3">
+                  {/* Month Filter */}
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value)
+                      if (employeeId && isManager && teamMembers.length > 0) {
+                        if (teamAttendanceView === 'daily') {
+                          loadTeamDailyAttendance(employeeId, teamMembers, e.target.value)
+                        } else {
+                          loadTeamMonthlyAttendance(employeeId, teamMembers)
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    title="Select month"
+                  />
+                  {/* Toggle Switch */}
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => {
+                        setTeamAttendanceView('monthly')
+                        if (employeeId && isManager && teamMembers.length > 0) {
+                          loadTeamMonthlyAttendance(employeeId, teamMembers)
+                        }
                       }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ paddingTop: '20px' }}
-                      iconType="square"
-                    />
-                    <Bar 
-                      dataKey="present" 
-                      fill="#10b981" 
-                      name="Present" 
-                      radius={[8, 8, 0, 0]}
-                      maxBarSize={60}
-                    />
-                    <Bar 
-                      dataKey="absent" 
-                      fill="#ef4444" 
-                      name="Absent" 
-                      radius={[8, 8, 0, 0]}
-                      maxBarSize={60}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        teamAttendanceView === 'monthly'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTeamAttendanceView('daily')
+                        if (employeeId && isManager && teamMembers.length > 0) {
+                          loadTeamDailyAttendance(employeeId, teamMembers, selectedMonth)
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        teamAttendanceView === 'daily'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Daily
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {teamMembers.length === 0 ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500 text-sm">No team members assigned</p>
+                  </div>
+                </div>
+              ) : teamAttendanceView === 'monthly' ? (
+                loadingTeamMonthlyAttendance ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                      <p className="text-gray-600 text-sm">Loading...</p>
+                    </div>
+                  </div>
+                ) : teamMonthlyAttendanceData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-gray-500 text-sm">No attendance data available</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={teamMonthlyAttendanceData} barCategoryGap="10%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <YAxis 
+                        domain={[0, 'auto']}
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e5e7eb', 
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="square"
+                      />
+                      <Bar 
+                        dataKey="present" 
+                        fill="#10b981" 
+                        name="Present" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                      <Bar 
+                        dataKey="absent" 
+                        fill="#ef4444" 
+                        name="Absent" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )
+              ) : (
+                loadingTeamDailyAttendance ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                      <p className="text-gray-600 text-sm">Loading...</p>
+                    </div>
+                  </div>
+                ) : teamDailyAttendanceData.length === 0 ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <p className="text-gray-500 text-sm">No attendance data available</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={teamDailyAttendanceData} barCategoryGap="10%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <YAxis 
+                        domain={[0, 'auto']}
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e5e7eb', 
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="square"
+                      />
+                      <Bar 
+                        dataKey="present" 
+                        fill="#10b981" 
+                        name="Present" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                      <Bar 
+                        dataKey="absent" 
+                        fill="#ef4444" 
+                        name="Absent" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={60}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )
               )}
             </div>
           </>
         )}
 
-        {/* Department Distribution - Only show for admin */}
-        {!isEmployee && !isManager && (
+        {/* Department Distribution - Only show for admin (not finance) */}
+        {!isEmployee && !isManager && !isFinance && (
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
             <h3 className="text-xl font-bold text-blue-600 mb-3">Department Distribution</h3>
             <ResponsiveContainer width="100%" height={300}>
@@ -1943,185 +3126,282 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Employee Info Card - Show for employee and finance */}
-        {(isEmployee || isFinance) && dashboardStats && (
-          <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-5 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
-              <UserPlus className="w-5 h-5" />
-              My Information
-            </h3>
+        {/* Recent Leaves and My Information in Same Row - Employee Only */}
+        {isEmployee && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            {/* Recent Leaves */}
+            {filteredLeaves.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Recent Leaves</h3>
+                  <button
+                    onClick={() => navigate('/leave')}
+                    className="text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    View All →
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {filteredLeaves
+                    .sort((a, b) => {
+                      const dateA = a.startDate ? new Date(a.startDate) : new Date(0)
+                      const dateB = b.startDate ? new Date(b.startDate) : new Date(0)
+                      return dateB - dateA
+                    })
+                    .slice(0, 3)
+                    .map((leave) => {
+                      const statusColors = {
+                        'PENDING': 'text-yellow-600',
+                        'APPROVED': 'text-green-600',
+                        'REJECTED': 'text-red-600',
+                        'CANCELLED': 'text-gray-500'
+                      }
+                      const status = (leave.status || '').toUpperCase()
+                      return (
+                        <div
+                          key={leave.id}
+                          onClick={() => navigate('/leave')}
+                          className="p-3 hover:bg-gray-50 rounded-md cursor-pointer transition-colors border-b border-gray-50 last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-800 text-sm">{leave.type || 'Leave'}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {(() => {
+                                  try {
+                                    if (leave.startDate && leave.endDate) {
+                                      const startDate = new Date(leave.startDate)
+                                      const endDate = new Date(leave.endDate)
+                                      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                                        return `${format(startDate, 'MMM dd')} - ${format(endDate, 'MMM dd, yyyy')}`
+                                      }
+                                    } else if (leave.startDate) {
+                                      const startDate = new Date(leave.startDate)
+                                      if (!isNaN(startDate.getTime())) {
+                                        return format(startDate, 'MMM dd, yyyy')
+                                      }
+                                    }
+                                    return 'N/A'
+                                  } catch (error) {
+                                    console.error('Error formatting leave date:', error)
+                                    return 'N/A'
+                                  }
+                                })()}
+                              </p>
+                            </div>
+                            <span className={`text-xs font-medium ${statusColors[status] || 'text-gray-500'}`}>
+                              {status || 'PENDING'}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* My Information */}
+            {dashboardStats && (
+              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">My Information</h3>
             <div className="space-y-4">
-              <div className="pb-3 border-b border-gray-200">
-                <p className="text-sm text-gray-600 mb-1">Department</p>
-                <p className="text-lg font-semibold text-gray-800">{dashboardStats.department || 'N/A'}</p>
+                  <div className="pb-3 border-b border-gray-100">
+                    <p className="text-xs text-gray-500 mb-1">Department</p>
+                    <p className="text-base font-medium text-gray-800">{dashboardStats.department || 'N/A'}</p>
               </div>
               
               {employeeShift ? (
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-200">
+                    <div className="bg-gray-50 rounded-md p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <Clock className="text-blue-600" size={18} />
-                    <p className="text-sm font-semibold text-blue-800">Shift</p>
+                        <Clock className="text-gray-600" size={16} />
+                        <p className="text-xs text-gray-500">Shift</p>
                   </div>
-                  <p className="text-xl font-bold text-gray-800 mb-2">{employeeShift.name}</p>
-                  <p className="text-base text-gray-700 font-medium mb-2">
+                      <p className="text-base font-semibold text-gray-800 mb-1">{employeeShift.name}</p>
+                      <p className="text-sm text-gray-600 mb-2">
                     {employeeShift.startTime ? employeeShift.startTime.substring(0, 5) : ''} - {employeeShift.endTime ? employeeShift.endTime.substring(0, 5) : ''}
                   </p>
                   {employeeShift.workingHours && (
-                    <div className="flex items-center gap-4 text-xs text-gray-600 mt-2">
-                      <span className="bg-white px-2 py-1 rounded-md">
-                        {employeeShift.workingHours.toFixed(2)} hrs
-                      </span>
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>{employeeShift.workingHours.toFixed(2)} hrs</span>
                       {employeeShift.breakDuration && (
-                        <span className="bg-white px-2 py-1 rounded-md">
-                          Break: {employeeShift.breakDuration} min
-                        </span>
+                            <span>• Break: {employeeShift.breakDuration} min</span>
                       )}
                     </div>
                   )}
-                  {employeeShift.description && (
-                    <p className="text-xs text-gray-600 mt-3 pt-2 border-t border-blue-200">{employeeShift.description}</p>
-                  )}
                 </div>
               ) : (
-                <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                    <div className="bg-gray-50 rounded-md p-3">
                   <div className="flex items-center gap-2">
-                    <Clock className="text-gray-400" size={18} />
-                    <p className="text-sm text-gray-600 font-medium">No shift assigned</p>
+                        <Clock className="text-gray-400" size={16} />
+                        <p className="text-sm text-gray-500">No shift assigned</p>
                   </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                  <p className="text-xs text-gray-600 mb-1">Attendance Rate</p>
-                  <p className="text-lg font-bold text-gray-800">
-                    {dashboardStats.attendanceRate?.toFixed(1) || 0}%
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">Last 30 Days</p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                  <p className="text-xs text-gray-600 mb-1">Monthly Payroll</p>
-                  <p className="text-lg font-bold text-gray-800">
-                    {(() => {
-                      // Calculate current month's payroll from filtered payrolls
-                      const currentMonth = format(new Date(), 'yyyy-MM')
-                      const currentMonthPayrolls = filteredPayrolls.filter(p => {
-                        const payrollMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
-                        return payrollMonth === currentMonth
-                      })
-                      const monthlyTotal = currentMonthPayrolls.reduce((sum, p) => {
-                        return sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0)
-                      }, 0)
-                      return `$${monthlyTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    })()}
-                  </p>
-                </div>
+        {/* Leave Balance Summary - Employee Only */}
+        {isEmployee && leaveBalances.length > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-4 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">Your Leave Balance</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Year {new Date().getFullYear()}</p>
               </div>
+              <button
+                onClick={() => {
+                  if (employeeId) {
+                    loadLeaveBalances(employeeId)
+                  }
+                }}
+                disabled={loadingLeaveBalances}
+                className="p-1.5 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh Leave Balances"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingLeaveBalances ? 'animate-spin' : ''}`} />
+              </button>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* HR Tickets Section - Only for Finance Users */}
-      {isFinance && (
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-blue-600 flex items-center gap-2">
-              <Ticket className="w-5 h-5" />
-              HR Tickets
-            </h3>
-            <button
-              onClick={() => navigate('/tickets')}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-            >
-              View All
-              <Eye className="w-4 h-4" />
-            </button>
-          </div>
-          {loadingTickets ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                <p className="text-gray-600">Loading tickets...</p>
-              </div>
-            </div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-8">
-              <Ticket className="mx-auto text-gray-400 mb-2" size={32} />
-              <p className="text-gray-500">No pending tickets</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {tickets.map((ticket) => {
-                if (!ticket || !ticket.id) return null
-                const priorityColors = {
-                  'URGENT': 'bg-red-100 text-red-800 border-red-200',
-                  'HIGH': 'bg-orange-100 text-orange-800 border-orange-200',
-                  'MEDIUM': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-                  'LOW': 'bg-blue-100 text-blue-800 border-blue-200'
-                }
-                const statusColors = {
-                  'OPEN': 'bg-blue-100 text-blue-800 border-blue-200',
-                  'IN_PROGRESS': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-                  'PENDING': 'bg-gray-100 text-gray-800 border-gray-200',
-                  'RESOLVED': 'bg-green-100 text-green-800 border-green-200',
-                  'CLOSED': 'bg-gray-100 text-gray-800 border-gray-200'
-                }
-                const ticketTypeLabels = {
-                  'SALARY_ISSUE': 'Salary Issue',
-                  'LEAVE_CORRECTION': 'Leave Correction',
-                  'ATTENDANCE_CORRECTION': 'Attendance Correction',
-                  'SYSTEM_ACCESS': 'System Access',
-                  'HARDWARE_REQUEST': 'Hardware Request'
-                }
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {leaveBalances.map((balance) => {
+                const type = leaveTypes.find(t => {
+                  const typeId = typeof t.id === 'string' ? parseInt(t.id) : t.id
+                  const balanceTypeId = typeof balance.leaveTypeId === 'string' ? parseInt(balance.leaveTypeId) : balance.leaveTypeId
+                  return typeId === balanceTypeId
+                })
+                const leaveTypeName = type?.name || balance.leaveType || balance.leaveTypeName || 'Leave'
+                const leaveTypeCode = type?.code || ''
+                const availableBalance = balance.balance || 0
+                const usedDays = balance.usedDays || ((balance.totalDays || 0) - availableBalance)
+                const totalDays = balance.totalDays || 0
+                const usagePercentage = totalDays > 0 ? (usedDays / totalDays) * 100 : 0
+                
                 return (
                   <div
-                    key={ticket.id}
-                    onClick={() => navigate('/tickets')}
-                    className="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-blue-300 cursor-pointer transition-all duration-200"
+                    key={balance.id || balance.leaveTypeId}
+                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-blue-300 flex flex-col"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold text-gray-800">{ticket.subject || 'No Subject'}</h4>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${priorityColors[ticket.priority] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
-                            {ticket.priority || 'MEDIUM'}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[ticket.status] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
-                            {ticket.status || 'OPEN'}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                          {ticket.description || 'No description'}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <AlertCircle size={12} />
-                            {ticketTypeLabels[ticket.ticketType] || ticket.ticketType || 'Unknown'}
-                          </span>
-                          {ticket.createdAt && (
-                            <span className="flex items-center gap-1">
-                              <Calendar size={12} />
-                              {format(new Date(ticket.createdAt), 'MMM dd, yyyy')}
-                            </span>
-                          )}
-                        </div>
+                        <h3 className="text-sm font-bold text-gray-800 mb-0.5">{leaveTypeName}</h3>
+                        {leaveTypeCode && (
+                          <p className="text-xs text-gray-500">ID: {leaveTypeCode}</p>
+                        )}
+                      </div>
+                      <div className="text-right ml-4">
+                        <div className="text-xl font-bold text-blue-600">{availableBalance.toFixed(1)}</div>
+                        <p className="text-xs text-gray-500">Available Balance</p>
                       </div>
                     </div>
+                    
+                    {totalDays > 0 && (
+                      <div className="mt-auto pt-2 border-t border-gray-200">
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden mb-1">
+                          <div 
+                            className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(usagePercentage, 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          {usedDays.toFixed(1)} days used out of {totalDays.toFixed(1)} days total
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )
               })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Recent Payroll - Employee Only */}
+        {isEmployee && filteredPayrolls.length > 0 && (() => {
+          // Get the most recent payroll
+          const sortedPayrolls = [...filteredPayrolls].sort((a, b) => {
+            const dateA = a.month && a.year ? new Date(a.year, a.month - 1) : new Date(0)
+            const dateB = b.month && b.year ? new Date(b.year, b.month - 1) : new Date(0)
+            return dateB - dateA
+          })
+          const mostRecentPayroll = sortedPayrolls[0]
+          const netSalary = parseFloat(mostRecentPayroll.netSalary) || parseFloat(mostRecentPayroll.amount) || 0
+          
+          // Safely format payroll month
+          let payrollMonth = 'N/A'
+          try {
+            // Check if month is a string in format 'yyyy-MM' (e.g., '2026-01')
+            if (typeof mostRecentPayroll.month === 'string' && mostRecentPayroll.month.includes('-')) {
+              const [yearStr, monthStr] = mostRecentPayroll.month.split('-')
+              const year = parseInt(yearStr)
+              const month = parseInt(monthStr)
+              if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+                const date = new Date(year, month - 1)
+                if (!isNaN(date.getTime())) {
+                  payrollMonth = format(date, 'MMMM yyyy')
+                }
+              }
+            }
+            // Check if month and year are separate fields
+            else if (mostRecentPayroll.month && mostRecentPayroll.year) {
+              const month = parseInt(mostRecentPayroll.month)
+              const year = parseInt(mostRecentPayroll.year)
+              if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+                const date = new Date(year, month - 1)
+                if (!isNaN(date.getTime())) {
+                  payrollMonth = format(date, 'MMMM yyyy')
+                }
+              }
+            }
+            // Fallback: if month exists but is not in expected format, try to use it as-is
+            else if (mostRecentPayroll.month) {
+              // Try to parse if it's a number
+              const monthNum = parseInt(mostRecentPayroll.month)
+              if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+                const currentYear = new Date().getFullYear()
+                const date = new Date(currentYear, monthNum - 1)
+                if (!isNaN(date.getTime())) {
+                  payrollMonth = format(date, 'MMMM yyyy')
+                }
+              } else {
+                payrollMonth = mostRecentPayroll.month
+              }
+            }
+          } catch (error) {
+            console.error('Error formatting payroll date:', error, mostRecentPayroll)
+            payrollMonth = mostRecentPayroll.month || 'N/A'
+          }
+          
+          return (
+            <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Recent Payroll</h3>
+                <button
+                  onClick={() => navigate('/payroll')}
+                  className="text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  View All →
+                </button>
+      </div>
+              <div 
+                onClick={() => navigate('/payroll')}
+                className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors"
+              >
+                <p className="font-medium text-gray-800 text-sm">{payrollMonth}</p>
+                <p className="font-semibold text-gray-800">₹{netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+          )
+        })()}
+        </>
       )}
 
       {/* Payroll Trend Chart - Finance Users */}
       {isFinance && payrollTrendData.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
+        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-purple-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-blue-600 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
+            <h3 className="text-xl font-bold text-purple-600 flex items-center gap-2">
+              <TrendingUp className="w-6 h-6" />
               Payroll Trend (Last 6 Months)
             </h3>
           </div>
@@ -2160,79 +3440,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Pending Payroll Approvals - Finance Users */}
-      {isFinance && (
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-blue-600 flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Pending Payroll Approvals
-            </h3>
-            <button
-              onClick={() => navigate('/payroll')}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-            >
-              View All
-              <Eye className="w-4 h-4" />
-            </button>
-          </div>
-          {loadingFinancePayrolls ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                <p className="text-gray-600">Loading payroll data...</p>
-              </div>
-            </div>
-          ) : (() => {
-            const pendingPayrolls = financePayrolls.filter(p => {
-              const status = (p.status || '').toUpperCase()
-              return status === 'PENDING_APPROVAL'
-            }).slice(0, 5)
-            
-            if (pendingPayrolls.length === 0) {
-              return (
-                <div className="text-center py-8">
-                  <CheckCircle className="mx-auto text-green-400 mb-2" size={32} />
-                  <p className="text-gray-500">No pending payroll approvals</p>
-                </div>
-              )
-            }
-            
-            return (
-              <div className="space-y-3">
-                {pendingPayrolls.map((payroll) => {
-                  const employee = safeEmployees.find(emp => {
-                    const empId = emp.id || emp.employeeId
-                    const payrollEmpId = payroll.employeeId
-                    return empId === payrollEmpId || parseInt(empId) === payrollEmpId || parseInt(empId) === parseInt(payrollEmpId)
-                  })
-                  const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
-                  const netSalary = parseFloat(payroll.netSalary) || parseFloat(payroll.amount) || 0
-                  
-                  return (
-                    <div key={payroll.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-800">{employeeName}</p>
-                          <p className="text-sm text-gray-600">
-                            {payroll.month && payroll.year ? `${payroll.month}/${payroll.year}` : payroll.month || 'N/A'}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-purple-600">${netSalary.toLocaleString()}</p>
-                          <span className="inline-block px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full mt-1">
-                            Pending Approval
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })()}
-        </div>
-      )}
 
       {/* Quick Actions - Moved to Bottom */}
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-3 sm:p-4 border-2 border-gray-200">
@@ -2322,6 +3529,51 @@ const Dashboard = () => {
                 <span className="text-sm font-semibold text-gray-800">Settings</span>
               </button>
             </>
+          ) : isManager ? (
+            <>
+              <button
+                onClick={() => navigate('/team-attendance')}
+                className="flex flex-col items-center justify-center p-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-indigo-200 hover:border-indigo-400 group"
+              >
+                <Users className="w-5 h-5 text-indigo-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Team Attendance</span>
+              </button>
+              <button
+                onClick={() => navigate('/leave')}
+                className="flex flex-col items-center justify-center p-3 bg-amber-50 hover:bg-amber-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-amber-200 hover:border-amber-400 group"
+              >
+                <Calendar className="w-5 h-5 text-amber-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Approve Leaves</span>
+              </button>
+              <button
+                onClick={() => navigate('/attendance')}
+                className="flex flex-col items-center justify-center p-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-blue-200 hover:border-blue-400 group"
+              >
+                <CheckCircle className="w-5 h-5 text-blue-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">My Attendance</span>
+              </button>
+              <button
+                onClick={() => navigate('/performance')}
+                className="flex flex-col items-center justify-center p-3 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-purple-200 hover:border-purple-400 group"
+              >
+                <TrendingUp className="w-5 h-5 text-purple-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Team Performance</span>
+              </button>
+              <button
+                onClick={() => navigate('/payroll')}
+                className="flex flex-col items-center justify-center p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-200 hover:border-green-400 group"
+              >
+                <DollarSign className="w-5 h-5 text-green-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">My Payroll</span>
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-200 hover:border-gray-400 group"
+              >
+                <Settings className="w-5 h-5 text-gray-600 mb-1.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold text-gray-800">Settings</span>
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -2370,9 +3622,6 @@ const Dashboard = () => {
           )}
         </div>
       </div>
-        </>
-      )}
-
     </div>
   )
 }

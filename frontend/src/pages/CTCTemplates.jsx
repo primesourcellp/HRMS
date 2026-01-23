@@ -360,19 +360,17 @@ const CTCTemplates = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Client Name *</label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.clientName}
                       onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                       required
-                      list="clients-list"
-                    />
-                    <datalist id="clients-list">
+                    >
+                      <option value="">Select Client</option>
                       {clients.map(client => (
-                        <option key={client} value={client} />
+                        <option key={client} value={client}>{client}</option>
                       ))}
-                    </datalist>
+                    </select>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
