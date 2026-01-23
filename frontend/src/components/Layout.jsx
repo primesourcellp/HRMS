@@ -84,7 +84,6 @@ const Layout = () => {
         { path: '/payroll', icon: null, label: userRole === ROLES.EMPLOYEE || userRole === ROLES.MANAGER ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll', customIcon: '₹' },
         { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
         { path: '/shifts', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Shift' : 'Shifts', permission: 'shifts' },
-        { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : 'HR Tickets', permission: 'tickets' },
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : userRole === ROLES.FINANCE ? 'Payroll Tickets' : 'HR Tickets', permission: 'tickets' },
         { path: '/my-tickets', icon: Ticket, label: 'My Tickets', permission: 'tickets', roles: [ROLES.FINANCE] },
         { path: '/recruitment', icon: Briefcase, label: 'Recruitment', permission: 'recruitment' },
