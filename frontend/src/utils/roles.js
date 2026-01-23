@@ -101,7 +101,7 @@ export const PERMISSIONS = {
     leave: true, // Apply leave access
     payroll: true, // Payroll validation
     performance: false,
-    shifts: false,
+    shifts: true, // Own shift access
     tickets: true, // HR Tickets access
     analytics: true, // Cost analytics
     users: false,

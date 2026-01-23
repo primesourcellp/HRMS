@@ -73,14 +73,19 @@ const Shifts = () => {
   // Check if user is employee or admin
   const userRole = localStorage.getItem('userRole')
   const userType = localStorage.getItem('userType')
+  // Manager detection: userRole === 'MANAGER'
+  const isManager = userRole === 'MANAGER'
+  // Finance detection: userRole === 'FINANCE'
+  const isFinance = userRole === 'FINANCE'
+  // Admin detection: userRole === 'ADMIN' || 'SUPER_ADMIN' || 'HR_ADMIN' (but not MANAGER or FINANCE)
+  const isAdmin = (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN') && !isManager && !isFinance
   // Employee detection: userType === 'employee' OR userRole === 'EMPLOYEE' OR not admin
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'MANAGER' || userRole === 'FINANCE'
-  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && userType !== 'admin')
+  const isEmployee = userType === 'employee' || userRole === 'EMPLOYEE' || (!isAdmin && !isManager && !isFinance && userType !== 'admin')
   const currentUserId = localStorage.getItem('userId')
 
   useEffect(() => {
-    if (isEmployee) {
-      loadEmployeeShift()
+    if (isEmployee || isManager || isFinance) {
+      loadUserShift() // Unified function for employees, managers, and finance users
       loadAllShiftsForEmployee() // Load all shifts for shift change request dropdown
       loadShiftChangeRequests()
     } else {
@@ -88,13 +93,13 @@ const Shifts = () => {
       loadShiftChangeRequests()
       loadTeams() // Load teams for team assignment
     }
-  }, [isEmployee])
+  }, [isEmployee, isManager, isFinance])
 
   useEffect(() => {
-    if (!isEmployee && activeView === 'assignments' && shifts.length > 0) {
+    if (!isEmployee && !isManager && !isFinance && activeView === 'assignments' && shifts.length > 0) {
       loadAllAssignments()
     }
-  }, [activeView, isEmployee, shifts])
+  }, [activeView, isEmployee, isManager, isFinance, shifts])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -111,32 +116,59 @@ const Shifts = () => {
     }
   }, [openDropdownId])
 
-  const loadEmployeeShift = async () => {
+  // Unified function to load shift for employee, manager, or finance user
+  const loadUserShift = async () => {
     try {
       setLoading(true)
       setError(null)
-      const empId = currentUserId ? parseInt(currentUserId) : null
-      if (!empId) {
-        setError('Employee ID not found')
+      const userId = currentUserId ? parseInt(currentUserId) : null
+      if (!userId) {
+        const userType = isEmployee ? 'Employee' : isManager ? 'Manager' : isFinance ? 'Finance user' : 'User'
+        setError(`${userType} ID not found`)
         return
       }
-      const shift = await api.getShiftByEmployeeId(empId)
+      
+      const shift = await api.getShiftByEmployeeId(userId)
+      
       // The API now returns shift with assignment dates
-      console.log('Shift data received:', shift)
-      console.log('Assignment dates:', {
-        startDate: shift?.assignmentStartDate,
-        endDate: shift?.assignmentEndDate
-      })
-      
-      // Calculate working hours for employee shift
       if (shift) {
+        console.log('Shift data received:', shift)
+        console.log('Assignment dates:', {
+          startDate: shift?.assignmentStartDate,
+          endDate: shift?.assignmentEndDate
+        })
+        
+        // Calculate working hours for shift
         shift.workingHours = calculateWorkingHours(shift.startTime, shift.endTime, shift.breakDuration)
+        
+        // Set as array for consistency with shifts display (for manager/finance view)
+        // Also set employeeShift for employee view
+        setShifts([shift])
+        setEmployeeShift(shift)
+        
+        // Load employee count for this shift (for manager/finance view)
+        if (isManager || isFinance) {
+          try {
+            const employees = await api.getEmployeesByShift(shift.id)
+            setShiftEmployeeCounts({ [shift.id]: Array.isArray(employees) ? employees.length : 0 })
+          } catch (error) {
+            console.error(`Error loading employees for shift ${shift.id}:`, error)
+            setShiftEmployeeCounts({ [shift.id]: 0 })
+          }
+        }
+      } else {
+        // No shift assigned
+        setShifts([])
+        setEmployeeShift(null)
+        if (isManager || isFinance) {
+          setShiftEmployeeCounts({})
+        }
       }
-      
-      setEmployeeShift(shift)
     } catch (error) {
-      console.error('Error loading employee shift:', error)
+      const userType = isEmployee ? 'employee' : isManager ? 'manager' : isFinance ? 'finance' : 'user'
+      console.error(`Error loading ${userType} shift:`, error)
       setError('Failed to load shift information')
+      setShifts([])
     } finally {
       setLoading(false)
     }
@@ -303,7 +335,7 @@ const Shifts = () => {
   const loadShiftChangeRequests = async () => {
     try {
       const empId = currentUserId ? parseInt(currentUserId) : null
-      if (isEmployee && empId) {
+      if ((isEmployee || isManager || isFinance) && empId) {
         const data = await api.getShiftChangeRequestsByEmployee(empId)
         setShiftChangeRequests(Array.isArray(data) ? data : [])
       } else if (isAdmin) {
@@ -377,20 +409,150 @@ const Shifts = () => {
     }
   }
 
-  const handleAssignEmployee = async (e) => {
+  // Helper function to check for date overlaps
+  const checkDateOverlap = (start1, end1, start2, end2) => {
+    // Helper to parse and normalize dates
+    const parseDate = (dateStr) => {
+      if (!dateStr) return null
+      try {
+        // Handle both date strings and Date objects
+        const date = dateStr instanceof Date ? dateStr : new Date(dateStr)
+        date.setHours(0, 0, 0, 0)
+        return isNaN(date.getTime()) ? null : date
+      } catch {
+        return null
+      }
+    }
+    
+    const s1 = parseDate(start1)
+    const s2 = parseDate(start2)
+    
+    // If either start date is invalid, no overlap
+    if (!s1 || !s2) return false
+    
+    const e1 = end1 ? parseDate(end1) : null // null means permanent
+    const e2 = end2 ? parseDate(end2) : null // null means permanent
+    
+    // If either assignment is permanent (no end date), it always overlaps
+    if (!e1 || !e2) return true
+    
+    // Check for overlap: (s1 <= e2) && (s2 <= e1)
+    return s1 <= e2 && s2 <= e1
+  }
+
+  // Helper function to check for existing shift assignments
+  const checkExistingAssignments = async (employeeIds, newStartDate, newEndDate, newShiftId) => {
+    const conflicts = []
+    
+    // Load employees if not already loaded
+    let employeesToCheck = employees
+    if (employeesToCheck.length === 0) {
+      try {
+        const employeesData = await api.getEmployees()
+        employeesToCheck = Array.isArray(employeesData) ? employeesData : []
+      } catch (error) {
+        console.error('Error loading employees for conflict check:', error)
+        return conflicts // Return empty if we can't load employees
+      }
+    }
+    
+    // Load shifts if not already loaded
+    let shiftsToCheck = shifts
+    if (shiftsToCheck.length === 0) {
+      try {
+        const shiftsData = await api.getShifts()
+        shiftsToCheck = Array.isArray(shiftsData) ? shiftsData : []
+      } catch (error) {
+        console.error('Error loading shifts for conflict check:', error)
+      }
+    }
+    
+    employeeIds.forEach(empId => {
+      const employee = employeesToCheck.find(emp => {
+        const empIdNum = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+        return empIdNum === empId
+      })
+      
+      if (employee && employee.shiftId) {
+        const existingShiftId = typeof employee.shiftId === 'string' ? parseInt(employee.shiftId) : employee.shiftId
+        const newShiftIdNum = typeof newShiftId === 'string' ? parseInt(newShiftId) : newShiftId
+        
+        // Skip if it's the same shift (updating existing assignment)
+        if (existingShiftId === newShiftIdNum) {
+          return
+        }
+        
+        // Get existing assignment dates
+        const existingStartDate = employee.shiftAssignmentStartDate || null
+        const existingEndDate = employee.shiftAssignmentEndDate || null
+        
+        // If employee has no assignment dates, it's a permanent assignment
+        // Permanent assignments conflict with any new assignment
+        const isPermanentAssignment = !existingStartDate && !existingEndDate
+        
+        // Check if dates overlap
+        // If existing assignment is permanent, it always conflicts
+        // Otherwise, check date overlap
+        const hasConflict = isPermanentAssignment || checkDateOverlap(
+          newStartDate, 
+          newEndDate || null, 
+          existingStartDate, 
+          existingEndDate || null
+        )
+        
+        if (hasConflict) {
+          const existingShift = shiftsToCheck.find(s => s.id === existingShiftId)
+          const existingShiftName = existingShift ? existingShift.name : `Shift #${existingShiftId}`
+          const employeeName = employee.name || `Employee #${empId}`
+          
+          conflicts.push({
+            employeeId: empId,
+            employeeName: employeeName,
+            existingShiftId: existingShiftId,
+            existingShiftName: existingShiftName,
+            existingStartDate: existingStartDate,
+            existingEndDate: existingEndDate
+          })
+        }
+      }
+    })
+    
+    return conflicts
+  }
+
+  // Unified function to assign employee or team to shift
+  const handleAssignToShift = async (e, assignmentType = 'employee') => {
     e.preventDefault()
-    if (!assignFormData.employeeId) {
-      setError('Please select an employee')
-      return
+    
+    // Validation based on assignment type
+    if (assignmentType === 'employee') {
+      if (!assignFormData.employeeId) {
+        setError('Please select an employee')
+        return
+      }
+    } else if (assignmentType === 'team') {
+      if (!teamAssignFormData.teamId) {
+        setError('Please select a team')
+        return
+      }
+      if (selectedTeamMembers.length === 0) {
+        setError('Selected team has no members')
+        return
+      }
     }
 
-    if (!assignFormData.startDate) {
+    // Get form data based on assignment type
+    const formData = assignmentType === 'employee' ? assignFormData : teamAssignFormData
+    const startDate = formData.startDate
+    const endDate = formData.endDate
+
+    if (!startDate) {
       setError('Please select a start date')
       return
     }
 
     // Validate date range if end date is provided
-    if (assignFormData.endDate && assignFormData.startDate > assignFormData.endDate) {
+    if (endDate && startDate > endDate) {
       setError('End date must be after start date')
       return
     }
@@ -399,15 +561,11 @@ const Shifts = () => {
       setLoading(true)
       setError(null)
       
-      // Prepare assignment data with dates
-      const assignmentData = {
-        employeeId: parseInt(assignFormData.employeeId),
-        startDate: assignFormData.startDate,
-        endDate: assignFormData.endDate || null
-      }
-      
       // Determine which shift to use
-      const shiftId = selectedShift ? selectedShift.id : (assignFormData.shiftId ? parseInt(assignFormData.shiftId) : null)
+      const shiftIdFromForm = assignmentType === 'employee' 
+        ? (assignFormData.shiftId ? parseInt(assignFormData.shiftId) : null)
+        : (teamAssignFormData.shiftId ? parseInt(teamAssignFormData.shiftId) : null)
+      const shiftId = selectedShift ? selectedShift.id : shiftIdFromForm
       
       if (!shiftId) {
         setError('Please select a shift')
@@ -415,12 +573,70 @@ const Shifts = () => {
         return
       }
       
-      const response = await api.assignEmployeeToShift(shiftId, assignmentData)
+      // Get employee IDs to check
+      const employeeIdsToCheck = assignmentType === 'employee'
+        ? [parseInt(assignFormData.employeeId)]
+        : selectedTeamMembers.map(id => parseInt(id))
+      
+      // Check for existing assignments with overlapping dates
+      const conflicts = await checkExistingAssignments(employeeIdsToCheck, startDate, endDate, shiftId)
+      
+      if (conflicts.length > 0) {
+        // Build error message with conflict details
+        let errorMsg = ''
+        if (assignmentType === 'employee') {
+          const conflict = conflicts[0]
+          let existingDateRange = ''
+          if (!conflict.existingStartDate && !conflict.existingEndDate) {
+            existingDateRange = 'Permanent assignment'
+          } else if (conflict.existingEndDate) {
+            existingDateRange = `${conflict.existingStartDate || 'N/A'} to ${conflict.existingEndDate}`
+          } else {
+            existingDateRange = `${conflict.existingStartDate || 'N/A'} onwards (Permanent)`
+          }
+          errorMsg = `${conflict.employeeName} is already assigned to ${conflict.existingShiftName} (${existingDateRange}). Please unassign from the existing shift first or choose different dates that don't overlap.`
+        } else {
+          const conflictDetails = conflicts.map(c => {
+            let dateRange = ''
+            if (!c.existingStartDate && !c.existingEndDate) {
+              dateRange = 'Permanent'
+            } else if (c.existingEndDate) {
+              dateRange = `${c.existingStartDate || 'N/A'} to ${c.existingEndDate}`
+            } else {
+              dateRange = `${c.existingStartDate || 'N/A'} onwards (Permanent)`
+            }
+            return `${c.employeeName} (${c.existingShiftName}, ${dateRange})`
+          }).join('; ')
+          errorMsg = `The following employees are already assigned to other shifts: ${conflictDetails}. Please unassign them from their existing shifts first or choose different dates that don't overlap.`
+        }
+        setError(errorMsg)
+        setLoading(false)
+        return
+      }
+      
+      // Prepare assignment data with dates
+      const assignmentData = {
+        startDate: startDate,
+        endDate: endDate || null
+      }
+      
+      // Add employee ID(s) based on assignment type
+      if (assignmentType === 'employee') {
+        assignmentData.employeeId = parseInt(assignFormData.employeeId)
+      } else {
+        assignmentData.employeeIds = selectedTeamMembers.map(id => parseInt(id))
+      }
+      
+      // Call appropriate API based on assignment type
+      const response = assignmentType === 'employee'
+        ? await api.assignEmployeeToShift(shiftId, assignmentData)
+        : await api.assignTeamToShift(shiftId, assignmentData)
       
       if (response.success === false) {
-        throw new Error(response.message || 'Failed to assign employee')
+        throw new Error(response.message || `Failed to assign ${assignmentType}`)
       }
 
+      // Reload data after assignment
       if (selectedShift) {
         await loadShiftEmployees(selectedShift.id)
       }
@@ -428,17 +644,40 @@ const Shifts = () => {
       if (activeView === 'assignments') {
         await loadAllAssignments() // Reload assignments table if on assignments view
       }
-      setShowAssignModal(false)
-      setAssignFormData({ shiftId: '', employeeId: '', startDate: '', endDate: '' })
+      
+      // Close modal and reset form data
+      if (assignmentType === 'employee') {
+        setShowAssignModal(false)
+        setAssignFormData({ shiftId: '', employeeId: '', startDate: '', endDate: '' })
+      } else {
+        setShowTeamAssignModal(false)
+        setTeamAssignFormData({ shiftId: '', teamId: '', startDate: '', endDate: '' })
+        setSelectedTeamMembers([])
+      }
       setSelectedShift(null)
-      setSuccessMessage('Employee assigned successfully!')
-      setTimeout(() => setSuccessMessage(null), 3000)
+      
+      // Show success message
+      let successMsg = ''
+      if (assignmentType === 'employee') {
+        successMsg = 'Employee assigned successfully!'
+      } else {
+        successMsg = response.successCount > 0 
+          ? `Successfully assigned ${response.successCount} employee(s) from team${response.failureCount > 0 ? `. ${response.failureCount} failed.` : ''}`
+          : 'Failed to assign employees'
+      }
+      setSuccessMessage(successMsg)
+      setTimeout(() => setSuccessMessage(null), assignmentType === 'team' ? 5000 : 3000)
     } catch (error) {
-      setError(error.message || 'Error assigning employee')
+      setError(error.message || `Error assigning ${assignmentType}`)
       setTimeout(() => setError(null), 5000)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Wrapper functions for backward compatibility
+  const handleAssignEmployee = async (e) => {
+    await handleAssignToShift(e, 'employee')
   }
 
   const handleEditAssignment = (employee) => {
@@ -660,79 +899,9 @@ const Shifts = () => {
     }
   }
 
+  // Wrapper function for team assignment
   const handleAssignTeam = async (e) => {
-    e.preventDefault()
-    if (!teamAssignFormData.teamId) {
-      setError('Please select a team')
-      return
-    }
-
-    if (selectedTeamMembers.length === 0) {
-      setError('Selected team has no members')
-      return
-    }
-
-    if (!teamAssignFormData.startDate) {
-      setError('Please select a start date')
-      return
-    }
-
-    // Validate date range if end date is provided
-    if (teamAssignFormData.endDate && teamAssignFormData.startDate > teamAssignFormData.endDate) {
-      setError('End date must be after start date')
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
-      
-      // Prepare assignment data with dates
-      const assignmentData = {
-        employeeIds: selectedTeamMembers.map(id => parseInt(id)),
-        startDate: teamAssignFormData.startDate,
-        endDate: teamAssignFormData.endDate || null
-      }
-      
-      // Determine which shift to use
-      const shiftId = selectedShift ? selectedShift.id : (teamAssignFormData.shiftId ? parseInt(teamAssignFormData.shiftId) : null)
-      
-      if (!shiftId) {
-        setError('Please select a shift')
-        setLoading(false)
-        return
-      }
-
-      const response = await api.assignTeamToShift(shiftId, assignmentData)
-      
-      if (response.success === false) {
-        throw new Error(response.message || 'Failed to assign team')
-      }
-
-      if (selectedShift) {
-        await loadShiftEmployees(selectedShift.id)
-      }
-      await loadData() // Reload employees to refresh shift assignments
-      if (activeView === 'assignments') {
-        await loadAllAssignments() // Reload assignments table if on assignments view
-      }
-      
-      setShowTeamAssignModal(false)
-      setTeamAssignFormData({ shiftId: '', teamId: '', startDate: '', endDate: '' })
-      setSelectedTeamMembers([])
-      setSelectedShift(null)
-      
-      const successMsg = response.successCount > 0 
-        ? `Successfully assigned ${response.successCount} employee(s) from team${response.failureCount > 0 ? `. ${response.failureCount} failed.` : ''}`
-        : 'Failed to assign employees'
-      setSuccessMessage(successMsg)
-      setTimeout(() => setSuccessMessage(null), 5000)
-    } catch (error) {
-      setError(error.message || 'Error assigning team')
-      setTimeout(() => setError(null), 5000)
-    } finally {
-      setLoading(false)
-    }
+    await handleAssignToShift(e, 'team')
   }
 
   const getTeamMemberNames = () => {
@@ -850,7 +1019,7 @@ const Shifts = () => {
       }
 
       await loadShiftChangeRequests()
-      await loadEmployeeShift()
+      await loadUserShift() // Unified function for employees, managers, and finance users
       await loadAllShiftsForEmployee() // Refresh shifts list
       setShowRequestModal(false)
       setRequestFormData({ requestedShiftId: '', reason: '' })
@@ -883,9 +1052,9 @@ const Shifts = () => {
 
       await loadShiftChangeRequests()
       await loadData()
-      // If admin is viewing employee view, reload employee shift too
-      if (isEmployee) {
-        await loadEmployeeShift()
+      // If admin is viewing employee view, reload user shift too
+      if (isEmployee || isManager || isFinance) {
+        await loadUserShift() // Unified function for employees, managers, and finance users
         await loadAllShiftsForEmployee()
       }
       setShowReviewModal(false)
@@ -992,19 +1161,80 @@ const Shifts = () => {
   })
 
   // Get available employees (not assigned to any shift or assigned to different shift)
-  const getAvailableEmployees = () => {
-    // Filter out SUPER_ADMIN users
-    const filteredEmployees = employees.filter(emp => {
-      const role = (emp.role || '').toUpperCase()
-      return role !== 'SUPER_ADMIN'
-    })
+  // Helper function to check if employee is available for the selected dates
+  const isEmployeeAvailableForDates = (employee, startDate, endDate, excludeShiftId = null) => {
+    if (!employee) return false
     
-    if (!selectedShift) return filteredEmployees
-    return filteredEmployees.filter(emp => {
-      // Employee is available if they don't have a shift or have a different shift
-      // We'll check this by comparing shift_id if available
-      return true // For now, show all employees (backend will handle assignment)
+    // Filter out SUPER_ADMIN users
+    const role = (employee.role || '').toUpperCase()
+    if (role === 'SUPER_ADMIN') return false
+    
+    // If no dates selected, show all employees
+    if (!startDate) return true
+    
+    // If employee has no shift assignment, they're available
+    if (!employee.shiftId) return true
+    
+    const existingShiftId = typeof employee.shiftId === 'string' ? parseInt(employee.shiftId) : employee.shiftId
+    
+    // If it's the same shift, allow (updating existing assignment)
+    if (excludeShiftId && existingShiftId === excludeShiftId) return true
+    
+    // Get existing assignment dates
+    const existingStartDate = employee.shiftAssignmentStartDate || null
+    const existingEndDate = employee.shiftAssignmentEndDate || null
+    
+    // If employee has no assignment dates, it's a permanent assignment - not available
+    if (!existingStartDate && !existingEndDate) return false
+    
+    // Check if dates overlap
+    const hasConflict = checkDateOverlap(
+      startDate,
+      endDate || null,
+      existingStartDate,
+      existingEndDate || null
+    )
+    
+    // Employee is available if there's no conflict
+    return !hasConflict
+  }
+
+  const getAvailableEmployees = () => {
+    const startDate = assignFormData.startDate
+    const endDate = assignFormData.endDate
+    const shiftId = selectedShift ? selectedShift.id : (assignFormData.shiftId ? parseInt(assignFormData.shiftId) : null)
+    
+    return employees.filter(emp => 
+      isEmployeeAvailableForDates(emp, startDate, endDate, shiftId)
+    )
+  }
+
+  // Helper function to check if team is available (all members available)
+  const isTeamAvailableForDates = (team, startDate, endDate, excludeShiftId = null) => {
+    if (!team || !team.members || !Array.isArray(team.members) || team.members.length === 0) {
+      return false
+    }
+    
+    // Check if all team members are available
+    return team.members.every(member => {
+      const memberId = typeof member.employeeId === 'string' ? parseInt(member.employeeId) : member.employeeId
+      const employee = employees.find(emp => {
+        const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+        return empId === memberId
+      })
+      
+      return isEmployeeAvailableForDates(employee, startDate, endDate, excludeShiftId)
     })
+  }
+
+  const getAvailableTeams = () => {
+    const startDate = teamAssignFormData.startDate
+    const endDate = teamAssignFormData.endDate
+    const shiftId = selectedShift ? selectedShift.id : (teamAssignFormData.shiftId ? parseInt(teamAssignFormData.shiftId) : null)
+    
+    return teams.filter(team => 
+      isTeamAvailableForDates(team, startDate, endDate, shiftId)
+    )
   }
 
   // Statistics
@@ -1019,7 +1249,7 @@ const Shifts = () => {
   }
 
   // Employee View - Show only their assigned shift
-  if (isEmployee) {
+  if (isEmployee || isManager || isFinance) {
     return (
       <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
         {/* Toast Notifications (Top Right) */}
@@ -1495,7 +1725,7 @@ const Shifts = () => {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
-              {isAdmin && (
+              {isAdmin && !isManager && (
                 <button
                   onClick={() => openModal()}
                   className="bg-blue-600 text-white px-6 py-2.5 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold whitespace-nowrap"
@@ -1615,33 +1845,34 @@ const Shifts = () => {
                     <Users size={16} />
                     Assign Team
                   </button>
-                  <div className="relative inline-block dropdown-menu-container">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const button = e.currentTarget
-                        const rect = button.getBoundingClientRect()
-                        const spaceBelow = window.innerHeight - rect.bottom
-                        const spaceAbove = rect.top
-                        const dropdownHeight = 120
-                        
-                        const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
-                        
-                        setDropdownPosition(prev => ({
-                          ...prev,
-                          [`shift-${shift.id}`]: {
-                            showAbove,
-                            top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
-                            right: window.innerWidth - rect.right
-                          }
-                        }))
-                        setOpenDropdownId(openDropdownId === `shift-${shift.id}` ? null : `shift-${shift.id}`)
-                      }}
-                      className="bg-gray-50 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 flex items-center justify-center gap-2 text-sm transition-colors"
-                      title="Actions"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
+                  {isAdmin && !isManager && (
+                    <div className="relative inline-block dropdown-menu-container">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const button = e.currentTarget
+                          const rect = button.getBoundingClientRect()
+                          const spaceBelow = window.innerHeight - rect.bottom
+                          const spaceAbove = rect.top
+                          const dropdownHeight = 120
+                          
+                          const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                          
+                          setDropdownPosition(prev => ({
+                            ...prev,
+                            [`shift-${shift.id}`]: {
+                              showAbove,
+                              top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                              right: window.innerWidth - rect.right
+                            }
+                          }))
+                          setOpenDropdownId(openDropdownId === `shift-${shift.id}` ? null : `shift-${shift.id}`)
+                        }}
+                        className="bg-gray-50 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 flex items-center justify-center gap-2 text-sm transition-colors"
+                        title="Actions"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
                     
                     {openDropdownId === `shift-${shift.id}` && dropdownPosition[`shift-${shift.id}`] && (
                       <div 
@@ -1653,31 +1884,36 @@ const Shifts = () => {
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openModal(shift)
-                            setOpenDropdownId(null)
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                        >
-                          <Edit size={16} className="text-blue-600" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(shift.id)
-                            setOpenDropdownId(null)
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        >
-                          <Trash2 size={16} />
-                          Delete
-                        </button>
+                        {isAdmin && !isManager && (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openModal(shift)
+                                setOpenDropdownId(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <Edit size={16} className="text-blue-600" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(shift.id)
+                                setOpenDropdownId(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))
@@ -1769,33 +2005,34 @@ const Shifts = () => {
                           >
                             <Users size={18} />
                           </button>
-                          <div className="relative inline-block dropdown-menu-container">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const button = e.currentTarget
-                                const rect = button.getBoundingClientRect()
-                                const spaceBelow = window.innerHeight - rect.bottom
-                                const spaceAbove = rect.top
-                                const dropdownHeight = 120
-                                
-                                const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
-                                
-                                setDropdownPosition(prev => ({
-                                  ...prev,
-                                  [`shift-table-${shift.id}`]: {
-                                    showAbove,
-                                    top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
-                                    right: window.innerWidth - rect.right
-                                  }
-                                }))
-                                setOpenDropdownId(openDropdownId === `shift-table-${shift.id}` ? null : `shift-table-${shift.id}`)
-                              }}
-                              className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                              title="Actions"
-                            >
-                              <MoreVertical size={18} />
-                            </button>
+                          {isAdmin && !isManager && (
+                            <div className="relative inline-block dropdown-menu-container">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const button = e.currentTarget
+                                  const rect = button.getBoundingClientRect()
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const spaceAbove = rect.top
+                                  const dropdownHeight = 120
+                                  
+                                  const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                  
+                                  setDropdownPosition(prev => ({
+                                    ...prev,
+                                    [`shift-table-${shift.id}`]: {
+                                      showAbove,
+                                      top: showAbove ? rect.top - dropdownHeight - 5 : rect.bottom + 5,
+                                      right: window.innerWidth - rect.right
+                                    }
+                                  }))
+                                  setOpenDropdownId(openDropdownId === `shift-table-${shift.id}` ? null : `shift-table-${shift.id}`)
+                                }}
+                                className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Actions"
+                              >
+                                <MoreVertical size={18} />
+                              </button>
                             
                             {openDropdownId === `shift-table-${shift.id}` && dropdownPosition[`shift-table-${shift.id}`] && (
                               <div 
@@ -1807,31 +2044,36 @@ const Shifts = () => {
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    openModal(shift)
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                >
-                                  <Edit size={16} className="text-blue-600" />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDelete(shift.id)
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                  <Trash2 size={16} />
-                                  Delete
-                                </button>
+                                {isAdmin && !isManager && (
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        openModal(shift)
+                                        setOpenDropdownId(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                    >
+                                      <Edit size={16} className="text-blue-600" />
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleDelete(shift.id)
+                                        setOpenDropdownId(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                    >
+                                      <Trash2 size={16} />
+                                      Delete
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2230,7 +2472,7 @@ const Shifts = () => {
               <ArrowLeftRight className="text-blue-600" size={20} />
               Shift Change Requests
             </h3>
-            {isEmployee && (
+            {(isEmployee || isManager || isFinance) && (
               <button
                 onClick={() => {
                   setRequestFormData({ requestedShiftId: '', reason: '' })
@@ -2675,7 +2917,8 @@ const Shifts = () => {
                       const shiftId = e.target.value
                       const shift = shifts.find(s => s.id === parseInt(shiftId))
                       setSelectedShift(shift || null)
-                      setTeamAssignFormData({ ...teamAssignFormData, shiftId: shiftId })
+                      setTeamAssignFormData({ ...teamAssignFormData, shiftId: shiftId, teamId: '', startDate: '', endDate: '' })
+                      setSelectedTeamMembers([])
                     }}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     required
@@ -2690,8 +2933,59 @@ const Shifts = () => {
                 </div>
               )}
               
+              {/* Date Selection - First */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+                  <input
+                    type="date"
+                    value={teamAssignFormData.startDate}
+                    onChange={(e) => {
+                      // Clear team selection when dates change
+                      setTeamAssignFormData({ 
+                        ...teamAssignFormData, 
+                        startDate: e.target.value,
+                        teamId: '',
+                        endDate: e.target.value > teamAssignFormData.endDate ? '' : teamAssignFormData.endDate
+                      })
+                      setSelectedTeamMembers([])
+                    }}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={teamAssignFormData.endDate}
+                    onChange={(e) => {
+                      // Clear team selection when dates change
+                      setTeamAssignFormData({ 
+                        ...teamAssignFormData, 
+                        endDate: e.target.value,
+                        teamId: ''
+                      })
+                      setSelectedTeamMembers([])
+                    }}
+                    min={teamAssignFormData.startDate || undefined}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for permanent assignment</p>
+                </div>
+              </div>
+
+              {/* Team Selection - After Dates */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team *</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Select Team *</label>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {teamAssignFormData.startDate 
+                      ? `${getAvailableTeams().length} available ${getAvailableTeams().length === 1 ? 'team' : 'teams'}`
+                      : 'Select dates first'
+                    }
+                  </span>
+                </div>
                 <select
                   value={teamAssignFormData.teamId}
                   onChange={(e) => {
@@ -2701,14 +2995,27 @@ const Shifts = () => {
                   }}
                   className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   required
+                  disabled={!teamAssignFormData.startDate}
                 >
-                  <option value="">Select a team</option>
-                  {teams.map((team) => (
+                  <option value="">
+                    {!teamAssignFormData.startDate 
+                      ? 'Please select start date first' 
+                      : getAvailableTeams().length === 0 
+                        ? 'No available teams for selected dates' 
+                        : 'Select a team'
+                    }
+                  </option>
+                  {getAvailableTeams().map((team) => (
                     <option key={team.id} value={team.id}>
                       {team.name} {team.members ? `(${team.members.length} members)` : ''}
                     </option>
                   ))}
                 </select>
+                {teamAssignFormData.startDate && getAvailableTeams().length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">
+                    No teams are available for the selected date range. All team members are already assigned to other shifts.
+                  </p>
+                )}
                 {teams.length === 0 && (
                   <p className="text-xs text-gray-500 mt-1">No teams available. Create teams in Team Management first.</p>
                 )}
@@ -2754,30 +3061,6 @@ const Shifts = () => {
                   </p>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
-                  <input
-                    type="date"
-                    value={teamAssignFormData.startDate}
-                    onChange={(e) => setTeamAssignFormData({ ...teamAssignFormData, startDate: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date (Optional)</label>
-                  <input
-                    type="date"
-                    value={teamAssignFormData.endDate}
-                    onChange={(e) => setTeamAssignFormData({ ...teamAssignFormData, endDate: e.target.value })}
-                    min={teamAssignFormData.startDate || undefined}
-                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Leave empty for permanent assignment</p>
-                </div>
-              </div>
 
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
                 <button
@@ -2919,7 +3202,7 @@ const Shifts = () => {
                       const shiftId = e.target.value
                       const shift = shifts.find(s => s.id === parseInt(shiftId))
                       setSelectedShift(shift || null)
-                      setAssignFormData({ ...assignFormData, shiftId: shiftId })
+                      setAssignFormData({ ...assignFormData, shiftId: shiftId, employeeId: '', startDate: '', endDate: '' })
                     }}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
@@ -2933,34 +3216,23 @@ const Shifts = () => {
                   </select>
                 </div>
               )}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">Select Employee *</label>
-                  <span className="text-xs text-gray-500 font-medium">
-                    Total: {getAvailableEmployees().length} {getAvailableEmployees().length === 1 ? 'employee' : 'employees'}
-                  </span>
-                </div>
-                <select
-                  value={assignFormData.employeeId}
-                  onChange={(e) => setAssignFormData({ ...assignFormData, employeeId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select an employee</option>
-                  {getAvailableEmployees().map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {getEmployeeName(employee)} {employee.email ? `(${employee.email})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              
+              {/* Date Selection - First */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
                   <input
                     type="date"
                     value={assignFormData.startDate}
-                    onChange={(e) => setAssignFormData({ ...assignFormData, startDate: e.target.value })}
+                    onChange={(e) => {
+                      // Clear employee selection when dates change
+                      setAssignFormData({ 
+                        ...assignFormData, 
+                        startDate: e.target.value, 
+                        employeeId: '',
+                        endDate: e.target.value > assignFormData.endDate ? '' : assignFormData.endDate
+                      })
+                    }}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
@@ -2970,12 +3242,58 @@ const Shifts = () => {
                   <input
                     type="date"
                     value={assignFormData.endDate}
-                    onChange={(e) => setAssignFormData({ ...assignFormData, endDate: e.target.value })}
+                    onChange={(e) => {
+                      // Clear employee selection when dates change
+                      setAssignFormData({ 
+                        ...assignFormData, 
+                        endDate: e.target.value,
+                        employeeId: ''
+                      })
+                    }}
                     min={assignFormData.startDate || undefined}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">Leave empty for permanent assignment</p>
                 </div>
+              </div>
+
+              {/* Employee Selection - After Dates */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Select Employee *</label>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {assignFormData.startDate 
+                      ? `${getAvailableEmployees().length} available ${getAvailableEmployees().length === 1 ? 'employee' : 'employees'}`
+                      : 'Select dates first'
+                    }
+                  </span>
+                </div>
+                <select
+                  value={assignFormData.employeeId}
+                  onChange={(e) => setAssignFormData({ ...assignFormData, employeeId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                  disabled={!assignFormData.startDate}
+                >
+                  <option value="">
+                    {!assignFormData.startDate 
+                      ? 'Please select start date first' 
+                      : getAvailableEmployees().length === 0 
+                        ? 'No available employees for selected dates' 
+                        : 'Select an employee'
+                    }
+                  </option>
+                  {getAvailableEmployees().map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {getEmployeeName(employee)} {employee.email ? `(${employee.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {assignFormData.startDate && getAvailableEmployees().length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">
+                    No employees are available for the selected date range. All employees are already assigned to other shifts.
+                  </p>
+                )}
               </div>
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 mt-6">
                 <button
