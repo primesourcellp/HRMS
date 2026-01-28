@@ -3,6 +3,7 @@ package com.hrms.service;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.hrms.entity.PromotionHistory;
@@ -13,21 +14,22 @@ public class PromotionHistoryService {
     @Autowired
     private PromotionHistoryRepository promotionHistoryRepository;
 
-    public List<PromotionHistory> getPromotionsForEmployee(Long employeeId) {
-        return promotionHistoryRepository.findByEmployeeIdOrderByEffectiveDateDesc(employeeId);
+    public List<PromotionHistory> getPromotionsForEmployee(@NonNull Long employeeId) {
+        return promotionHistoryRepository.findByEmployeeIdOrderByEffectiveDateDesc(
+                java.util.Objects.requireNonNull(employeeId));
     }
 
-    public PromotionHistory createPromotion(PromotionHistory promotion) {
-        return promotionHistoryRepository.save(promotion);
+    public PromotionHistory createPromotion(@NonNull PromotionHistory promotion) {
+        return promotionHistoryRepository.save(java.util.Objects.requireNonNull(promotion));
     }
 
-    public PromotionHistory updatePromotion(Long id, PromotionHistory promotion) {
-        promotion.setId(id);
-        return promotionHistoryRepository.save(promotion);
+    public PromotionHistory updatePromotion(@NonNull Long id, @NonNull PromotionHistory promotion) {
+        promotion.setId(java.util.Objects.requireNonNull(id));
+        return promotionHistoryRepository.save(java.util.Objects.requireNonNull(promotion));
     }
 
-    public void deletePromotion(Long id) {
-        promotionHistoryRepository.deleteById(id);
+    public void deletePromotion(@NonNull Long id) {
+        promotionHistoryRepository.deleteById(java.util.Objects.requireNonNull(id));
     }
 
     public List<PromotionHistory> getAllPromotions() {

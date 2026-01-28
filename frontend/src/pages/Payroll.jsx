@@ -2,18 +2,23 @@ import { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, Download, Filter, FileText, Send, Users, TrendingUp, Clock, Search, X, FileDown, PlayCircle, Eye, Loader2, Settings, Info, AlertCircle, Building2, MoreVertical, Receipt, Gift } from 'lucide-react'
 import api from '../services/api'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
+import { useLocation } from 'react-router-dom'
 
 const Payroll = () => {
+  const location = useLocation()
+  const isMyPayrollRoute = location.pathname === '/my-payroll'
+  
   const [payrolls, setPayrolls] = useState([])
   const [salaryStructures, setSalaryStructures] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState(null)
-  // For employees and managers, default to empty (show all months), for admins default to current month
+  // For employees, managers, and finance (on my-payroll route), default to empty (show all months), for admins default to current month
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const userType = localStorage.getItem('userType')
     const userRole = localStorage.getItem('userRole')
-    return (userType === 'employee' || userRole === 'EMPLOYEE' || userRole === 'MANAGER') ? '' : format(new Date(), 'yyyy-MM')
+    const isMyPayroll = window.location.pathname === '/my-payroll'
+    return (userType === 'employee' || userRole === 'EMPLOYEE' || userRole === 'MANAGER' || (userRole === 'FINANCE' && isMyPayroll)) ? '' : format(new Date(), 'yyyy-MM')
   })
   const [selectedAnnualCtcYear, setSelectedAnnualCtcYear] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -22,8 +27,9 @@ const Payroll = () => {
   const [activeView, setActiveView] = useState(() => {
     const userType = localStorage.getItem('userType')
     const userRole = localStorage.getItem('userRole')
-    // Employees and managers see Processed Payrolls by default
-    return (userType === 'employee' || userRole === 'EMPLOYEE' || userRole === 'MANAGER') ? 'processedPayrolls' : 'salaryDetails'
+    const isMyPayroll = window.location.pathname === '/my-payroll'
+    // Employees, managers, and finance (on my-payroll route) see Processed Payrolls by default
+    return (userType === 'employee' || userRole === 'EMPLOYEE' || userRole === 'MANAGER' || (userRole === 'FINANCE' && isMyPayroll)) ? 'processedPayrolls' : 'salaryDetails'
   }) // 'salaryDetails', 'processedPayrolls', 'ctcTemplates', 'gratuity', or 'annualCTC'
   const [showPayrollModal, setShowPayrollModal] = useState(false)
   const [showSalaryModal, setShowSalaryModal] = useState(false)
@@ -151,7 +157,8 @@ const Payroll = () => {
   const userType = localStorage.getItem('userType')
   const isManager = userRole === 'MANAGER'
   const isFinance = userRole === 'FINANCE'
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || userRole === 'FINANCE'
+  // Finance on /my-payroll route should not be treated as admin (like employee/manager)
+  const isAdmin = (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'HR_ADMIN' || (userRole === 'FINANCE' && !isMyPayrollRoute))
   const isSuperAdmin = userRole === 'SUPER_ADMIN'
   const isHRAdmin = userRole === 'HR_ADMIN'
   const canAccessCTCTemplates = isSuperAdmin || isHRAdmin
@@ -162,7 +169,7 @@ const Payroll = () => {
 
   useEffect(() => {
     loadData()
-  }, [selectedMonth, statusFilter, activeView])
+  }, [selectedMonth, statusFilter, activeView, isMyPayrollRoute])
 
   // Close dropdown when clicking outside (for Salary Details)
   useEffect(() => {
@@ -248,8 +255,14 @@ const Payroll = () => {
   const loadData = async () => {
     try {
       setLoading(true)
-      // Load only own data for employees and managers
-      if ((isEmployee || isManager) && userId) {
+      // Clear existing data when switching routes to prevent mixing
+      if (isFinance) {
+        setPayrolls([])
+        setEmployees([])
+        setSalaryStructures([])
+      }
+      // Load only own data for employees, managers, and finance (on my-payroll route)
+      if ((isEmployee || isManager || (isFinance && isMyPayrollRoute)) && userId) {
         console.log('Loading payroll data for userId:', userId, 'role:', userRole)
         try {
         const [payrollsData, employeesData, salaryStructuresData] = await Promise.all([
@@ -918,6 +931,16 @@ const Payroll = () => {
     const startDateObj = new Date(individualProcessData.startDate + 'T00:00:00')
     const processedMonth = format(startDateObj, 'yyyy-MM')
     const employeeId = parseInt(individualProcessData.employeeId)
+
+    // Ensure salary structure exists for this employee before processing
+    const hasActiveSalaryStructure = salaryStructures.some(s => {
+      const sEmpId = typeof s.employeeId === 'string' ? parseInt(s.employeeId) : s.employeeId
+      return sEmpId === employeeId && (s.active === true || s.active === 'true' || s.active == null)
+    })
+    if (!hasActiveSalaryStructure) {
+      setIndividualProcessError(`Salary Structure not found for ${employeeName}. Please create Salary Structure first, then process the payroll.`)
+      return
+    }
     
     // Check if payroll already exists for this employee and month
     const existingPayroll = payrolls.find(p => {
@@ -1480,7 +1503,26 @@ const Payroll = () => {
       const employeeName = employee ? (employee.name || 'N/A') : 'N/A'
       return {
         Employee: employeeName,
-        'Month/Year': p.month && p.year ? `${p.month}/${p.year}` : p.month || 'N/A',
+        'Month/Year': (() => {
+          const y = p.year != null ? Number(p.year) : null
+          const mRaw = p.month
+          if (typeof mRaw === 'string') {
+            if (mRaw.includes('-')) {
+              const [yy, mm] = mRaw.split('-')
+              const d = new Date(Number(yy), Number(mm) - 1, 1)
+              return isNaN(d.getTime()) ? mRaw : format(d, 'MMM yyyy')
+            }
+            if (y != null && mRaw.length <= 2) {
+              const d = new Date(y, Number(mRaw) - 1, 1)
+              return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+            }
+          }
+          if (typeof mRaw === 'number' && y != null) {
+            const d = new Date(y, mRaw - 1, 1)
+            return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+          }
+          return p.month || 'N/A'
+        })(),
         'Base Salary': p.baseSalary || 0,
         Allowances: p.allowances || 0,
         Deductions: p.deductions || 0,
@@ -1527,7 +1569,26 @@ const Payroll = () => {
       return {
         Employee: employeeName,
         'Employee ID': employee?.employeeId || employee?.id || 'N/A',
-        'Month/Year': p.month && p.year ? `${p.month}/${p.year}` : p.month || 'N/A',
+        'Month/Year': (() => {
+          const y = p.year != null ? Number(p.year) : null
+          const mRaw = p.month
+          if (typeof mRaw === 'string') {
+            if (mRaw.includes('-')) {
+              const [yy, mm] = mRaw.split('-')
+              const d = new Date(Number(yy), Number(mm) - 1, 1)
+              return isNaN(d.getTime()) ? mRaw : format(d, 'MMM yyyy')
+            }
+            if (y != null && mRaw.length <= 2) {
+              const d = new Date(y, Number(mRaw) - 1, 1)
+              return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+            }
+          }
+          if (typeof mRaw === 'number' && y != null) {
+            const d = new Date(y, mRaw - 1, 1)
+            return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+          }
+          return p.month || 'N/A'
+        })(),
         'Monthly Gross Salary': monthlyGross.toFixed(2),
         'Employer Contribution': monthlyEmployerContribution.toFixed(2),
         'Monthly CTC': monthlyCTC.toFixed(2),
@@ -1573,6 +1634,14 @@ const Payroll = () => {
   }
 
   const filteredPayrolls = payrolls.filter(payroll => {
+    // For employees, managers, and finance (on my-payroll route), only show their own payrolls
+    const matchesEmployee = !(isEmployee || isManager || (isFinance && isMyPayrollRoute)) || !userId || 
+      (() => {
+        const payrollEmpId = typeof payroll.employeeId === 'string' ? parseInt(payroll.employeeId) : payroll.employeeId
+        const currentUserId = parseInt(userId)
+        return payrollEmpId === currentUserId
+      })()
+    
     const matchesStatus = statusFilter === 'All' || payroll.status === statusFilter
     // Use different month filter based on active view
     // For Annual CTC view, filter by year; otherwise filter by month
@@ -1602,10 +1671,10 @@ const Payroll = () => {
       }
     } else {
       // Match month exactly (format: yyyy-MM)
-      // For employees: if selectedMonth is empty or not set, show all months
+      // For employees, managers, and finance (on my-payroll route): if selectedMonth is empty or not set, show all months
       const monthFilter = selectedMonth
-      if (isEmployee) {
-        // Employees see all months when no filter is selected
+      if (isEmployee || isManager || (isFinance && isMyPayrollRoute)) {
+        // Employees, managers, and finance (on my-payroll route) see all months when no filter is selected
         matchesMonth = !monthFilter || monthFilter === '' || (payroll.month && payroll.month === monthFilter)
       } else {
         // Admins: filter by selected month or show all if no filter
@@ -1623,7 +1692,7 @@ const Payroll = () => {
       })()) ||
       payroll.month?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payroll.status?.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesStatus && matchesMonth && matchesSearch
+    return matchesEmployee && matchesStatus && matchesMonth && matchesSearch
   })
   
   // Debug: Log filtered results for employees
@@ -1927,6 +1996,17 @@ const Payroll = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
+                      {editingSalary ? (
+                        <input
+                          type="text"
+                          value={
+                            employees.find(e => String(e.id) === String(salaryFormData.employeeId))?.name ||
+                            'Selected Employee'
+                          }
+                          className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800"
+                          disabled
+                        />
+                      ) : (
                       <select
                         value={salaryFormData.employeeId}
                         onChange={(e) => handleEmployeeChangeForCTC(e.target.value)}
@@ -1938,10 +2018,11 @@ const Payroll = () => {
                           .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
                           .map(emp => (
                             <option key={emp.id} value={emp.id}>
-                              {emp.name || `Employee ${emp.id}`} {emp.employeeId ? `(${emp.employeeId})` : ''} {emp.client ? `- ${emp.client}` : ''}
+                                {emp.name || `Employee ${emp.id}`}
                             </option>
                           ))}
                       </select>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Effective From *</label>
@@ -2784,6 +2865,549 @@ const Payroll = () => {
     )
   }
 
+  // If viewing ESS Payslip, show full page view (like employee page)
+  if (showESSPayslipModal && viewingESSPayslip && payslipDetails) {
+    return (
+      <>
+        <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
+          <div className="w-full mx-auto">
+            <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
+                  <span className="text-blue-600 font-bold text-2xl">₹</span>
+                  PAYSLIP
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadPayslip(viewingESSPayslip.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all font-semibold"
+                    title={isPayslipFromAnnualCTC ? "Download Annual CTC PDF" : "Download PDF"}
+                  >
+                    <Download size={18} />
+                    {isPayslipFromAnnualCTC ? "Download Annual CTC" : "Download PDF"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowESSPayslipModal(false)
+                      setViewingESSPayslip(null)
+                      setPayslipDetails(null)
+                      setIsPayslipFromAnnualCTC(false)
+                    }}
+                    className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Employee Information Header */}
+                <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="font-semibold text-gray-700">Employee:</span>
+                      <span className="ml-2 text-gray-900">{payslipDetails.employee?.name || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-700">Employee ID:</span>
+                      <span className="ml-2 text-gray-900">{payslipDetails.employee?.employeeId || payslipDetails.employee?.id || 'N/A'}</span>
+                    </div>
+                    {!isPayslipFromAnnualCTC && (
+                      <>
+                        <div>
+                          <span className="font-semibold text-gray-700">Month:</span>
+                          <span className="ml-2 text-gray-900">
+                            {viewingESSPayslip.month && viewingESSPayslip.year 
+                              ? (() => {
+                                  const monthStr = viewingESSPayslip.month.includes('-') 
+                                    ? viewingESSPayslip.month.split('-')[1] 
+                                    : viewingESSPayslip.month
+                                  try {
+                                    return format(new Date(viewingESSPayslip.year, parseInt(monthStr) - 1, 1), 'MMMM yyyy')
+                                  } catch {
+                                    return `${viewingESSPayslip.month} ${viewingESSPayslip.year}`
+                                  }
+                                })()
+                              : viewingESSPayslip.month || 'N/A'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-700">Working Days:</span>
+                          <span className="ml-2 text-gray-900">{payslipDetails.attendanceDays?.workingDays || 0} days</span>
+                        </div>
+                      </>
+                    )}
+                    {isPayslipFromAnnualCTC && (
+                      <div>
+                        <span className="font-semibold text-gray-700">Year:</span>
+                        <span className="ml-2 text-gray-900">{viewingESSPayslip.year || 'N/A'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Account Information - Enhanced for ESS Transparency */}
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl shadow-sm p-5 border-2 border-indigo-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <FileText size={24} className="text-indigo-600" />
+                    Statutory & Banking Information
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">UAN Number</label>
+                      <p className="text-base font-bold text-gray-900 font-mono">
+                        {payslipDetails.employee?.uan || 'N/A'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Universal Account Number</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">PF Account Number</label>
+                      <p className="text-base font-bold text-gray-900 font-mono">
+                        {payslipDetails.employee?.pfAccountNumber || payslipDetails.salaryStructure?.pfAccountNumber || 'N/A'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Provident Fund Account</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">Bank Account Number</label>
+                      <p className="text-base font-bold text-gray-900 font-mono">
+                        {payslipDetails.employee?.bankAccountNumber 
+                          ? maskBankAccount(payslipDetails.employee.bankAccountNumber)
+                          : 'N/A'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Masked for security</p>
+                    </div>
+                    {payslipDetails.employee?.bankName && (
+                      <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                        <label className="block text-xs font-semibold text-gray-600 mb-2">Bank Name</label>
+                        <p className="text-base font-semibold text-gray-900">
+                          {payslipDetails.employee.bankName}
+                        </p>
+                      </div>
+                    )}
+                    {payslipDetails.employee?.ifscCode && (
+                      <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                        <label className="block text-xs font-semibold text-gray-600 mb-2">IFSC Code</label>
+                        <p className="text-base font-bold text-gray-900 font-mono">
+                          {payslipDetails.employee.ifscCode}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Calculate all values and render table-based payslip */}
+                {(() => {
+                  const basicSalary = parseFloat(viewingESSPayslip.basicSalary || viewingESSPayslip.baseSalary || payslipDetails.salaryStructure?.basicSalary || 0) || 0
+                  const hra = parseFloat(viewingESSPayslip.hra || payslipDetails.salaryStructure?.hra || 0) || 0
+                  const bonus = parseFloat(viewingESSPayslip.bonus || 0) || 0
+                  const specialAllowance = parseFloat(payslipDetails.salaryStructure?.specialAllowance || 0) || 0
+                  const transportAllowance = parseFloat(payslipDetails.salaryStructure?.transportAllowance || 0) || 0
+                  const medicalAllowance = parseFloat(payslipDetails.salaryStructure?.medicalAllowance || 0) || 0
+                  const otherAllowances = parseFloat(payslipDetails.salaryStructure?.otherAllowances || 0) || 0
+                  
+                  const grossSalary = basicSalary + hra + specialAllowance + transportAllowance + medicalAllowance + otherAllowances + bonus
+                  
+                  const pfEmployee = parseFloat(payslipDetails.salaryStructure?.pf || 0) || 0
+                  const esiEmployee = parseFloat(payslipDetails.salaryStructure?.esi || 0) || 0
+                  const professionalTax = parseFloat(payslipDetails.salaryStructure?.professionalTax || 0) || 0
+                  const tds = parseFloat(payslipDetails.salaryStructure?.tds || 0) || 0
+                  const otherDeductions = parseFloat(payslipDetails.salaryStructure?.otherDeductions || 0) || 0
+                  const totalEmployeeDeductions = pfEmployee + esiEmployee + professionalTax + tds + otherDeductions
+                  
+                  const pfEmployer = pfEmployee // Employer PF is equal to employee PF
+                  // ESI Employer calculation:
+                  // Standard rates in India: Employee ESI = 0.75% of gross, Employer ESI = 3.25% of gross
+                  // Calculate directly from gross salary for accuracy: 3.25% of gross
+                  const esiEmployer = esiEmployee > 0 ? (grossSalary * 0.0325) : 0
+                  const totalEmployerContribution = pfEmployer + esiEmployer
+                  
+                  const ctc = grossSalary + totalEmployerContribution
+                  const takeHome = grossSalary - totalEmployeeDeductions
+                  
+                  // Calculate percentages for remarks
+                  const basicPercentage = ctc > 0 ? ((basicSalary / ctc) * 100).toFixed(2) : 0
+                  const hraPercentage = basicSalary > 0 ? ((hra / basicSalary) * 100).toFixed(2) : 0
+                  const specialAllowancePercentage = ctc > 0 ? ((specialAllowance / ctc) * 100).toFixed(2) : 0
+                  const pfBase = Math.min(basicSalary, 15000)
+                  
+                  // Calculate annual values
+                  const annualCTC = ctc * 12
+                  const annualBasic = basicSalary * 12
+                  const annualHRA = hra * 12
+                  const annualMedical = medicalAllowance * 12
+                  const annualTransport = transportAllowance * 12
+                  const annualSpecial = specialAllowance * 12
+                  const annualOther = otherAllowances * 12
+                  const annualBonus = bonus
+                  const annualGross = grossSalary * 12
+                  const annualPFEmployer = pfEmployer * 12
+                  const annualESIEmployer = esiEmployer * 12
+                  const monthlyGratuity = basicSalary * (15.0 / (26.0 * 12.0))
+                  const annualGratuity = monthlyGratuity * 12
+                  const monthlyLTA = basicSalary / 12.0
+                  const annualLTA = monthlyLTA * 12
+                  const annualEmployerContribution = (pfEmployer + esiEmployer + monthlyGratuity + monthlyLTA) * 12
+                  
+                  return (
+                    <>
+                      {/* Annual CTC Section when from Annual CTC view, Monthly CTC otherwise */}
+                      {isPayslipFromAnnualCTC ? (
+                        <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                          <div className="bg-blue-100 px-4 py-3 border-b-2 border-blue-300">
+                            <h4 className="text-lg font-bold text-gray-800">Annual CTC (Cost to Company) ₹{annualCTC.toFixed(2)}</h4>
+                          </div>
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Particulars</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Per Month (₹)</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Per Annum (₹)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              <tr className="bg-gray-50">
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900">Gross Salary (A)</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                              </tr>
+                              <tr>
+                                <td className="px-4 py-3 text-sm text-gray-900 pl-6">Basic Salary</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{basicSalary.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualBasic.toFixed(2)}</td>
+                              </tr>
+                              {hra > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">House Rental Allowance (HRA)</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{hra.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualHRA.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {medicalAllowance > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">Medical Allowance</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{medicalAllowance.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualMedical.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {transportAllowance > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">Travel Allowance</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{transportAllowance.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualTransport.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {specialAllowance > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">Special Allowance</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{specialAllowance.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualSpecial.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {otherAllowances > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">Other Allowances</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{otherAllowances.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualOther.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              <tr className="bg-gray-50">
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900">Gross Salary (A) Total</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{grossSalary.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualGross.toFixed(2)}</td>
+                              </tr>
+                              <tr className="bg-gray-50">
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900">Employer Contribution (B)</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right"></td>
+                              </tr>
+                              {pfEmployer > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">PF (Employer)</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{pfEmployer.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualPFEmployer.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {esiEmployer > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">ESI (Employer)</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{esiEmployer.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualESIEmployer.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {monthlyGratuity > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">Gratuity</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{monthlyGratuity.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualGratuity.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {monthlyLTA > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">LTA (Leave Travel Allowance)</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{monthlyLTA.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualLTA.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              {bonus > 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900 pl-6">Bonus</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{(bonus / 12).toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualBonus.toFixed(2)}</td>
+                                </tr>
+                              )}
+                              <tr className="bg-gray-50">
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900">Total Employer Contribution (B)</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{(annualEmployerContribution / 12).toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{annualEmployerContribution.toFixed(2)}</td>
+                              </tr>
+                              <tr className="bg-blue-50 border-t-2 border-blue-300">
+                                <td className="px-4 py-3 text-sm font-bold text-blue-900">CTC (A+B)</td>
+                                <td className="px-4 py-3 text-sm font-bold text-blue-900 text-right">₹{ctc.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm font-bold text-blue-900 text-right">₹{annualCTC.toFixed(2)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Prepare the Monthly CTC Section */}
+                          <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                            <div className="bg-yellow-100 px-4 py-3 border-b-2 border-yellow-300">
+                              <h4 className="text-lg font-bold text-gray-800">Prepare the Monthly CTC ₹{ctc.toFixed(2)}</h4>
+                            </div>
+                            <table className="w-full">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Particulars (Earnings)</th>
+                                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Amount</th>
+                                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Remarks</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-900">Basic Salary</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{basicSalary.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">{basicPercentage}% of CTC</td>
+                                </tr>
+                                {hra > 0 && (
+                                  <tr>
+                                    <td className="px-4 py-3 text-sm text-gray-900">House Rental Allowance</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{hra.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">{hraPercentage}% of Basic</td>
+                                  </tr>
+                                )}
+                                {medicalAllowance > 0 && (
+                                  <tr>
+                                    <td className="px-4 py-3 text-sm text-gray-900">Medical Allowance</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{medicalAllowance.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                  </tr>
+                                )}
+                                {transportAllowance > 0 && (
+                                  <tr>
+                                    <td className="px-4 py-3 text-sm text-gray-900">Travel Allowance</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{transportAllowance.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                  </tr>
+                                )}
+                                {specialAllowance > 0 && (
+                                  <tr>
+                                    <td className="px-4 py-3 text-sm text-gray-900">Special Allowance</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{specialAllowance.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">{specialAllowancePercentage}% of CTC</td>
+                                  </tr>
+                                )}
+                                {otherAllowances > 0 && (
+                                  <tr>
+                                    <td className="px-4 py-3 text-sm text-gray-900">Other Allowances</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{otherAllowances.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                  </tr>
+                                )}
+                                {bonus > 0 && (
+                                  <tr>
+                                    <td className="px-4 py-3 text-sm text-gray-900">Bonus</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{bonus.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                  </tr>
+                                )}
+                                <tr className="bg-gray-50 font-bold">
+                                  <td className="px-4 py-3 text-sm text-gray-900">Gross Salary</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{grossSalary.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Employer Contribution Section - Only for Monthly View */}
+                          {!isPayslipFromAnnualCTC && (
+                            <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                              <div className="bg-blue-100 px-4 py-3 border-b-2 border-blue-300">
+                                <h4 className="text-lg font-bold text-gray-800">Employer Contribution</h4>
+                              </div>
+                              <table className="w-full">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Particulars</th>
+                                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Amount</th>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Remarks</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                  {pfEmployer > 0 && (
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm text-gray-900">PF</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{pfEmployer.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-600">{pfBase > 0 ? `${pfBase.toFixed(0)}*12%` : '-'}</td>
+                                    </tr>
+                                  )}
+                                  {esiEmployer > 0 && (
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm text-gray-900">ESI</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{esiEmployer.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                    </tr>
+                                  )}
+                                  <tr className="bg-gray-50 font-bold">
+                                    <td className="px-4 py-3 text-sm text-gray-900">Total Employer Contribution</td>
+                                    <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{totalEmployerContribution.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {/* CTC = Gross salary + Employer contribution - Only for Monthly View */}
+                          {!isPayslipFromAnnualCTC && (
+                            <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
+                              <div className="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-600 mb-1">CTC</div>
+                                  <div className="text-lg font-bold text-gray-900">₹{ctc.toFixed(2)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-600 mb-1">Gross salary</div>
+                                  <div className="text-lg font-bold text-gray-900">₹{grossSalary.toFixed(2)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-600 mb-1">Employer Contribution</div>
+                                  <div className="text-lg font-bold text-gray-900">₹{totalEmployerContribution.toFixed(2)}</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Employee Contribution (Take home) Section - Only for Monthly View */}
+                          {!isPayslipFromAnnualCTC && (
+                            <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                              <div className="bg-green-100 px-4 py-3 border-b-2 border-green-300">
+                                <h4 className="text-lg font-bold text-gray-800">Particulars (Take home) (Employee Contribution)</h4>
+                              </div>
+                              <table className="w-full">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Particulars</th>
+                                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-b border-gray-200">Amount</th>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Remarks</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                  {pfEmployee > 0 && (
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm text-gray-900">Provident fund</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{pfEmployee.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-600">{pfBase > 0 ? `${pfBase.toFixed(0)}*12%` : '-'}</td>
+                                    </tr>
+                                  )}
+                                  {esiEmployee > 0 && (
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm text-gray-900">Esi</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{esiEmployee.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                    </tr>
+                                  )}
+                                  {professionalTax > 0 && (
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm text-gray-900">Professional Tax</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{professionalTax.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                    </tr>
+                                  )}
+                                  {tds > 0 && (
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm text-gray-900">TDS</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{tds.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                    </tr>
+                                  )}
+                                  {otherDeductions > 0 && (
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm text-gray-900">Other Deductions</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{otherDeductions.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                    </tr>
+                                  )}
+                                  <tr className="bg-gray-50 font-bold">
+                                    <td className="px-4 py-3 text-sm text-gray-900">Total Employee Contribution</td>
+                                    <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{totalEmployeeDeductions.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600">-</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {/* Take Home Section - Only for Monthly View */}
+                          {!isPayslipFromAnnualCTC && (
+                            <div className="bg-white rounded-lg border-2 border-green-300 p-4">
+                              <div className="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-600 mb-1">Gross salary</div>
+                                  <div className="text-lg font-bold text-gray-900">₹{grossSalary.toFixed(2)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-600 mb-1">EE contribution</div>
+                                  <div className="text-lg font-bold text-red-600">₹{totalEmployeeDeductions.toFixed(2)}</div>
+                                </div>
+                                <div className="bg-green-50 rounded-lg p-3 border-2 border-green-400">
+                                  <div className="text-sm font-semibold text-gray-600 mb-1">Take Home</div>
+                                  <div className="text-2xl font-bold text-green-600">₹{takeHome.toFixed(2)}</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )
+                })()}
+
+                {/* Footer Note - Enhanced for ESS Transparency */}
+                <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 border-2 border-gray-200">
+                  <div className="flex items-start gap-3">
+                    <Info className="text-blue-600 mt-0.5 flex-shrink-0" size={20} />
+                    <div className="text-xs text-gray-700">
+                      <p className="font-semibold mb-1">Employee Self-Service Portal - Payroll Transparency</p>
+                      <ul className="list-disc list-inside space-y-1 text-gray-600">
+                        <li>This is a system-generated payslip. For any discrepancies, please contact HR.</li>
+                        <li>Downloaded PDF payslips are password-protected for your security.</li>
+                        <li>Password: Your Employee ID (e.g., {payslipDetails.employee?.employeeId || payslipDetails.employee?.id || 'EMP001'})</li>
+                        <li>Keep this document confidential and secure.</li>
+                        <li>All historical payslips are available in your payroll archive.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   // If viewing payroll details, show full page view (like employee page)
   if (showViewModal && viewingPayroll) {
     const employee = employees.find(e => e.id === viewingPayroll.employeeId)
@@ -3369,8 +3993,8 @@ const Payroll = () => {
                   >
                     Close
                   </button>
+                  </div>
                 </div>
-              </div>
             </div>
           </div>
         </div>
@@ -3449,9 +4073,9 @@ const Payroll = () => {
       )}
 
       {/* Statistics Cards - Only for Processed Payrolls view */}
-      {(isAdmin || isManager) && activeView === 'processedPayrolls' && (
+      {(isAdmin || isManager || (isFinance && isMyPayrollRoute)) && activeView === 'processedPayrolls' && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 md:gap-4">
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
+          <div className="bg-white rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Total</div>
@@ -3460,7 +4084,7 @@ const Payroll = () => {
               <span className="text-blue-600 font-bold text-sm sm:text-base md:text-lg">₹</span>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
+          <div className="bg-white rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Draft</div>
@@ -3469,7 +4093,7 @@ const Payroll = () => {
               <FileText className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-gray-600" />
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
+          <div className="bg-white rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Pending</div>
@@ -3478,7 +4102,7 @@ const Payroll = () => {
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-yellow-600" />
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
+          <div className="bg-white rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Approved</div>
@@ -3487,7 +4111,7 @@ const Payroll = () => {
               <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-600" />
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
+          <div className="bg-white rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Finalized</div>
@@ -3496,7 +4120,7 @@ const Payroll = () => {
               <FileText className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-600" />
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
+          <div className="bg-white rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Paid</div>
@@ -3505,7 +4129,7 @@ const Payroll = () => {
               <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-purple-600" />
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 border-2">
+          <div className="bg-white rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Total Amount</div>
@@ -3728,8 +4352,8 @@ const Payroll = () => {
         </>
       )}
 
-      {/* Processed Payrolls View - For Admin, Employees, and Managers */}
-      {(activeView === 'processedPayrolls' || isEmployee || isManager) && (
+      {/* Processed Payrolls View - For Admin, Employees, Managers, and Finance (on my-payroll route) */}
+      {(activeView === 'processedPayrolls' || isEmployee || isManager || (isFinance && isMyPayrollRoute)) && (
         <>
       {/* Page Title for Employees */}
       {/* {isEmployee && (
@@ -3769,7 +4393,7 @@ const Payroll = () => {
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="All Months"
                 />
-                {isEmployee && selectedMonth && (
+                {(isEmployee || isManager || (isFinance && isMyPayrollRoute)) && selectedMonth && (
                   <button
                     onClick={() => setSelectedMonth('')}
                     className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-1 whitespace-nowrap"
@@ -3870,21 +4494,21 @@ const Payroll = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 12 : 11} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={(isAdmin && !(isFinance && isMyPayrollRoute)) ? 12 : 11} className="px-6 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : filteredPayrolls.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 12 : 11} className="px-6 py-8 text-center">
+                  <td colSpan={(isAdmin && !(isFinance && isMyPayrollRoute)) ? 12 : 11} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <p className="text-gray-500 font-medium">No payroll records found</p>
-                      {isEmployee && payrolls.length > 0 && (
+                      {(isEmployee || isManager || (isFinance && isMyPayrollRoute)) && payrolls.length > 0 && (
                         <p className="text-sm text-gray-400">
                           {payrolls.length} record(s) exist but are filtered out. Try clearing filters.
                         </p>
                       )}
-                      {isEmployee && payrolls.length === 0 && (
+                      {(isEmployee || isManager || (isFinance && isMyPayrollRoute)) && payrolls.length === 0 && (
                         <div className="text-sm text-gray-400 space-y-1">
                           <p>No payroll records exist for your account.</p>
                           <p>Please contact HR to process your payroll.</p>
@@ -3936,9 +4560,28 @@ const Payroll = () => {
                         </td>
                       )}
                       <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-900">
-                        {payroll.month && payroll.year 
-                          ? `${payroll.month}/${payroll.year}`
-                          : payroll.month || 'N/A'}
+                        {(() => {
+                          // Normalize display as "MMM yyyy" (e.g., "Jan 2026")
+                          const y = payroll.year != null ? Number(payroll.year) : null
+                          const mRaw = payroll.month
+                          if (typeof mRaw === 'string') {
+                            // Supports "yyyy-MM" or "MM"
+                            if (mRaw.includes('-')) {
+                              const [yy, mm] = mRaw.split('-')
+                              const d = new Date(Number(yy), Number(mm) - 1, 1)
+                              return isNaN(d.getTime()) ? mRaw : format(d, 'MMM yyyy')
+                            }
+                            if (y != null && mRaw.length <= 2) {
+                              const d = new Date(y, Number(mRaw) - 1, 1)
+                              return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+                            }
+                          }
+                          if (typeof mRaw === 'number' && y != null) {
+                            const d = new Date(y, mRaw - 1, 1)
+                            return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+                          }
+                          return payroll.month || 'N/A'
+                        })()}
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-900">
                         ₹{payroll.baseSalary?.toFixed(2) || '0.00'}
@@ -4375,6 +5018,60 @@ const Payroll = () => {
               </button>
             </div>
             <div className="space-y-5">
+              {(() => {
+                const start = individualProcessData.startDate ? new Date(individualProcessData.startDate + 'T00:00:00') : null
+                const end = individualProcessData.endDate ? new Date(individualProcessData.endDate + 'T00:00:00') : null
+                const inRange = (d) => {
+                  if (!start || !end) return false
+                  const dt = d instanceof Date ? d : new Date(d + 'T00:00:00')
+                  return dt >= start && dt <= end
+                }
+                const overlaps = (aStart, aEnd, bStart, bEnd) => {
+                  if (!aStart || !aEnd || !bStart || !bEnd) return false
+                  return aStart <= bEnd && bStart <= aEnd
+                }
+
+                const eligibleEmployees = employees
+                  .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
+                  .filter(emp => {
+                    const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+                    // must have active salary structure
+                    const hasStructure = salaryStructures.some(s => {
+                      const sEmpId = typeof s.employeeId === 'string' ? parseInt(s.employeeId) : s.employeeId
+                      return sEmpId === empId && (s.active === true || s.active === 'true' || s.active == null)
+                    })
+                    if (!hasStructure) return false
+
+                    // must NOT already have payroll processed in the selected date range (best-effort)
+                    if (!start || !end) return true
+                    const existing = payrolls.some(p => {
+                      const pEmployeeId = typeof p.employeeId === 'string' ? parseInt(p.employeeId) : p.employeeId
+                      if (pEmployeeId !== empId) return false
+
+                      // Prefer start/end range overlap if present
+                      if (p.startDate && p.endDate) {
+                        const pStart = new Date(p.startDate + 'T00:00:00')
+                        const pEnd = new Date(p.endDate + 'T00:00:00')
+                        return overlaps(pStart, pEnd, start, end)
+                      }
+
+                      // Fallback: compare month of startDate or payroll.month
+                      if (p.startDate && inRange(p.startDate)) return true
+                      if (p.month && typeof p.month === 'string') {
+                        const monthStr = p.month.includes('-') ? p.month : `${p.year || new Date().getFullYear()}-${String(p.month).padStart(2, '0')}`
+                        const monthDate = new Date(monthStr + '-01T00:00:00')
+                        const monthKey = format(monthDate, 'yyyy-MM')
+                        const startKey = format(start, 'yyyy-MM')
+                        return monthKey === startKey
+                      }
+                      return false
+                    })
+                    return !existing
+                  })
+
+                // Expose for the dropdown below via closure by returning an object
+                return null
+              })()}
               {/* Error Message Display */}
               {individualProcessError && (
                 <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3">
@@ -4437,7 +5134,7 @@ const Payroll = () => {
                   <label className="block text-sm font-semibold text-gray-700">Employee *</label>
                   <span className="text-xs text-gray-500 font-medium">
                     {individualProcessData.startDate && individualProcessData.endDate
-                      ? `${employees.filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN').length} available`
+                      ? `${employees.filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN').length} total`
                       : 'Select dates first'
                     }
                   </span>
@@ -4458,16 +5155,48 @@ const Payroll = () => {
                       : 'Select Employee'
                     }
                   </option>
-                  {employees
+                  {(() => {
+                    const start = individualProcessData.startDate ? new Date(individualProcessData.startDate + 'T00:00:00') : null
+                    const end = individualProcessData.endDate ? new Date(individualProcessData.endDate + 'T00:00:00') : null
+                    const overlaps = (aStart, aEnd, bStart, bEnd) => {
+                      if (!aStart || !aEnd || !bStart || !bEnd) return false
+                      return aStart <= bEnd && bStart <= aEnd
+                    }
+                    const eligibleEmployees = employees
                     .filter(emp => (emp.role || '').toUpperCase() !== 'SUPER_ADMIN')
-                    .map((emp) => {
-                      const employeeName = emp.name || 'Unnamed Employee'
-                      return (
+                      .filter(emp => {
+                        const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id
+                        const hasStructure = salaryStructures.some(s => {
+                          const sEmpId = typeof s.employeeId === 'string' ? parseInt(s.employeeId) : s.employeeId
+                          return sEmpId === empId && (s.active === true || s.active === 'true' || s.active == null)
+                        })
+                        if (!hasStructure) return false
+                        if (!start || !end) return true
+                        const alreadyProcessed = payrolls.some(p => {
+                          const pEmployeeId = typeof p.employeeId === 'string' ? parseInt(p.employeeId) : p.employeeId
+                          if (pEmployeeId !== empId) return false
+                          if (p.startDate && p.endDate) {
+                            const pStart = new Date(p.startDate + 'T00:00:00')
+                            const pEnd = new Date(p.endDate + 'T00:00:00')
+                            return overlaps(pStart, pEnd, start, end)
+                          }
+                          if (p.month && typeof p.month === 'string') {
+                            const pMonthKey = p.month
+                            const startKey = format(start, 'yyyy-MM')
+                            return pMonthKey === startKey
+                          }
+                          return false
+                        })
+                        return !alreadyProcessed
+                      })
+
+                    if (!individualProcessData.startDate || !individualProcessData.endDate) return null
+                    return eligibleEmployees.map(emp => (
                         <option key={emp.id} value={emp.id}>
-                          {employeeName} {emp.employeeId ? `(${emp.employeeId})` : `(ID: ${emp.id})`}
+                        {emp.name || 'Unnamed Employee'}
                         </option>
-                      )
-                    })}
+                    ))
+                  })()}
                 </select>
                 {(!individualProcessData.startDate || !individualProcessData.endDate) && (
                   <p className="text-xs text-gray-500 mt-1">Please select start and end dates to proceed</p>
@@ -4931,9 +5660,28 @@ const Payroll = () => {
                             {employeeName}
                           </td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-900">
-                            {payroll.month && payroll.year 
-                              ? `${payroll.month}/${payroll.year}`
-                              : payroll.month || 'N/A'}
+                            {(() => {
+                              // Normalize display as "MMM yyyy" (e.g., "Jan 2026")
+                              const y = payroll.year != null ? Number(payroll.year) : null
+                              const mRaw = payroll.month
+                              if (typeof mRaw === 'string') {
+                                // Supports "yyyy-MM" or "MM"
+                                if (mRaw.includes('-')) {
+                                  const [yy, mm] = mRaw.split('-')
+                                  const d = new Date(Number(yy), Number(mm) - 1, 1)
+                                  return isNaN(d.getTime()) ? mRaw : format(d, 'MMM yyyy')
+                                }
+                                if (y != null && mRaw.length <= 2) {
+                                  const d = new Date(y, Number(mRaw) - 1, 1)
+                                  return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+                                }
+                              }
+                              if (typeof mRaw === 'number' && y != null) {
+                                const d = new Date(y, mRaw - 1, 1)
+                                return isNaN(d.getTime()) ? `${mRaw}/${y}` : format(d, 'MMM yyyy')
+                              }
+                              return payroll.month || 'N/A'
+                            })()}
                           </td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-900">
                             ₹{monthlyGross.toFixed(2)}
@@ -5058,6 +5806,17 @@ const Payroll = () => {
             <form onSubmit={handleGratuitySubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Employee *</label>
+                {editingGratuity ? (
+                  <input
+                    type="text"
+                    value={
+                      employees.find(e => String(e.id) === String(gratuityFormData.employeeId))?.name ||
+                      'Selected Employee'
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-800"
+                    disabled
+                  />
+                ) : (
                 <select
                   value={gratuityFormData.employeeId}
                   onChange={(e) => setGratuityFormData({ ...gratuityFormData, employeeId: e.target.value })}
@@ -5071,11 +5830,12 @@ const Payroll = () => {
                       const employeeName = emp.name || `Employee ${emp.id}`
                       return (
                         <option key={emp.id} value={emp.id}>
-                          {employeeName} {emp.employeeId ? `(${emp.employeeId})` : `(ID: ${emp.id})`}
+                            {employeeName}
                         </option>
                       )
                     })}
                 </select>
+                )}
               </div>
 
               <div>
@@ -5269,7 +6029,7 @@ const Payroll = () => {
                       const employeeName = emp.name || 'Unnamed Employee'
                       return (
                         <option key={emp.id} value={emp.id}>
-                          {employeeName} {emp.employeeId ? `(${emp.employeeId})` : `(ID: ${emp.id})`}
+                          {employeeName}
                         </option>
                       )
                     })}
@@ -5383,8 +6143,8 @@ const Payroll = () => {
       )}
 
 
-      {/* ESS Payslip View Modal - Comprehensive Employee Self-Service Payslip */}
-      {showESSPayslipModal && viewingESSPayslip && payslipDetails && (
+      {/* ESS Payslip View Modal - REMOVED - Now using full-page view above */}
+      {false && showESSPayslipModal && viewingESSPayslip && payslipDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-6xl border-2 border-gray-200 max-h-[95vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6 border-b-2 border-gray-200 pb-4">
@@ -5515,9 +6275,9 @@ const Payroll = () => {
                 </div>
               </div>
 
-              {/* Calculate all values and render table-based payslip */}
-              {(() => {
-                const basicSalary = parseFloat(viewingESSPayslip.basicSalary || viewingESSPayslip.baseSalary || payslipDetails.salaryStructure?.basicSalary || 0) || 0
+                {/* Calculate all values and render table-based payslip */}
+                {(() => {
+                  const basicSalary = parseFloat(viewingESSPayslip.basicSalary || viewingESSPayslip.baseSalary || payslipDetails.salaryStructure?.basicSalary || 0) || 0
         const hra = parseFloat(viewingESSPayslip.hra || payslipDetails.salaryStructure?.hra || 0) || 0
         const bonus = parseFloat(viewingESSPayslip.bonus || 0) || 0
         const specialAllowance = parseFloat(payslipDetails.salaryStructure?.specialAllowance || 0) || 0

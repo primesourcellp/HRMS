@@ -1176,71 +1176,78 @@ const Attendance = () => {
         )}
 
 
+        {/* Tabs Navigation */}
+        <div className="bg-white rounded-xl shadow-md p-3 sm:p-4 border-2 border-gray-200 mb-4 md:mb-6">
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 flex-wrap">
+            <button
+              onClick={() => {
+                setViewType('daily')
+                setSelectedDate(format(new Date(), 'yyyy-MM-dd'))
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                viewType === 'daily'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Clock size={18} />
+              Daily
+            </button>
+            <button
+              onClick={() => {
+                setViewType('weekly')
+                const today = new Date()
+                const weekStart = startOfWeek(today, { weekStartsOn: 1 })
+                setSelectedDate(format(weekStart, 'yyyy-MM-dd'))
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                viewType === 'weekly'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <CalendarDays size={18} />
+              Weekly
+            </button>
+            <button
+              onClick={() => {
+                setViewType('monthly')
+                const today = new Date()
+                const monthStart = startOfMonth(today)
+                setSelectedDate(format(monthStart, 'yyyy-MM-dd'))
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                viewType === 'monthly'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Calendar size={18} />
+              Monthly
+            </button>
+            {canViewCalendar && (
+              <button
+                onClick={() => {
+                  setViewType('calendar')
+                  setSelectedMonth(new Date().getMonth() + 1)
+                  setSelectedYear(new Date().getFullYear())
+                }}
+                className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                  viewType === 'calendar'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <CalendarDays size={18} />
+                Calendar
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Filters */}
-<div className="bg-white rounded-xl shadow-md p-3 sm:p-4 mb-4 md:mb-6">
-  <div className="flex flex-wrap items-center gap-3 mb-3">
-    {/* View Type Toggle */}
-    <div className="flex flex-wrap items-center gap-2 mb-2">
-      <button
-        onClick={() => {
-          setViewType('daily')
-          setSelectedDate(format(new Date(), 'yyyy-MM-dd'))
-        }}
-        className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-          viewType === 'daily'
-            ? 'bg-blue-600 text-white shadow-md'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-      >
-        Daily
-      </button>
-      <button
-        onClick={() => {
-          setViewType('weekly')
-          const today = new Date()
-          const weekStart = startOfWeek(today, { weekStartsOn: 1 })
-          setSelectedDate(format(weekStart, 'yyyy-MM-dd'))
-        }}
-        className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-          viewType === 'weekly'
-            ? 'bg-blue-600 text-white shadow-md'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-      >
-        Weekly
-      </button>
-      <button
-        onClick={() => {
-          setViewType('monthly')
-          const today = new Date()
-          const monthStart = startOfMonth(today)
-          setSelectedDate(format(monthStart, 'yyyy-MM-dd'))
-        }}
-        className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-          viewType === 'monthly'
-            ? 'bg-blue-600 text-white shadow-md'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-      >
-        Monthly
-      </button>
-      {canViewCalendar && (
-        <button
-          onClick={() => {
-            setViewType('calendar')
-            setSelectedMonth(new Date().getMonth() + 1)
-            setSelectedYear(new Date().getFullYear())
-          }}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-            viewType === 'calendar'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Calendar
-        </button>
-      )}
-    </div>
+        <div className="bg-white rounded-xl shadow-md p-3 sm:p-4 mb-4 md:mb-6">
+          <div className="flex flex-wrap items-center gap-3 mb-3">
 
     {/* Date Navigation */}
     <div className="flex flex-wrap items-center gap-2">

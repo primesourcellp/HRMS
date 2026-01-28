@@ -2789,7 +2789,7 @@ const Shifts = () => {
       {/* Add/Edit Shift Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
                 <Clock size={24} className="text-blue-600" />
@@ -3283,7 +3283,7 @@ const Shifts = () => {
       {/* Assign Employee Modal */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border-2 border-gray-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-2xl border-2 border-gray-200">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
                 <UserPlus size={24} className="text-blue-600" />

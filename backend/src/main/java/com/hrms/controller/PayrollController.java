@@ -13,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -82,10 +83,10 @@ public class PayrollController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getPayrollById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getPayrollById(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Optional<Payroll> payrollOpt = payrollService.getPayrollById(id);
+            Optional<Payroll> payrollOpt = payrollService.getPayrollById(java.util.Objects.requireNonNull(id));
             if (payrollOpt.isPresent()) {
                 response.put("success", true);
                 response.put("payroll", DTOMapper.toPayrollDTO(payrollOpt.get()));
@@ -104,9 +105,9 @@ public class PayrollController {
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<PayrollDTO>> getEmployeePayrolls(@PathVariable Long employeeId) {
+    public ResponseEntity<List<PayrollDTO>> getEmployeePayrolls(@PathVariable @NonNull Long employeeId) {
         try {
-            List<Payroll> payrolls = payrollService.getPayrollsByEmployeeId(employeeId);
+            List<Payroll> payrolls = payrollService.getPayrollsByEmployeeId(java.util.Objects.requireNonNull(employeeId));
             if (payrolls == null) {
                 return ResponseEntity.ok(List.of());
             }
@@ -138,7 +139,7 @@ public class PayrollController {
             // Log audit event
             Long userId = getCurrentUserId(request);
             if (userId != null && createdPayroll != null) {
-                User employee = userRepository.findById(createdPayroll.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(createdPayroll.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     createdPayroll.getId(),
@@ -166,12 +167,12 @@ public class PayrollController {
 
     @PostMapping("/generate")
     public ResponseEntity<Map<String, Object>> generatePayroll(
-            @RequestParam Long employeeId,
+            @RequestParam @NonNull Long employeeId,
             @RequestParam String month,
             @RequestParam Integer year) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.generatePayroll(employeeId, month, year);
+            Payroll payroll = payrollService.generatePayroll(java.util.Objects.requireNonNull(employeeId), month, year);
             response.put("success", true);
             response.put("message", "Payroll generated successfully");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -230,7 +231,7 @@ public class PayrollController {
      */
     @PostMapping("/process/{employeeId}")
     public ResponseEntity<Map<String, Object>> processPayrollForEmployee(
-            @PathVariable Long employeeId,
+            @PathVariable @NonNull Long employeeId,
             @RequestParam String startDate,
             @RequestParam String endDate,
             HttpServletRequest request) {
@@ -238,13 +239,14 @@ public class PayrollController {
         try {
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = LocalDate.parse(endDate);
-            Payroll payroll = payrollService.processEmployeePayroll(employeeId, start, end, 
+            Long nonNullEmployeeId = java.util.Objects.requireNonNull(employeeId);
+            Payroll payroll = payrollService.processEmployeePayroll(nonNullEmployeeId, start, end, 
                 start.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM")), start.getYear());
             
             // Log audit event
             Long userId = getCurrentUserId(request);
             if (userId != null && payroll != null) {
-                User employee = userRepository.findById(employeeId).orElse(null);
+                User employee = userRepository.findById(nonNullEmployeeId).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     payroll.getId(),
@@ -276,23 +278,24 @@ public class PayrollController {
      */
     @PostMapping("/{id}/submit")
     public ResponseEntity<Map<String, Object>> submitPayrollForApproval(
-            @PathVariable Long id,
+            @PathVariable @NonNull Long id,
             @RequestParam(required = false) Long userId,
             HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             // Get userId from request if not provided
             Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            Long nonNullId = java.util.Objects.requireNonNull(id);
             
             // Get old payroll state before submission
-            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(nonNullId);
             Payroll oldPayroll = oldPayrollOpt.orElse(null);
             
-            Payroll payroll = payrollService.submitPayrollForApproval(id, currentUserId);
+            Payroll payroll = payrollService.submitPayrollForApproval(nonNullId, currentUserId);
             
             // Log audit event
             if (currentUserId != null && payroll != null) {
-                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(payroll.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     payroll.getId(),
@@ -323,23 +326,24 @@ public class PayrollController {
      */
     @PostMapping("/{id}/approve")
     public ResponseEntity<Map<String, Object>> approvePayroll(
-            @PathVariable Long id,
+            @PathVariable @NonNull Long id,
             @RequestParam(required = false) Long userId,
             HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             // Get userId from request if not provided
             Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            Long nonNullId = java.util.Objects.requireNonNull(id);
             
             // Get old payroll state before approval
-            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(nonNullId);
             Payroll oldPayroll = oldPayrollOpt.orElse(null);
             
-            Payroll payroll = payrollService.approvePayroll(id, currentUserId);
+            Payroll payroll = payrollService.approvePayroll(nonNullId, currentUserId);
             
             // Log audit event
             if (currentUserId != null && payroll != null) {
-                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(payroll.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     payroll.getId(),
@@ -370,7 +374,7 @@ public class PayrollController {
      */
     @PostMapping("/{id}/reject")
     public ResponseEntity<Map<String, Object>> rejectPayroll(
-            @PathVariable Long id,
+            @PathVariable @NonNull Long id,
             @RequestParam String rejectionReason,
             @RequestParam(required = false) Long userId,
             HttpServletRequest request) {
@@ -378,16 +382,17 @@ public class PayrollController {
         try {
             // Get userId from request if not provided
             Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            Long nonNullId = java.util.Objects.requireNonNull(id);
             
             // Get old payroll state before rejection
-            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(nonNullId);
             Payroll oldPayroll = oldPayrollOpt.orElse(null);
             
-            Payroll payroll = payrollService.rejectPayroll(id, rejectionReason, currentUserId);
+            Payroll payroll = payrollService.rejectPayroll(nonNullId, rejectionReason, currentUserId);
             
             // Log audit event
             if (currentUserId != null && payroll != null) {
-                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(payroll.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     payroll.getId(),
@@ -418,23 +423,24 @@ public class PayrollController {
      */
     @PostMapping("/{id}/finalize")
     public ResponseEntity<Map<String, Object>> finalizePayroll(
-            @PathVariable Long id,
+            @PathVariable @NonNull Long id,
             @RequestParam(required = false) Long userId,
             HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             // Get userId from request if not provided
             Long currentUserId = userId != null ? userId : getCurrentUserId(request);
+            Long nonNullId = java.util.Objects.requireNonNull(id);
             
             // Get old payroll state before finalization
-            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(nonNullId);
             Payroll oldPayroll = oldPayrollOpt.orElse(null);
             
-            Payroll payroll = payrollService.finalizePayroll(id, currentUserId);
+            Payroll payroll = payrollService.finalizePayroll(nonNullId, currentUserId);
             
             // Log audit event
             if (currentUserId != null && payroll != null) {
-                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(payroll.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     payroll.getId(),
@@ -488,11 +494,11 @@ public class PayrollController {
      */
     @PostMapping("/{id}/mark-paid")
     public ResponseEntity<Map<String, Object>> markPayrollAsPaid(
-            @PathVariable Long id,
+            @PathVariable @NonNull Long id,
             @RequestParam(required = false) Long userId) {
         Map<String, Object> response = new HashMap<>();
         try {
-            Payroll payroll = payrollService.markPayrollAsPaid(id, userId);
+            Payroll payroll = payrollService.markPayrollAsPaid(java.util.Objects.requireNonNull(id), userId);
             response.put("success", true);
             response.put("message", "Payroll marked as paid");
             response.put("payroll", DTOMapper.toPayrollDTO(payroll));
@@ -509,21 +515,22 @@ public class PayrollController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updatePayroll(
-            @PathVariable Long id,
+            @PathVariable @NonNull Long id,
             @RequestBody PayrollDTO payrollDTO,
             HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
+            Long nonNullId = java.util.Objects.requireNonNull(id);
             // Get old payroll state before update
-            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(id);
+            Optional<Payroll> oldPayrollOpt = payrollService.getPayrollById(nonNullId);
             Payroll oldPayroll = oldPayrollOpt.orElse(null);
             
-            Payroll payroll = payrollService.updatePayroll(id, payrollDTO);
+            Payroll payroll = payrollService.updatePayroll(nonNullId, payrollDTO);
             
             // Log audit event
             Long userId = getCurrentUserId(request);
             if (userId != null && payroll != null) {
-                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(payroll.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     payroll.getId(),
@@ -551,14 +558,14 @@ public class PayrollController {
 
 
     @GetMapping("/{id}/payslip")
-    public ResponseEntity<?> generatePayslipPDF(@PathVariable Long id) {
+    public ResponseEntity<?> generatePayslipPDF(@PathVariable @NonNull Long id) {
         try {
-            Payroll payroll = payrollService.getPayrollById(id)
+            Payroll payroll = payrollService.getPayrollById(java.util.Objects.requireNonNull(id))
                     .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
             // Try to get salary structure, but use payroll data as fallback
             Optional<SalaryStructure> salaryStructureOpt = salaryStructureService
-                    .getCurrentSalaryStructure(payroll.getEmployeeId());
+                    .getCurrentSalaryStructure(java.util.Objects.requireNonNull(payroll.getEmployeeId()));
 
             Map<String, Object> payslipData = new HashMap<>();
             payslipData.put("employeeName", payroll.getEmployee() != null ? payroll.getEmployee().getName() : "");
@@ -832,9 +839,9 @@ public class PayrollController {
     }
 
     @GetMapping("/{id}/annual-ctc")
-    public ResponseEntity<?> generateAnnualCTCPDF(@PathVariable Long id) {
+    public ResponseEntity<?> generateAnnualCTCPDF(@PathVariable @NonNull Long id) {
         try {
-            Payroll payroll = payrollService.getPayrollById(id)
+            Payroll payroll = payrollService.getPayrollById(java.util.Objects.requireNonNull(id))
                     .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
             User employee = payroll.getEmployee();
@@ -849,7 +856,7 @@ public class PayrollController {
 
             // Get salary structure
             Optional<SalaryStructure> salaryStructureOpt = salaryStructureService
-                    .getCurrentSalaryStructure(employee.getId());
+                    .getCurrentSalaryStructure(java.util.Objects.requireNonNull(employee.getId()));
 
             Map<String, Object> annualCtcData = new HashMap<>();
             
@@ -991,12 +998,12 @@ public class PayrollController {
 
     @GetMapping("/form16")
     public ResponseEntity<byte[]> generateForm16(
-            @RequestParam Long employeeId,
+            @RequestParam @NonNull Long employeeId,
             @RequestParam Integer assessmentYear) {
         try {
             // Get employee and salary data
             SalaryStructure salaryStructure = salaryStructureService
-                    .getCurrentSalaryStructure(employeeId)
+                    .getCurrentSalaryStructure(java.util.Objects.requireNonNull(employeeId))
                     .orElseThrow(() -> new RuntimeException("Salary structure not found"));
 
             Map<String, Object> form16Data = new HashMap<>();
@@ -1022,19 +1029,20 @@ public class PayrollController {
      * Delete payroll
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deletePayroll(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> deletePayroll(@PathVariable @NonNull Long id, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
+            Long nonNullId = java.util.Objects.requireNonNull(id);
             // Get payroll before deletion for audit log
-            Optional<Payroll> payrollOpt = payrollService.getPayrollById(id);
+            Optional<Payroll> payrollOpt = payrollService.getPayrollById(nonNullId);
             Payroll payroll = payrollOpt.orElse(null);
             
-            payrollService.deletePayroll(id);
+            payrollService.deletePayroll(nonNullId);
             
             // Log audit event
             Long userId = getCurrentUserId(request);
             if (userId != null && payroll != null) {
-                User employee = userRepository.findById(payroll.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(payroll.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 auditLogService.logPayrollEvent(
                     payroll.getId(),
@@ -1110,10 +1118,10 @@ public class PayrollController {
      * Remove duplicate payroll records for a specific employee
      */
     @PostMapping("/remove-duplicates/{employeeId}")
-    public ResponseEntity<Map<String, Object>> removeDuplicatePayrollsForEmployee(@PathVariable Long employeeId) {
+    public ResponseEntity<Map<String, Object>> removeDuplicatePayrollsForEmployee(@PathVariable @NonNull Long employeeId) {
         Map<String, Object> response = new HashMap<>();
         try {
-            int removed = payrollService.removeDuplicatePayrollsForEmployee(employeeId);
+            int removed = payrollService.removeDuplicatePayrollsForEmployee(java.util.Objects.requireNonNull(employeeId));
             response.put("success", true);
             response.put("message", "Removed " + removed + " duplicate payroll record(s) for employee " + employeeId);
             response.put("removedCount", removed);

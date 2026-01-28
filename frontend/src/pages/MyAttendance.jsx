@@ -1055,153 +1055,94 @@ const MyAttendance = () => {
       {/* Attendance View */}
       {activeView === 'attendance' && (
         <>
-      {/* Filters and Today's Attendance Row */}
-      <div className="flex flex-col lg:flex-row gap-4">
-        {/* View Type Toggle and Date Navigation */}
-        <div className="bg-white rounded-xl shadow-md p-3 flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <button
-              onClick={() => setViewType('daily')}
-              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                viewType === 'daily'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Daily
-            </button>
-            <button
-              onClick={() => setViewType('weekly')}
-              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                viewType === 'weekly'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Weekly
-            </button>
-            <button
-              onClick={() => setViewType('monthly')}
-              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                viewType === 'monthly'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setViewType('calendar')}
-              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                viewType === 'calendar'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Calendar
-            </button>
-          </div>
-
-          {/* Date Navigation */}
-          {viewType !== 'calendar' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleDateChange('prev')}
-                className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
-              />
-              <button
-                onClick={() => handleDateChange('next')}
-                className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-              <button
-                onClick={goToToday}
-                className="px-5 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
-              >
-                Today
-              </button>
-              {viewType === 'weekly' && (
-                <button
-                  onClick={goToThisWeek}
-                  className="px-5 py-2.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
-                >
-                  This Week
-                </button>
-              )}
-              {viewType === 'monthly' && (
-                <button
-                  onClick={goToThisMonth}
-                  className="px-5 py-2.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
-                >
-                  This Month
-                </button>
-              )}
-            </div>
-          )}
+      {/* Filters Row */}
+      <div className="bg-white rounded-xl shadow-md p-3">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <button
+            onClick={() => setViewType('daily')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              viewType === 'daily'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Daily
+          </button>
+          <button
+            onClick={() => setViewType('weekly')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              viewType === 'weekly'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Weekly
+          </button>
+          <button
+            onClick={() => setViewType('monthly')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              viewType === 'monthly'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setViewType('calendar')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              viewType === 'calendar'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Calendar
+          </button>
         </div>
 
-        {/* Today's Attendance Card */}
-        {employeeId && (
-          <div className="bg-white rounded-xl shadow-md p-3 border border-blue-200 lg:w-80">
-            <div className="flex flex-col gap-2">
-              <div>
-                <h2 className="text-sm font-bold text-gray-800 mb-1">Today's Attendance</h2>
-                <p className="text-xs text-gray-600">{format(new Date(), 'EEE, MMM dd, yyyy')}</p>
-              </div>
-              {todayAttendance && (
-                <div className="space-y-1.5">
-                  {todayAttendance.checkIn && (
-                    <div className="flex items-center gap-1.5 text-green-600">
-                      <LogIn className="w-3.5 h-3.5" />
-                      <span className="text-xs font-medium">Check-in: {todayAttendance.checkIn}</span>
-                    </div>
-                  )}
-                  {todayAttendance.checkOut && (
-                    <div className="flex items-center gap-1.5 text-blue-600">
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span className="text-xs font-medium">Check-out: {todayAttendance.checkOut}</span>
-                    </div>
-                  )}
-                  {todayAttendance.workingHours && (
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <Timer className="w-3.5 h-3.5" />
-                      <span className="text-xs font-medium">Working Hours: {formatWorkingHours(todayAttendance.workingHours)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="flex flex-col gap-1.5 pt-1">
-                {canCheckIn && (
-                  <button
-                    onClick={handleCheckIn}
-                    disabled={loading}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-xs"
-                  >
-                    <LogIn className="w-3.5 h-3.5" />
-                    Check In
-                  </button>
-                )}
-                {canCheckOut && (
-                  <button
-                    onClick={handleCheckOut}
-                    disabled={loading}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-xs"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    Check Out
-                  </button>
-                )}
-              </div>
-            </div>
+        {/* Date Navigation */}
+        {viewType !== 'calendar' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => handleDateChange('prev')}
+              className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+            />
+            <button
+              onClick={() => handleDateChange('next')}
+              className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            <button
+              onClick={goToToday}
+              className="px-5 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+            >
+              Today
+            </button>
+            {viewType === 'weekly' && (
+              <button
+                onClick={goToThisWeek}
+                className="px-5 py-2.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
+              >
+                This Week
+              </button>
+            )}
+            {viewType === 'monthly' && (
+              <button
+                onClick={goToThisMonth}
+                className="px-5 py-2.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
+              >
+                This Month
+              </button>
+            )}
           </div>
         )}
       </div>

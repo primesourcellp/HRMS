@@ -283,19 +283,25 @@ public class ShiftService {
         for (Long employeeId : employeeIds) {
             try {
                 // Verify employee exists
-                userRepository.findById(employeeId)
-                        .orElseThrow(() -> new RuntimeException("Employee not found: " + employeeId));
+                if (employeeId == null) {
+                    failureList.add("null: Employee ID cannot be null");
+                    continue;
+                }
+                Long nonNullEmployeeId = java.util.Objects.requireNonNull(employeeId);
+                userRepository.findById(nonNullEmployeeId)
+                        .orElseThrow(() -> new RuntimeException("Employee not found: " + nonNullEmployeeId));
                 
                 // Assign employee to shift
                 if (start != null || end != null) {
-                    userRepository.updateEmployeeShiftIdWithDates(employeeId, shiftId, start, end);
+                    userRepository.updateEmployeeShiftIdWithDates(nonNullEmployeeId, shiftId, start, end);
                 } else {
-                    userRepository.updateEmployeeShiftId(employeeId, shiftId);
+                    userRepository.updateEmployeeShiftId(nonNullEmployeeId, shiftId);
                 }
                 
-                successList.add(employeeId.toString());
+                successList.add(nonNullEmployeeId.toString());
             } catch (Exception e) {
-                failureList.add(employeeId.toString() + ": " + e.getMessage());
+                String employeeIdStr = employeeId != null ? employeeId.toString() : "null";
+                failureList.add(employeeIdStr + ": " + e.getMessage());
             }
         }
         

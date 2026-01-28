@@ -1,15 +1,12 @@
 package com.hrms.controller;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -25,11 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.SalaryStructure;
 import com.hrms.entity.User;
-import com.hrms.repository.AuditLogRepository;
 import com.hrms.repository.PayrollRepository;
 import com.hrms.repository.SalaryStructureRepository;
 import com.hrms.repository.UserRepository;
-import com.hrms.service.AuditLogService;
 import com.hrms.util.PDFGeneratorService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,12 +45,6 @@ public class ComplianceController {
 
     @Autowired
     private PDFGeneratorService pdfGeneratorService;
-
-    @Autowired
-    private AuditLogService auditLogService;
-
-    @Autowired
-    private AuditLogRepository auditLogRepository;
 
     /**
      * Generate PF (Provident Fund) Report
@@ -113,28 +102,6 @@ public class ComplianceController {
                             (month != null ? "_" + String.format("%02d", month) : "") + ".pdf";
             headers.setContentDispositionFormData("attachment", fileName);
 
-            // Log audit
-            Long userId = getCurrentUserId(request);
-            if (userId != null) {
-                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_PF_REPORT", userId, 
-                    null, reportData, "Generated PF Report for period: " + startDate + " to " + endDate, request);
-                // Set employee information
-                if (auditLog != null) {
-                    if (employeeId != null) {
-                        // Specific employee selected
-                        User employee = userRepository.findById(employeeId).orElse(null);
-                        if (employee != null) {
-                            auditLog.setEmployeeId(employeeId);
-                            auditLog.setEmployeeName(employee.getName());
-                        }
-                    } else {
-                        // No employee selected - show "All" for all employees
-                        auditLog.setEmployeeName("All");
-                    }
-                    auditLogRepository.save(auditLog);
-                }
-            }
-
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
         } catch (Exception e) {
             e.printStackTrace();
@@ -182,28 +149,6 @@ public class ComplianceController {
             String fileName = "ESI_Report_" + (year != null ? year : "Current") + 
                             (month != null ? "_" + String.format("%02d", month) : "") + ".pdf";
             headers.setContentDispositionFormData("attachment", fileName);
-
-            // Log audit
-            Long userId = getCurrentUserId(request);
-            if (userId != null) {
-                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_ESI_REPORT", userId, 
-                    null, reportData, "Generated ESI Report for period: " + startDate + " to " + endDate, request);
-                // Set employee information
-                if (auditLog != null) {
-                    if (employeeId != null) {
-                        // Specific employee selected
-                        User employee = userRepository.findById(employeeId).orElse(null);
-                        if (employee != null) {
-                            auditLog.setEmployeeId(employeeId);
-                            auditLog.setEmployeeName(employee.getName());
-                        }
-                    } else {
-                        // No employee selected - show "All" for all employees
-                        auditLog.setEmployeeName("All");
-                    }
-                    auditLogRepository.save(auditLog);
-                }
-            }
 
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
         } catch (Exception e) {
@@ -272,28 +217,6 @@ public class ComplianceController {
                             (month != null ? "_" + String.format("%02d", month) : "") + ".pdf";
             headers.setContentDispositionFormData("attachment", fileName);
 
-            // Log audit
-            Long userId = getCurrentUserId(request);
-            if (userId != null) {
-                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_PT_REPORT", userId, 
-                    null, reportData, "Generated PT Report for period: " + startDate + " to " + endDate, request);
-                // Set employee information
-                if (auditLog != null) {
-                    if (employeeId != null) {
-                        // Specific employee selected
-                        User employee = userRepository.findById(employeeId).orElse(null);
-                        if (employee != null) {
-                            auditLog.setEmployeeId(employeeId);
-                            auditLog.setEmployeeName(employee.getName());
-                        }
-                    } else {
-                        // No employee selected - show "All" for all employees
-                        auditLog.setEmployeeName("All");
-                    }
-                    auditLogRepository.save(auditLog);
-                }
-            }
-
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
         } catch (Exception e) {
             e.printStackTrace();
@@ -361,28 +284,6 @@ public class ComplianceController {
                             (month != null ? "_" + String.format("%02d", month) : "") + ".pdf";
             headers.setContentDispositionFormData("attachment", fileName);
 
-            // Log audit
-            Long userId = getCurrentUserId(request);
-            if (userId != null) {
-                com.hrms.entity.AuditLog auditLog = auditLogService.logEvent("COMPLIANCE", null, "GENERATE_TDS_REPORT", userId, 
-                    null, reportData, "Generated TDS Report for period: " + startDate + " to " + endDate, request);
-                // Set employee information
-                if (auditLog != null) {
-                    if (employeeId != null) {
-                        // Specific employee selected
-                        User employee = userRepository.findById(employeeId).orElse(null);
-                        if (employee != null) {
-                            auditLog.setEmployeeId(employeeId);
-                            auditLog.setEmployeeName(employee.getName());
-                        }
-                    } else {
-                        // No employee selected - show "All" for all employees
-                        auditLog.setEmployeeName("All");
-                    }
-                    auditLogRepository.save(auditLog);
-                }
-            }
-
             return ResponseEntity.ok().headers(headers).body(pdfBytes);
         } catch (Exception e) {
             e.printStackTrace();
@@ -392,94 +293,6 @@ public class ComplianceController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(errorResponse);
-        }
-    }
-
-    /**
-     * Get audit logs for compliance
-     */
-    @GetMapping("/audit-logs")
-    public ResponseEntity<Map<String, Object>> getAuditLogs(
-            @RequestParam(required = false) String entityType,
-            @RequestParam(required = false) Long employeeId,
-            @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
-        try {
-            List<com.hrms.entity.AuditLog> auditLogs;
-            LocalDate start = null;
-            LocalDate end = null;
-            
-            // Parse dates if provided
-            if (startDate != null && !startDate.trim().isEmpty()) {
-                start = LocalDate.parse(startDate);
-            }
-            if (endDate != null && !endDate.trim().isEmpty()) {
-                end = LocalDate.parse(endDate);
-            }
-            
-            // Handle all filter combinations
-            if (entityType != null && !entityType.trim().isEmpty() && employeeId != null && start != null && end != null) {
-                // All filters: entityType + employeeId + dates
-                auditLogs = auditLogRepository.findByEntityTypeAndEmployeeIdAndTimestampBetween(
-                    entityType.trim(),
-                    employeeId,
-                    start.atStartOfDay(),
-                    end.atTime(23, 59, 59)
-                );
-            } else if (entityType != null && !entityType.trim().isEmpty() && start != null && end != null) {
-                // entityType + dates (without employeeId)
-                auditLogs = auditLogService.getAuditLogsByEntityTypesAndDateRange(
-                    Arrays.asList(entityType.trim()),
-                    start.atStartOfDay(),
-                    end.atTime(23, 59, 59)
-                );
-            } else if (entityType != null && !entityType.trim().isEmpty() && employeeId != null) {
-                // entityType + employeeId (without dates) - filter by entityType first, then filter by employeeId in memory
-                List<com.hrms.entity.AuditLog> entityLogs = auditLogRepository.findByEntityTypeOrderByTimestampDesc(entityType.trim());
-                auditLogs = entityLogs.stream()
-                    .filter(log -> log.getEmployeeId() != null && log.getEmployeeId().equals(employeeId))
-                    .collect(Collectors.toList());
-            } else if (entityType != null && !entityType.trim().isEmpty()) {
-                // Only entityType
-                auditLogs = auditLogRepository.findByEntityTypeOrderByTimestampDesc(entityType.trim());
-            } else if (employeeId != null && start != null && end != null) {
-                // employeeId + dates - filter by employeeId first, then filter by dates in memory
-                List<com.hrms.entity.AuditLog> employeeLogs = auditLogService.getAuditLogsByEmployee(employeeId);
-                LocalDateTime startDateTime = start.atStartOfDay();
-                LocalDateTime endDateTime = end.atTime(23, 59, 59);
-                auditLogs = employeeLogs.stream()
-                    .filter(log -> {
-                        if (log.getTimestamp() == null) return false;
-                        return !log.getTimestamp().isBefore(startDateTime) && !log.getTimestamp().isAfter(endDateTime);
-                    })
-                    .collect(Collectors.toList());
-            } else if (employeeId != null) {
-                // Only employeeId
-                auditLogs = auditLogService.getAuditLogsByEmployee(employeeId);
-            } else if (start != null && end != null) {
-                // Only dates
-                auditLogs = auditLogService.getAuditLogsByDateRange(
-                    start.atStartOfDay(),
-                    end.atTime(23, 59, 59)
-                );
-            } else {
-                // Default: last 3 months
-                auditLogs = auditLogService.getAuditLogsByDateRange(
-                    LocalDate.now().minusMonths(3).atStartOfDay(),
-                    LocalDate.now().atTime(23, 59, 59)
-                );
-            }
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("auditLogs", auditLogs);
-            response.put("count", auditLogs.size());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
@@ -769,27 +582,5 @@ public class ComplianceController {
         return registerData;
     }
 
-    /**
-     * Get current user ID from request (set by JwtAuthenticationFilter)
-     */
-    private Long getCurrentUserId(HttpServletRequest request) {
-        try {
-            // Get userId from request attribute set by JwtAuthenticationFilter
-            Object userIdObj = request.getAttribute("userId");
-            if (userIdObj instanceof Long) {
-                return (Long) userIdObj;
-            } else if (userIdObj instanceof Number) {
-                return ((Number) userIdObj).longValue();
-            }
-            // Fallback: Try to get from request header (if passed from frontend)
-            String userIdHeader = request.getHeader("X-User-Id");
-            if (userIdHeader != null && !userIdHeader.isEmpty()) {
-                return Long.parseLong(userIdHeader);
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
 }
 

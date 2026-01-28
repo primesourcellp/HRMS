@@ -3,7 +3,6 @@ package com.hrms.service;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
-import java.util.HashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -26,7 +25,7 @@ public class PerformanceService {
         return performanceRepository.findById(java.util.Objects.requireNonNull(id));
     }
 
-    public Performance createPerformance(Performance performance) {
+    public Performance createPerformance(@NonNull Performance performance) {
         return performanceRepository.save(java.util.Objects.requireNonNull(performance));
     }
 
@@ -95,13 +94,13 @@ public class PerformanceService {
             performance.setManagerEvaluation(performanceDetails.getManagerEvaluation());
         }
 
-        return performanceRepository.save(performance);
+        return performanceRepository.save(java.util.Objects.requireNonNull(performance));
     }
 
     public void deletePerformance(@NonNull Long id) {
         Performance performance = performanceRepository.findById(java.util.Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("Performance not found with id: " + id));
-        performanceRepository.delete(performance);
+        performanceRepository.delete(java.util.Objects.requireNonNull(performance));
     }
 
     public List<Leave> getAllLeaves() {

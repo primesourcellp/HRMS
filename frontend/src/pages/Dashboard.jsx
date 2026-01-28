@@ -1,5 +1,5 @@
 import { useHRMS } from '../context/HRMSContext'
-import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, LogOut, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon, Ticket, AlertCircle, RefreshCw } from 'lucide-react'
+import { Users, Clock, Calendar, DollarSign, TrendingUp, ArrowUp, ArrowDown, UserPlus, CheckCircle, FileText, PlusCircle, Eye, Settings, LogIn, LogOut, X, Building2, MapPin, EyeOff, LayoutGrid, Eye as EyeIcon, Ticket, AlertCircle, RefreshCw, UserCheck } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { useState, useEffect, useRef } from 'react'
@@ -8,7 +8,7 @@ import api from '../services/api'
 import { useRolePermissions } from '../hooks/useRolePermissions'
 
 const Dashboard = () => {
-  const { employees, attendance, leaves, payrolls } = useHRMS()
+  const { employees, attendance, leaves } = useHRMS()
   const [dashboardStats, setDashboardStats] = useState(null)
   const [executiveData, setExecutiveData] = useState(null)
   const [loadingExecutive, setLoadingExecutive] = useState(false)
@@ -43,9 +43,6 @@ const Dashboard = () => {
   const [leaveBalances, setLeaveBalances] = useState([])
   const [loadingLeaveBalances, setLoadingLeaveBalances] = useState(false)
   const [leaveTypes, setLeaveTypes] = useState([])
-  const [financePayrolls, setFinancePayrolls] = useState([])
-  const [loadingFinancePayrolls, setLoadingFinancePayrolls] = useState(false)
-  const [payrollTrendData, setPayrollTrendData] = useState([])
   const [widgetVisibility, setWidgetVisibility] = useState(() => {
     // Load from localStorage if available
     const saved = localStorage.getItem('dashboardWidgetVisibility')
@@ -61,7 +58,6 @@ const Dashboard = () => {
       kpis: true,
       monthlyAttendance: true,
       leavePatterns: true,
-      payrollVariance: true,
       departmentAnalytics: true,
       locationAnalytics: true
     }
@@ -133,7 +129,6 @@ const Dashboard = () => {
     // Load finance-specific data (like employees - personal attendance)
     if (isFinance && empId) {
       loadTickets()
-      loadFinancePayrolls()
       loadEmployeeShift(empId)
       loadTodayAttendance(empId)
       loadEmployeeLeaves(empId)
@@ -222,7 +217,6 @@ const Dashboard = () => {
       kpis: true,
       monthlyAttendance: true,
       leavePatterns: true,
-      payrollVariance: true,
       departmentAnalytics: true,
       locationAnalytics: true
     }
@@ -235,7 +229,6 @@ const Dashboard = () => {
       kpis: true,
       monthlyAttendance: true,
       leavePatterns: true,
-      payrollVariance: true,
       departmentAnalytics: true,
       locationAnalytics: true
     }
@@ -248,7 +241,6 @@ const Dashboard = () => {
       kpis: false,
       monthlyAttendance: false,
       leavePatterns: false,
-      payrollVariance: false,
       departmentAnalytics: false,
       locationAnalytics: false
     }
@@ -778,38 +770,6 @@ const Dashboard = () => {
     }
   }
 
-  const loadFinancePayrolls = async () => {
-    try {
-      setLoadingFinancePayrolls(true)
-      const payrollsData = await api.getPayrolls()
-      const payrollsArray = Array.isArray(payrollsData) ? payrollsData : []
-      setFinancePayrolls(payrollsArray)
-      
-      // Calculate monthly payroll trend for last 6 months
-      const trendData = []
-      const currentDate = new Date()
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
-        const monthStr = format(date, 'yyyy-MM')
-        const monthPayrolls = payrollsArray.filter(p => {
-          const payrollMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
-          return payrollMonth === monthStr
-        })
-        const total = monthPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0)
-        trendData.push({
-          month: format(date, 'MMM yyyy'),
-          payroll: total
-        })
-      }
-      setPayrollTrendData(trendData)
-    } catch (error) {
-      console.error('Error loading finance payrolls:', error)
-      setFinancePayrolls([])
-      setPayrollTrendData([])
-    } finally {
-      setLoadingFinancePayrolls(false)
-    }
-  }
 
   const loadTeamAttendance = async (managerId, teamMembersList = null) => {
     try {
@@ -1070,7 +1030,6 @@ const Dashboard = () => {
   const safeLeaves = isEmployee && employeeId && employeeLeaves.length > 0
     ? employeeLeaves
     : Array.isArray(leaves) ? leaves : []
-  const safePayrolls = Array.isArray(payrolls) ? payrolls : []
   const safeEmployees = Array.isArray(employees) ? employees : []
   
   const filteredAttendance = isEmployee && employeeId 
@@ -1083,10 +1042,6 @@ const Dashboard = () => {
         return leaveEmpId === employeeId || parseInt(leaveEmpId) === employeeId
       })
     : safeLeaves
-  
-  const filteredPayrolls = isEmployee && employeeId
-    ? safePayrolls.filter(p => p.employeeId === employeeId)
-    : safePayrolls
 
   // Get manager stats - Enhanced with better metrics
   const managerStats = isManager ? [
@@ -1154,36 +1109,6 @@ const Dashboard = () => {
       gradient: dashboardStats?.presentToday > 0 ? 'from-green-500 to-emerald-600' : 'from-red-500 to-rose-600'
     },
     {
-      title: 'Pending Payroll Approvals',
-      value: financePayrolls.filter(p => {
-        const status = (p.status || '').toUpperCase()
-        return status === 'PENDING_APPROVAL'
-      }).length,
-      change: 'Requires Action',
-      trend: 'neutral',
-      icon: DollarSign,
-      color: 'bg-yellow-500',
-      gradient: 'from-yellow-500 to-amber-600'
-    },
-    {
-      title: 'Monthly Payroll',
-      value: (() => {
-        const currentMonth = format(new Date(), 'yyyy-MM')
-        const monthPayrolls = financePayrolls.filter(p => {
-          const payrollMonth = p.month || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}` : null)
-          return payrollMonth === currentMonth
-        })
-        // Use processed payroll netSalary values
-        const total = monthPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || 0), 0)
-        return `₹${total.toLocaleString('en-IN')}`
-      })(),
-      change: 'This Month',
-      trend: 'neutral',
-      icon: Calendar,
-      color: 'bg-blue-500',
-      gradient: 'from-blue-500 to-indigo-600'
-    },
-    {
       title: 'HR Tickets',
       value: tickets.length,
       change: tickets.length > 0 ? 'Active' : 'None',
@@ -1242,15 +1167,38 @@ const Dashboard = () => {
       color: 'bg-green-500'
     },
     {
-      title: 'My Total Payroll',
-      value: dashboardStats?.totalPayroll !== undefined
-        ? `₹${dashboardStats.totalPayroll.toLocaleString('en-IN')}`
-        : `₹${filteredPayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || parseFloat(p.amount) || 0), 0).toLocaleString('en-IN')}`,
-      change: '', // Dynamic data - no hardcoded change
-      trend: 'neutral',
-      icon: DollarSign,
-      color: 'bg-purple-500'
-    }
+      title: 'Total Leaves Taken',
+      value: (() => {
+        // Calculate total days from approved leaves
+        const approvedLeaves = filteredLeaves.filter(l => {
+          const status = (l.status || '').toUpperCase()
+          return status === 'APPROVED'
+        })
+        if (approvedLeaves.length === 0) return 0
+        
+        // Calculate total days from leave dates
+        let totalDays = 0
+        approvedLeaves.forEach(leave => {
+          if (leave.startDate && leave.endDate) {
+            try {
+              const start = new Date(leave.startDate)
+              const end = new Date(leave.endDate)
+              const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+              totalDays += days > 0 ? days : 1
+            } catch (e) {
+              totalDays += 1 // Fallback to 1 day if date parsing fails
+            }
+          } else {
+            totalDays += 1 // If no dates, count as 1 day
+          }
+        })
+        return totalDays
+      })(),
+      subtitle: 'All Time',
+      icon: FileText,
+      color: 'bg-blue-500',
+      trend: 'neutral'
+    },
   ] : [
     {
       title: 'Total Employees',
@@ -1279,14 +1227,6 @@ const Dashboard = () => {
       icon: Calendar,
       color: 'bg-yellow-500'
     },
-    {
-      title: 'Total Payroll',
-      value: `₹${dashboardStats?.totalPayroll?.toLocaleString('en-IN') || (Array.isArray(payrolls) ? payrolls.reduce((sum, p) => sum + (p.amount || p.netSalary || 0), 0).toLocaleString('en-IN') : '0')}`,
-      change: '+8%',
-      trend: 'up',
-      icon: DollarSign,
-      color: 'bg-purple-500'
-    }
   ]
 
   // For employee view, show their department only
@@ -1376,11 +1316,11 @@ const Dashboard = () => {
         .sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate))
         .slice(0, 5))
 
-  // Check if employee, manager, or HR Admin can check in
-  const canCheckIn = (isEmployee || isManager || isHRAdmin) && employeeId && (!todayAttendance || !todayAttendance.checkIn)
+  // Check if employee, manager, finance, or HR Admin can check in
+  const canCheckIn = (isEmployee || isManager || isFinance || isHRAdmin) && employeeId && (!todayAttendance || !todayAttendance.checkIn)
   
-  // Check if employee, manager, or HR Admin can check out
-  const canCheckOut = (isEmployee || isManager || isHRAdmin) && employeeId && todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
+  // Check if employee, manager, finance, or HR Admin can check out
+  const canCheckOut = (isEmployee || isManager || isFinance || isHRAdmin) && employeeId && todayAttendance && todayAttendance.checkIn && !todayAttendance.checkOut
 
   // Executive Dashboard KPIs
   const executiveKPIs = executiveData ? [
@@ -1409,13 +1349,13 @@ const Dashboard = () => {
       trend: 'up'
     },
     {
-      title: 'Payroll Cost',
-      value: `₹${(executiveData.payrollCost || 0).toLocaleString('en-IN')}`,
-      subtitle: 'Current Month',
-      icon: DollarSign,
-      color: 'bg-purple-500',
+      title: 'Present Today',
+      value: executiveData.presentToday || dashboardStats?.presentToday || 0,
+      subtitle: 'Employees Present',
+      icon: UserCheck,
+      color: 'bg-emerald-500',
       trend: 'up'
-    }
+    },
   ] : []
 
   // Get user name for welcome message
@@ -1556,7 +1496,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                           <h3 className="font-semibold text-gray-800">Key Performance Indicators (KPIs)</h3>
-                          <p className="text-xs text-gray-500">Headcount, Attrition Rate, Attendance %, Payroll Cost</p>
+                          <p className="text-xs text-gray-500">Headcount, Attrition Rate, Attendance %</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -1614,28 +1554,6 @@ const Dashboard = () => {
                       </label>
                     </div>
 
-                    {/* Payroll Variance Widget */}
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-purple-500 p-2 rounded-lg">
-                          <DollarSign className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">Payroll Variance</h3>
-                          <p className="text-xs text-gray-500">Payroll costs and month-over-month variance</p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={widgetVisibility.payrollVariance}
-                          onChange={() => toggleWidget('payrollVariance')}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-
                     {/* Department Analytics Widget */}
                     <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-3">
@@ -1644,7 +1562,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                           <h3 className="font-semibold text-gray-800">Department Analytics</h3>
-                          <p className="text-xs text-gray-500">Department-wise headcount, attendance, and payroll</p>
+                          <p className="text-xs text-gray-500">Department-wise headcount and attendance</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -1666,7 +1584,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                           <h3 className="font-semibold text-gray-800">Location Analytics</h3>
-                          <p className="text-xs text-gray-500">Location-wise headcount, attendance, and payroll</p>
+                          <p className="text-xs text-gray-500">Location-wise headcount and attendance</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -1695,7 +1613,7 @@ const Dashboard = () => {
 
           {/* Fallback: Show Configure Widgets button when all widgets are hidden */}
           {!widgetVisibility.kpis && !widgetVisibility.monthlyAttendance && !widgetVisibility.leavePatterns && 
-           !widgetVisibility.payrollVariance && !widgetVisibility.departmentAnalytics && !widgetVisibility.locationAnalytics && (
+           !widgetVisibility.departmentAnalytics && !widgetVisibility.locationAnalytics && (
             <div className="bg-white rounded-lg shadow-md p-8 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center min-h-[300px]">
               <LayoutGrid className="w-16 h-16 text-gray-400 mb-4" />
               <h3 className="text-xl font-bold text-gray-800 mb-2">All Widgets are Hidden</h3>
@@ -1717,8 +1635,8 @@ const Dashboard = () => {
                 <div className="col-span-5 text-center py-3 text-xs">Loading executive data...</div>
               ) : (
                 <>
-                  {/* HR Admin Check-in/out button - Inline with Headcount */}
-                  {isHRAdmin && stats.length > 0 && stats.map((stat, statIndex) => {
+                  {/* HR Admin, Manager, Finance Check-in/out button - Inline with Headcount */}
+                  {(isHRAdmin || isManager || isFinance) && stats.length > 0 && stats.map((stat, statIndex) => {
                     const Icon = stat.icon
                     const isPresentStatus = stat.title === 'My Status Today'
                     
@@ -1797,7 +1715,7 @@ const Dashboard = () => {
                       </div>
                     )
                   })}
-                  {/* Configure Widgets Button - Inline with grid, next to Payroll Cost */}
+                  {/* Configure Widgets Button */}
                   <button
                     onClick={() => setShowWidgetConfig(true)}
                     className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-2 border border-gray-200 border-dashed hover:border-blue-400 flex flex-col items-center justify-center gap-1.5"
@@ -1953,27 +1871,6 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Payroll Variance */}
-          {widgetVisibility.payrollVariance && executiveData?.payrollVariance && (
-            <div className="bg-white rounded-lg shadow-md p-5 border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-800">Payroll Variance</h3>
-              </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={executiveData.payrollVariance}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <Tooltip />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="amount" fill="#8b5cf6" name="Payroll Amount ($)" />
-                  <Line yAxisId="right" type="monotone" dataKey="variance" stroke="#ef4444" strokeWidth={2} name="Variance %" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
           {/* Department & Location Analytics */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Department Analytics */}
@@ -1992,14 +1889,10 @@ const Dashboard = () => {
                         <span className="font-semibold text-gray-700">{dept}</span>
                         <span className="text-sm text-gray-600">{data.headcount} employees</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="text-sm">
                         <div>
                           <span className="text-gray-500">Attendance:</span>
                           <span className="ml-2 font-semibold text-green-600">{data.attendanceRate}%</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Payroll:</span>
-                          <span className="ml-2 font-semibold text-purple-600">${(data.payrollCost || 0).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
@@ -2024,14 +1917,10 @@ const Dashboard = () => {
                         <span className="font-semibold text-gray-700">{location}</span>
                         <span className="text-sm text-gray-600">{data.headcount} employees</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="text-sm">
                         <div>
                           <span className="text-gray-500">Attendance:</span>
                           <span className="ml-2 font-semibold text-green-600">{data.attendanceRate}%</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Payroll:</span>
-                          <span className="ml-2 font-semibold text-purple-600">${(data.payrollCost || 0).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
@@ -2129,196 +2018,6 @@ const Dashboard = () => {
           </div>
 
           {/* Finance-Specific Sections */}
-          {isFinance && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-              {/* Finance Overview Card */}
-              <div className="bg-white rounded-2xl shadow-lg border-2 border-purple-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-purple-600 flex items-center gap-2">
-                    <DollarSign className="w-6 h-6" />
-                    Finance Overview
-                  </h3>
-                  <button
-                    onClick={() => navigate('/payroll')}
-                    className="text-sm text-purple-500 hover:text-purple-600 font-medium flex items-center gap-1 hover:underline"
-                  >
-                    View Details
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="space-y-4">
-                  {/* Payroll Summary - Only unique metrics not in stats cards */}
-                  {(() => {
-                    const approvedCount = financePayrolls.filter(p => {
-                      const status = (p.status || '').toUpperCase()
-                      return status === 'APPROVED' || status === 'FINALIZED' || status === 'PAID'
-                    }).length
-                    const allTotal = financePayrolls.reduce((sum, p) => sum + (parseFloat(p.netSalary) || 0), 0)
-                    
-                    return (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
-                          <p className="text-xs font-semibold text-emerald-600 mb-1">Approved Payrolls</p>
-                          <p className="text-lg font-bold text-emerald-700">{approvedCount}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-                          <p className="text-xs font-semibold text-purple-600 mb-1">Total Payroll</p>
-                          <p className="text-lg font-bold text-purple-700">₹{(allTotal / 1000).toFixed(1)}k</p>
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              </div>
-
-              {/* Pending Payroll Approvals Card */}
-              <div className="bg-white rounded-2xl shadow-lg border-2 border-yellow-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-yellow-600 flex items-center gap-2">
-                    <DollarSign className="w-6 h-6" />
-                    Pending Payroll Approvals
-                  </h3>
-                  <button
-                    onClick={() => navigate('/payroll')}
-                    className="text-sm text-yellow-500 hover:text-yellow-600 font-medium flex items-center gap-1 hover:underline"
-                  >
-                    View All
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </div>
-                {loadingFinancePayrolls ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="text-center">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mb-2"></div>
-                      <p className="text-gray-600">Loading payroll data...</p>
-                    </div>
-                  </div>
-                ) : (() => {
-                  const pendingPayrolls = financePayrolls.filter(p => {
-                    const status = (p.status || '').toUpperCase()
-                    return status === 'PENDING_APPROVAL'
-                  }).slice(0, 5)
-                  
-                  if (pendingPayrolls.length === 0) {
-                    return (
-                      <div className="text-center py-8">
-                        <CheckCircle className="w-16 h-16 text-yellow-300 mx-auto mb-3" />
-                        <p className="text-yellow-600 font-medium">No pending payroll approvals</p>
-                        <p className="text-sm text-yellow-500 mt-1">All caught up!</p>
-                      </div>
-                    )
-                  }
-                  
-                  return (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {pendingPayrolls.map((payroll) => {
-                        // Try multiple ways to find the employee
-                        const payrollEmpId = typeof payroll.employeeId === 'string' ? parseInt(payroll.employeeId) : payroll.employeeId
-                        let employee = null
-                        
-                        // First, try to find in safeEmployees array
-                        if (safeEmployees.length > 0) {
-                          employee = safeEmployees.find(emp => {
-                            const empId = typeof emp.id === 'string' ? parseInt(emp.id) : (emp.id || emp.employeeId)
-                            const empEmployeeId = typeof emp.employeeId === 'string' ? parseInt(emp.employeeId) : emp.employeeId
-                            return (empId && payrollEmpId && (empId === payrollEmpId || parseInt(empId) === parseInt(payrollEmpId))) ||
-                                   (empEmployeeId && payrollEmpId && (empEmployeeId === payrollEmpId || parseInt(empEmployeeId) === parseInt(payrollEmpId)))
-                          })
-                        }
-                        
-                        // If not found, try to get from payroll object itself if it has employee info
-                        if (!employee && payroll.employee) {
-                          employee = payroll.employee
-                        }
-                        
-                        // If still not found and payroll has employeeName directly
-                        if (!employee && payroll.employeeName) {
-                          employee = { name: payroll.employeeName }
-                        }
-                        
-                        // Determine employee name with fallbacks
-                        let employeeName = 'Unknown Employee'
-                        if (employee) {
-                          employeeName = employee.name || employee.employeeName || employee.fullName || employee.firstName || 'Unknown Employee'
-                        } else if (payrollEmpId) {
-                          employeeName = `Employee #${payrollEmpId}`
-                        }
-                        // Use the processed payroll value directly from netSalary field
-                        // This is the value calculated during payroll processing
-                        const netSalary = parseFloat(payroll.netSalary) || parseFloat(payroll.amount) || 0
-                        
-                        // Format payroll month properly
-                        let payrollMonth = 'Unknown'
-                        try {
-                          // Check if month is a string in format 'yyyy-MM' (e.g., '2026-01')
-                          if (typeof payroll.month === 'string' && payroll.month.includes('-')) {
-                            const [yearStr, monthStr] = payroll.month.split('-')
-                            const year = parseInt(yearStr)
-                            const month = parseInt(monthStr)
-                            if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
-                              const date = new Date(year, month - 1)
-                              if (!isNaN(date.getTime())) {
-                                payrollMonth = format(date, 'MMM yyyy')
-                              }
-                            }
-                          }
-                          // Check if month and year are separate fields
-                          else if (payroll.month && payroll.year) {
-                            const month = parseInt(payroll.month)
-                            const year = parseInt(payroll.year)
-                            if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
-                              const date = new Date(year, month - 1)
-                              if (!isNaN(date.getTime())) {
-                                payrollMonth = format(date, 'MMM yyyy')
-                              }
-                            }
-                          }
-                          // Fallback: if month exists but is not in expected format
-                          else if (payroll.month) {
-                            const monthNum = parseInt(payroll.month)
-                            if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-                              const currentYear = new Date().getFullYear()
-                              const date = new Date(currentYear, monthNum - 1)
-                              if (!isNaN(date.getTime())) {
-                                payrollMonth = format(date, 'MMM yyyy')
-                              }
-                            }
-                          }
-                        } catch (error) {
-                          console.error('Error formatting payroll date:', error, payroll)
-                          payrollMonth = payroll.month || 'Unknown'
-                        }
-                        
-                        return (
-                          <div
-                            key={payroll.id}
-                            onClick={() => navigate('/payroll')}
-                            className="bg-white rounded-xl p-4 border border-yellow-200 hover:border-yellow-300 cursor-pointer transition-all hover:shadow-md"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1">
-                                <p className="font-bold text-gray-800 text-base mb-1">{employeeName}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-500">
-                                  <Calendar className="w-3 h-3" />
-                                  <span>{payrollMonth}</span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-bold text-purple-600 text-base mb-1">₹{netSalary.toLocaleString('en-IN')}</p>
-                                <span className="px-2 py-1 bg-yellow-100 text-yellow-600 rounded-full text-xs font-semibold inline-block">
-                                  Pending
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
-              </div>
-            </div>
-          )}
 
           {/* Manager-Specific Sections */}
           {isManager && (
@@ -3316,129 +3015,9 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Recent Payroll - Employee Only */}
-        {isEmployee && filteredPayrolls.length > 0 && (() => {
-          // Get the most recent payroll
-          const sortedPayrolls = [...filteredPayrolls].sort((a, b) => {
-            const dateA = a.month && a.year ? new Date(a.year, a.month - 1) : new Date(0)
-            const dateB = b.month && b.year ? new Date(b.year, b.month - 1) : new Date(0)
-            return dateB - dateA
-          })
-          const mostRecentPayroll = sortedPayrolls[0]
-          const netSalary = parseFloat(mostRecentPayroll.netSalary) || parseFloat(mostRecentPayroll.amount) || 0
-          
-          // Safely format payroll month
-          let payrollMonth = 'N/A'
-          try {
-            // Check if month is a string in format 'yyyy-MM' (e.g., '2026-01')
-            if (typeof mostRecentPayroll.month === 'string' && mostRecentPayroll.month.includes('-')) {
-              const [yearStr, monthStr] = mostRecentPayroll.month.split('-')
-              const year = parseInt(yearStr)
-              const month = parseInt(monthStr)
-              if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
-                const date = new Date(year, month - 1)
-                if (!isNaN(date.getTime())) {
-                  payrollMonth = format(date, 'MMMM yyyy')
-                }
-              }
-            }
-            // Check if month and year are separate fields
-            else if (mostRecentPayroll.month && mostRecentPayroll.year) {
-              const month = parseInt(mostRecentPayroll.month)
-              const year = parseInt(mostRecentPayroll.year)
-              if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
-                const date = new Date(year, month - 1)
-                if (!isNaN(date.getTime())) {
-                  payrollMonth = format(date, 'MMMM yyyy')
-                }
-              }
-            }
-            // Fallback: if month exists but is not in expected format, try to use it as-is
-            else if (mostRecentPayroll.month) {
-              // Try to parse if it's a number
-              const monthNum = parseInt(mostRecentPayroll.month)
-              if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-                const currentYear = new Date().getFullYear()
-                const date = new Date(currentYear, monthNum - 1)
-                if (!isNaN(date.getTime())) {
-                  payrollMonth = format(date, 'MMMM yyyy')
-                }
-              } else {
-                payrollMonth = mostRecentPayroll.month
-              }
-            }
-          } catch (error) {
-            console.error('Error formatting payroll date:', error, mostRecentPayroll)
-            payrollMonth = mostRecentPayroll.month || 'N/A'
-          }
-          
-          return (
-            <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Recent Payroll</h3>
-                <button
-                  onClick={() => navigate('/payroll')}
-                  className="text-sm text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  View All →
-                </button>
-      </div>
-              <div 
-                onClick={() => navigate('/payroll')}
-                className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors"
-              >
-                <p className="font-medium text-gray-800 text-sm">{payrollMonth}</p>
-                <p className="font-semibold text-gray-800">₹{netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-          )
-        })()}
         </>
       )}
 
-      {/* Payroll Trend Chart - Finance Users */}
-      {isFinance && payrollTrendData.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border-2 border-purple-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-purple-600 flex items-center gap-2">
-              <TrendingUp className="w-6 h-6" />
-              Payroll Trend (Last 6 Months)
-            </h3>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={payrollTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis 
-                dataKey="month" 
-                tick={{ fill: '#6b7280', fontSize: 12 }}
-                axisLine={{ stroke: '#d1d5db' }}
-              />
-              <YAxis 
-                tick={{ fill: '#6b7280', fontSize: 12 }}
-                axisLine={{ stroke: '#d1d5db' }}
-                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#fff', 
-                  border: '1px solid #e5e7eb', 
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                }}
-                formatter={(value) => [`$${value.toLocaleString()}`, 'Payroll']}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="payroll" 
-                stroke="#8b5cf6" 
-                fill="#8b5cf6" 
-                fillOpacity={0.3}
-                name="Payroll"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
 
 
       {/* Quick Actions - Moved to Bottom */}

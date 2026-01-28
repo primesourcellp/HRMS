@@ -19,7 +19,8 @@ import {
   Receipt,
   UserCheck,
   FileCheck,
-  Briefcase
+  Briefcase,
+  History
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getUserRole, hasPermission, ROLES } from '../utils/roles'
@@ -77,18 +78,27 @@ const Layout = () => {
       const allMenuItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard' },
         { path: '/employees', icon: Users, label: 'Employee', permission: 'employees' },
-        { path: '/attendance', icon: Clock, label: userRole === ROLES.EMPLOYEE ? 'My Attendance' : userRole === ROLES.MANAGER ? 'My Attendance' : 'Attendance', permission: 'attendance' },
+        { 
+          path: '/attendance', 
+          icon: Clock, 
+          label: (userRole === ROLES.EMPLOYEE || userRole === ROLES.MANAGER || userRole === ROLES.FINANCE || userRole === ROLES.HR_ADMIN) 
+            ? 'My Attendance' 
+            : 'Attendance', 
+          permission: 'attendance' 
+        },
         { path: '/team-attendance', icon: Users, label: 'Team Attendance', permission: 'attendance', roles: [ROLES.MANAGER] },
-        { path: '/my-attendance', icon: Calendar, label: 'My Attendance', permission: 'myAttendance', roles: [ROLES.HR_ADMIN, ROLES.FINANCE] },
+        { path: '/my-attendance', icon: Calendar, label: 'My Attendance', permission: 'myAttendance', roles: [ROLES.HR_ADMIN] },
         { path: '/leave', icon: Calendar, label: userRole === ROLES.EMPLOYEE ? 'My Leaves' : userRole === ROLES.MANAGER ? 'Leave Approvals' : userRole === ROLES.FINANCE ? 'My Leaves' : 'Leave Management', permission: 'leave' },
         { path: '/payroll', icon: null, label: userRole === ROLES.EMPLOYEE || userRole === ROLES.MANAGER ? 'My Payroll' : userRole === ROLES.FINANCE ? 'Payroll Validation' : 'Payroll', permission: 'payroll', customIcon: '₹' },
+        { path: '/my-payroll', icon: null, label: 'My Payroll', permission: 'payroll', customIcon: '₹', roles: [ROLES.FINANCE] },
         { path: '/performance', icon: TrendingUp, label: userRole === ROLES.EMPLOYEE ? 'My Performance' : userRole === ROLES.MANAGER ? 'Team Performance' : 'Performance', permission: 'performance' },
         { path: '/shifts', icon: Clock, label: (userRole === ROLES.EMPLOYEE || userRole === ROLES.MANAGER || userRole === ROLES.FINANCE) ? 'My Shift' : 'Shifts', permission: 'shifts' },
         { path: '/tickets', icon: Ticket, label: userRole === ROLES.EMPLOYEE ? 'My Tickets' : userRole === ROLES.FINANCE ? 'Payroll Tickets' : 'HR Tickets', permission: 'tickets' },
         { path: '/my-tickets', icon: Ticket, label: 'My Tickets', permission: 'tickets', roles: [ROLES.FINANCE] },
         { path: '/recruitment', icon: Briefcase, label: 'Recruitment', permission: 'recruitment' },
         { path: '/analytics', icon: BarChart3, label: userRole === ROLES.FINANCE ? 'Cost Analytics' : 'Analytics', permission: 'analytics' },
-        { path: '/compliance', icon: FileCheck, label: 'Compliance & Audit', permission: 'compliance', roles: [ROLES.SUPER_ADMIN, ROLES.HR_ADMIN, ROLES.FINANCE] },
+        { path: '/compliance', icon: FileCheck, label: 'Compliance ', permission: 'compliance', roles: [ROLES.SUPER_ADMIN, ROLES.HR_ADMIN, ROLES.FINANCE] },
+        { path: '/audit-logs', icon: History, label: 'Audit Logs', permission: 'auditLogs', roles: [ROLES.SUPER_ADMIN, ROLES.HR_ADMIN] },
         { path: '/clients', icon: Building2, label: 'Client Management', permission: 'employees' },
         { path: '/users', icon: Shield, label: 'User Management', permission: 'users' },
         { path: '/teams', icon: UserCheck, label: 'Team Management', permission: 'teamManagement', roles: [ROLES.SUPER_ADMIN] },
@@ -101,10 +111,6 @@ const Layout = () => {
         try {
           // Check if item has specific roles requirement
           if (item.roles && !item.roles.includes(userRole)) {
-            return false
-          }
-          // Exclude Attendance menu item for FINANCE role (they have My Attendance instead)
-          if (item.path === '/attendance' && userRole === ROLES.FINANCE) {
             return false
           }
           return hasPermission(userRole, item.permission)

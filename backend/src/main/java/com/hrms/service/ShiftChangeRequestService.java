@@ -6,6 +6,7 @@ import com.hrms.repository.UserRepository;
 import com.hrms.repository.ShiftChangeRequestRepository;
 import com.hrms.repository.ShiftRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.lang.NonNull;
@@ -27,6 +28,7 @@ public class ShiftChangeRequestService {
     private ShiftRepository shiftRepository;
     
     @Autowired
+    @Lazy
     private ShiftService shiftService;
 
     public ShiftChangeRequest createRequest(@NonNull Long employeeId, @NonNull Long requestedShiftId, String reason) {
@@ -83,7 +85,11 @@ public class ShiftChangeRequestService {
         }
         
         // Verify requested shift still exists
-        shiftRepository.findById(request.getRequestedShiftId())
+        Long requestedShiftId = request.getRequestedShiftId();
+        if (requestedShiftId == null) {
+            throw new RuntimeException("Requested shift ID is null");
+        }
+        shiftRepository.findById(java.util.Objects.requireNonNull(requestedShiftId))
                 .orElseThrow(() -> new RuntimeException("Requested shift no longer exists"));
         
         // Update request status
@@ -94,7 +100,11 @@ public class ShiftChangeRequestService {
         
         // Automatically update user's shift assignment
         // Get current assignment dates if they exist
-        User user = userRepository.findById(request.getEmployeeId())
+        Long employeeId = request.getEmployeeId();
+        if (employeeId == null) {
+            throw new RuntimeException("Employee ID is null");
+        }
+        User user = userRepository.findById(java.util.Objects.requireNonNull(employeeId))
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         java.time.LocalDate startDate = user.getShiftAssignmentStartDate();
@@ -107,8 +117,8 @@ public class ShiftChangeRequestService {
         
         // Assign user to new shift with existing dates
         shiftService.updateEmployeeAssignment(
-            request.getEmployeeId(), 
-            request.getRequestedShiftId(), 
+            java.util.Objects.requireNonNull(employeeId), 
+            java.util.Objects.requireNonNull(requestedShiftId), 
             startDate != null ? startDate.toString() : null,
             endDate != null ? endDate.toString() : null
         );

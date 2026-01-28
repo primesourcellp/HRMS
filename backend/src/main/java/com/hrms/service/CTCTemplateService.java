@@ -1,13 +1,15 @@
 package com.hrms.service;
 
-import com.hrms.entity.CTCTemplate;
-import com.hrms.entity.SalaryStructure;
-import com.hrms.repository.CTCTemplateRepository;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Optional;
+import com.hrms.entity.CTCTemplate;
+import com.hrms.entity.SalaryStructure;
+import com.hrms.repository.CTCTemplateRepository;
 
 /**
  * CTC Template Service for Multi-Client Payroll Management
@@ -20,44 +22,50 @@ public class CTCTemplateService {
     private CTCTemplateRepository ctcTemplateRepository;
     
     public CTCTemplate createTemplate(CTCTemplate template) {
-        return ctcTemplateRepository.save(template);
+        CTCTemplate nonNullTemplate = Objects.requireNonNull(template, "CTC Template must not be null");
+        return ctcTemplateRepository.save(nonNullTemplate);
     }
     
     public CTCTemplate updateTemplate(Long id, CTCTemplate template) {
-        CTCTemplate existing = ctcTemplateRepository.findById(id)
+        Long nonNullId = Objects.requireNonNull(id, "CTC Template id must not be null");
+        CTCTemplate nonNullTemplate = Objects.requireNonNull(template, "CTC Template must not be null");
+
+        CTCTemplate existing = ctcTemplateRepository.findById(nonNullId)
             .orElseThrow(() -> new RuntimeException("CTC Template not found"));
         
-        existing.setTemplateName(template.getTemplateName());
-        existing.setClientName(template.getClientName());
-        existing.setDescription(template.getDescription());
-        existing.setBasicSalaryPercentage(template.getBasicSalaryPercentage());
-        existing.setHraPercentage(template.getHraPercentage());
-        existing.setTransportAllowancePercentage(template.getTransportAllowancePercentage());
-        existing.setTransportAllowanceFixed(template.getTransportAllowanceFixed());
-        existing.setMedicalAllowancePercentage(template.getMedicalAllowancePercentage());
-        existing.setMedicalAllowanceFixed(template.getMedicalAllowanceFixed());
-        existing.setSpecialAllowancePercentage(template.getSpecialAllowancePercentage());
-        existing.setSpecialAllowanceFixed(template.getSpecialAllowanceFixed());
-        existing.setOtherAllowancesPercentage(template.getOtherAllowancesPercentage());
-        existing.setPfPercentage(template.getPfPercentage());
-        existing.setEsiPercentage(template.getEsiPercentage());
-        existing.setEsiApplicableThreshold(template.getEsiApplicableThreshold());
-        existing.setProfessionalTaxAmount(template.getProfessionalTaxAmount());
-        existing.setTdsPercentage(template.getTdsPercentage());
-        existing.setOtherDeductionsPercentage(template.getOtherDeductionsPercentage());
-        existing.setActive(template.getActive());
+        existing.setTemplateName(nonNullTemplate.getTemplateName());
+        existing.setClientName(nonNullTemplate.getClientName());
+        existing.setDescription(nonNullTemplate.getDescription());
+        existing.setBasicSalaryPercentage(nonNullTemplate.getBasicSalaryPercentage());
+        existing.setHraPercentage(nonNullTemplate.getHraPercentage());
+        existing.setTransportAllowancePercentage(nonNullTemplate.getTransportAllowancePercentage());
+        existing.setTransportAllowanceFixed(nonNullTemplate.getTransportAllowanceFixed());
+        existing.setMedicalAllowancePercentage(nonNullTemplate.getMedicalAllowancePercentage());
+        existing.setMedicalAllowanceFixed(nonNullTemplate.getMedicalAllowanceFixed());
+        existing.setSpecialAllowancePercentage(nonNullTemplate.getSpecialAllowancePercentage());
+        existing.setSpecialAllowanceFixed(nonNullTemplate.getSpecialAllowanceFixed());
+        existing.setOtherAllowancesPercentage(nonNullTemplate.getOtherAllowancesPercentage());
+        existing.setPfPercentage(nonNullTemplate.getPfPercentage());
+        existing.setEsiPercentage(nonNullTemplate.getEsiPercentage());
+        existing.setEsiApplicableThreshold(nonNullTemplate.getEsiApplicableThreshold());
+        existing.setProfessionalTaxAmount(nonNullTemplate.getProfessionalTaxAmount());
+        existing.setTdsPercentage(nonNullTemplate.getTdsPercentage());
+        existing.setOtherDeductionsPercentage(nonNullTemplate.getOtherDeductionsPercentage());
+        existing.setActive(nonNullTemplate.getActive());
         
         return ctcTemplateRepository.save(existing);
     }
     
     public void deleteTemplate(Long id) {
-        CTCTemplate template = ctcTemplateRepository.findById(id)
+        Long nonNullId = Objects.requireNonNull(id, "CTC Template id must not be null");
+        CTCTemplate template = ctcTemplateRepository.findById(nonNullId)
             .orElseThrow(() -> new RuntimeException("CTC Template not found"));
-        ctcTemplateRepository.delete(template);
+        ctcTemplateRepository.delete(Objects.requireNonNull(template, "CTC Template must not be null"));
     }
     
     public Optional<CTCTemplate> getTemplateById(Long id) {
-        return ctcTemplateRepository.findById(id);
+        Long nonNullId = Objects.requireNonNull(id, "CTC Template id must not be null");
+        return ctcTemplateRepository.findById(nonNullId);
     }
     
     public List<CTCTemplate> getAllTemplates() {
@@ -77,7 +85,8 @@ public class CTCTemplateService {
      * Core functionality: Auto-generate salary breakup per client rules
      */
     public SalaryStructure convertCTCToSalaryStructure(Double annualCtc, Long templateId) {
-        CTCTemplate template = ctcTemplateRepository.findById(templateId)
+        Long nonNullTemplateId = Objects.requireNonNull(templateId, "Template id must not be null");
+        CTCTemplate template = ctcTemplateRepository.findById(nonNullTemplateId)
             .orElseThrow(() -> new RuntimeException("CTC Template not found"));
         
         return convertCTCToSalaryStructure(annualCtc, template);
@@ -87,21 +96,25 @@ public class CTCTemplateService {
      * Convert Annual CTC to Salary Structure using template
      * Implements client-specific rules for salary component calculation
      */
+    @SuppressWarnings("UnnecessaryUnboxing")
     public SalaryStructure convertCTCToSalaryStructure(Double annualCtc, CTCTemplate template) {
         if (annualCtc == null || annualCtc <= 0) {
             throw new RuntimeException("Annual CTC must be greater than 0");
         }
         
-        Double monthlyCtc = annualCtc / 12.0;
+        double monthlyCtc = annualCtc / 12.0;
         SalaryStructure structure = new SalaryStructure();
         
         // Calculate Basic Salary (percentage of monthly CTC)
-        Double basicSalary = (monthlyCtc * (template.getBasicSalaryPercentage() != null ? template.getBasicSalaryPercentage() : 40.0)) / 100.0;
+        Double basicPctBoxed = template.getBasicSalaryPercentage();
+        double basicPct = basicPctBoxed != null ? basicPctBoxed.doubleValue() : 40.0;
+        double basicSalary = (monthlyCtc * basicPct) / 100.0;
         structure.setBasicSalary(basicSalary);
         
         // Calculate HRA (percentage of Basic Salary)
-        Double hraPercentage = template.getHraPercentage() != null ? template.getHraPercentage() : 50.0;
-        Double hra = (basicSalary * hraPercentage) / 100.0;
+        Double hraPctBoxed = template.getHraPercentage();
+        double hraPercentage = hraPctBoxed != null ? hraPctBoxed.doubleValue() : 50.0;
+        double hra = (basicSalary * hraPercentage) / 100.0;
         structure.setHra(hra);
         
         // Calculate Transport Allowance (Fixed amount takes precedence over percentage)
@@ -144,21 +157,25 @@ public class CTCTemplateService {
         
         // Calculate Deductions
         // PF (Employee share - percentage of Basic)
-        Double pfPercentage = template.getPfPercentage() != null ? template.getPfPercentage() : 12.0;
-        Double pf = (basicSalary * pfPercentage) / 100.0;
+        Double pfPctBoxed = template.getPfPercentage();
+        double pfPercentage = pfPctBoxed != null ? pfPctBoxed.doubleValue() : 12.0;
+        double pf = (basicSalary * pfPercentage) / 100.0;
         structure.setPf(pf);
         
         // ESI (percentage of Gross if applicable)
-        Double esi = 0.0;
-        Double esiThreshold = template.getEsiApplicableThreshold() != null ? template.getEsiApplicableThreshold() : 21000.0;
+        double esi = 0.0;
+        Double esiThresholdBoxed = template.getEsiApplicableThreshold();
+        double esiThreshold = esiThresholdBoxed != null ? esiThresholdBoxed.doubleValue() : 21000.0;
         if (grossSalary <= esiThreshold) {
-            Double esiPercentage = template.getEsiPercentage() != null ? template.getEsiPercentage() : 0.75;
+            Double esiPctBoxed = template.getEsiPercentage();
+            double esiPercentage = esiPctBoxed != null ? esiPctBoxed.doubleValue() : 0.75;
             esi = (grossSalary * esiPercentage) / 100.0;
         }
         structure.setEsi(esi);
         
         // Professional Tax (fixed amount)
-        Double professionalTax = template.getProfessionalTaxAmount() != null ? template.getProfessionalTaxAmount() : 0.0;
+        Double professionalTaxBoxed = template.getProfessionalTaxAmount();
+        double professionalTax = professionalTaxBoxed != null ? professionalTaxBoxed.doubleValue() : 0.0;
         structure.setProfessionalTax(professionalTax);
         
         // TDS (percentage based on tax slab)

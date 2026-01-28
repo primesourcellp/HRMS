@@ -2,10 +2,12 @@ package com.hrms.controller;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,15 +41,15 @@ public class PerformanceController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Performance> getPerformanceById(@PathVariable Long id) {
-        return performanceService.getPerformanceById(id)
+    public ResponseEntity<Performance> getPerformanceById(@PathVariable @NonNull Long id) {
+        return performanceService.getPerformanceById(Objects.requireNonNull(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<Performance>> getPerformanceByEmployeeId(@PathVariable Long employeeId) {
-        return ResponseEntity.ok(performanceService.getPerformanceByEmployeeId(employeeId));
+    public ResponseEntity<List<Performance>> getPerformanceByEmployeeId(@PathVariable @NonNull Long employeeId) {
+        return ResponseEntity.ok(performanceService.getPerformanceByEmployeeId(Objects.requireNonNull(employeeId)));
     }
 
     @GetMapping("/top/{minRating}")
@@ -61,9 +63,9 @@ public class PerformanceController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updatePerformance(@PathVariable Long id, @RequestBody Performance performance) {
+    public ResponseEntity<?> updatePerformance(@PathVariable @NonNull Long id, @RequestBody Performance performance) {
         try {
-            Performance updated = performanceService.updatePerformance(id, performance);
+            Performance updated = performanceService.updatePerformance(Objects.requireNonNull(id), performance);
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
             java.util.Map<String, Object> errorResponse = new java.util.HashMap<>();
@@ -74,9 +76,9 @@ public class PerformanceController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deletePerformance(@PathVariable Long id) {
+    public ResponseEntity<?> deletePerformance(@PathVariable @NonNull Long id) {
         try {
-            performanceService.deletePerformance(id);
+            performanceService.deletePerformance(Objects.requireNonNull(id));
             java.util.Map<String, Object> response = new java.util.HashMap<>();
             response.put("success", true);
             response.put("message", "Performance review deleted successfully");
@@ -134,9 +136,9 @@ public class PerformanceController {
     }
 
     @GetMapping("/goal-progress/{employeeId}")
-    public ResponseEntity<Map<String, Object>> getGoalProgressAnalytics(@PathVariable Long employeeId) {
+    public ResponseEntity<Map<String, Object>> getGoalProgressAnalytics(@PathVariable @NonNull Long employeeId) {
         try {
-            Map<String, Object> analytics = performanceService.getGoalProgressAnalytics(employeeId);
+            Map<String, Object> analytics = performanceService.getGoalProgressAnalytics(Objects.requireNonNull(employeeId));
             return ResponseEntity.ok(analytics);
         } catch (Exception e) {
             java.util.Map<String, Object> errorResponse = new java.util.HashMap<>();
