@@ -16,15 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hrms.dto.PayrollDTO;
 import com.hrms.entity.Attendance;
-import com.hrms.entity.User;
 import com.hrms.entity.Leave;
 import com.hrms.entity.Payroll;
 import com.hrms.entity.SalaryStructure;
+import com.hrms.entity.User;
 import com.hrms.repository.AttendanceRepository;
-import com.hrms.repository.UserRepository;
 import com.hrms.repository.LeaveRepository;
 import com.hrms.repository.PayrollRepository;
 import com.hrms.repository.SalaryStructureRepository;
+import com.hrms.repository.UserRepository;
 
 @Service
 public class PayrollService {
@@ -142,8 +142,8 @@ public class PayrollService {
             
             // Delete all duplicates except the best one
             existingPayrolls.stream()
-                    .filter(p -> !p.getId().equals(bestPayroll.getId()))
-                    .forEach(p -> payrollRepository.delete(p));
+                    .filter(p -> p != null && !p.getId().equals(bestPayroll.getId()))
+                    .forEach(p -> payrollRepository.delete(java.util.Objects.requireNonNull(p)));
             
             existing = Optional.of(bestPayroll);
         }
@@ -465,8 +465,8 @@ public class PayrollService {
     }
 
     @Transactional
-    public void deletePayroll(Long payrollId) {
-        Payroll payroll = payrollRepository.findById(payrollId)
+    public void deletePayroll(@NonNull Long payrollId) {
+        Payroll payroll = payrollRepository.findById(java.util.Objects.requireNonNull(payrollId))
                 .orElseThrow(() -> new RuntimeException("Payroll not found"));
 
         // Only allow deletion for deletable statuses

@@ -6,7 +6,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.itextpdf.kernel.colors.ColorConstants;
@@ -20,12 +19,6 @@ import com.itextpdf.layout.properties.TextAlignment;
 
 @Service
 public class PDFGeneratorService {
-
-    @Value("${file.payslip-dir}")
-    private String payslipDir;
-
-    @Value("${file.offer-letter-dir}")
-    private String offerLetterDir;
 
     public byte[] generatePayslip(Map<String, Object> payslipData) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -1015,13 +1008,6 @@ public class PDFGeneratorService {
         Cell cell = new Cell().add(new Paragraph(text).setFontSize(10));
         cell.setPadding(6);
         cell.setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.WHITE);
-        return cell;
-    }
-    
-    private Cell createSectionHeaderCell(String text) {
-        Cell cell = new Cell().add(new Paragraph(text).setBold().setFontSize(11));
-        cell.setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(229, 231, 235)); // Light gray
-        cell.setPadding(12);
         return cell;
     }
     

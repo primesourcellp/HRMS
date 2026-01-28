@@ -135,6 +135,87 @@ public class AuditLogService {
     }
     
     /**
+     * Get all audit logs
+     */
+    public List<AuditLog> getAllAuditLogs() {
+        return auditLogRepository.findAllByOrderByTimestampDesc();
+    }
+    
+    /**
+     * Log login event
+     */
+    @Transactional
+    public AuditLog logLoginEvent(Long userId, String userName, String userRole, HttpServletRequest request) {
+        AuditLog auditLog = new AuditLog("AUTH", null, "LOGIN", userId, userName, userRole);
+        auditLog.setDescription(userName + " logged in");
+        if (request != null) {
+            auditLog.setIpAddress(getClientIpAddress(request));
+        }
+        return auditLogRepository.save(auditLog);
+    }
+    
+    /**
+     * Log logout event
+     */
+    @Transactional
+    public AuditLog logLogoutEvent(Long userId, String userName, String userRole, HttpServletRequest request) {
+        AuditLog auditLog = new AuditLog("AUTH", null, "LOGOUT", userId, userName, userRole);
+        auditLog.setDescription(userName + " logged out");
+        if (request != null) {
+            auditLog.setIpAddress(getClientIpAddress(request));
+        }
+        return auditLogRepository.save(auditLog);
+    }
+    
+    /**
+     * Log employee update event
+     */
+    @Transactional
+    public AuditLog logEmployeeUpdateEvent(Long employeeId, String employeeName, String action, 
+                                         Long userId, Object oldValue, Object newValue, 
+                                         String description, HttpServletRequest request) {
+        AuditLog auditLog = logEvent("EMPLOYEE", employeeId, action, userId, oldValue, newValue, description, request);
+        if (auditLog != null) {
+            auditLog.setEmployeeId(employeeId);
+            auditLog.setEmployeeName(employeeName);
+            return auditLogRepository.save(auditLog);
+        }
+        return null;
+    }
+    
+    /**
+     * Log attendance event
+     */
+    @Transactional
+    public AuditLog logAttendanceEvent(Long attendanceId, Long employeeId, String employeeName,
+                                     String action, Long userId, Object oldValue, Object newValue,
+                                     String description, HttpServletRequest request) {
+        AuditLog auditLog = logEvent("ATTENDANCE", attendanceId, action, userId, oldValue, newValue, description, request);
+        if (auditLog != null) {
+            auditLog.setEmployeeId(employeeId);
+            auditLog.setEmployeeName(employeeName);
+            return auditLogRepository.save(auditLog);
+        }
+        return null;
+    }
+    
+    /**
+     * Log leave event
+     */
+    @Transactional
+    public AuditLog logLeaveEvent(Long leaveId, Long employeeId, String employeeName,
+                                String action, Long userId, Object oldValue, Object newValue,
+                                String description, HttpServletRequest request) {
+        AuditLog auditLog = logEvent("LEAVE", leaveId, action, userId, oldValue, newValue, description, request);
+        if (auditLog != null) {
+            auditLog.setEmployeeId(employeeId);
+            auditLog.setEmployeeName(employeeName);
+            return auditLogRepository.save(auditLog);
+        }
+        return null;
+    }
+    
+    /**
      * Extract client IP address from request
      */
     private String getClientIpAddress(HttpServletRequest request) {

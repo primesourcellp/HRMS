@@ -2767,7 +2767,62 @@ const api = {
   }).then(res => res.json()),
   deleteNotification: (id) => fetchWithAuth(`${API_BASE_URL}/notifications/${id}`, {
     method: 'DELETE'
-  }).then(res => res.json())
+  }).then(res => res.json()),
+
+  // Audit Logs (new comprehensive audit logging system)
+  getAuditLogsComprehensive: async (filters = {}) => {
+    const params = new URLSearchParams()
+    if (filters.entityType) params.append('entityType', filters.entityType)
+    if (filters.entityId) params.append('entityId', filters.entityId)
+    if (filters.employeeId) params.append('employeeId', filters.employeeId)
+    if (filters.userId) params.append('userId', filters.userId)
+    if (filters.action) params.append('action', filters.action)
+    if (filters.startDate) params.append('startDate', filters.startDate)
+    if (filters.endDate) params.append('endDate', filters.endDate)
+    if (filters.page !== undefined) params.append('page', filters.page)
+    if (filters.size !== undefined) params.append('size', filters.size)
+    
+    const response = await fetchWithAuth(`${API_BASE_URL}/audit-logs?${params.toString()}`)
+    if (!response.ok) {
+      const error = await readResponseBody(response)
+      throw new Error(error?.message || error?.error || 'Failed to fetch audit logs')
+    }
+    return await response.json()
+  },
+
+  getAuditLogsByEntity: async (entityType, entityId) => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/audit-logs/entity/${entityType}/${entityId}`)
+    if (!response.ok) {
+      const error = await readResponseBody(response)
+      throw new Error(error?.message || error?.error || 'Failed to fetch audit logs')
+    }
+    return await response.json()
+  },
+
+  getAuditLogsByEmployee: async (employeeId) => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/audit-logs/employee/${employeeId}`)
+    if (!response.ok) {
+      const error = await readResponseBody(response)
+      throw new Error(error?.message || error?.error || 'Failed to fetch audit logs')
+    }
+    return await response.json()
+  },
+
+  exportAuditLogs: async (filters = {}, format = 'all') => {
+    const params = new URLSearchParams()
+    if (filters.entityType) params.append('entityType', filters.entityType)
+    if (filters.employeeId) params.append('employeeId', filters.employeeId)
+    if (filters.startDate) params.append('startDate', filters.startDate)
+    if (filters.endDate) params.append('endDate', filters.endDate)
+    params.append('format', format)
+    
+    const response = await fetchWithAuth(`${API_BASE_URL}/audit-logs/export?${params.toString()}`)
+    if (!response.ok) {
+      const error = await readResponseBody(response)
+      throw new Error(error?.message || error?.error || 'Failed to export audit logs')
+    }
+    return await response.json()
+  }
 }
 
 export default api

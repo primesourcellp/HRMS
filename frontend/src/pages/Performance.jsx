@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
-import { TrendingUp, Plus, Edit, Trash2, Star, Calendar, Target, Award, AlertCircle, X, Search, Eye, Filter, ArrowUpDown, BarChart3, LineChart, Download } from 'lucide-react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { TrendingUp, Plus, Edit, Trash2, Star, Calendar, Target, Award, AlertCircle, X, Search, Eye, Filter, ArrowUpDown, Download, BarChart3, RefreshCw, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import api from '../services/api'
-import { format, parseISO } from 'date-fns'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart as RechartsLineChart, Line, PieChart, Pie, Cell } from 'recharts'
+import { format, parseISO, subMonths, startOfMonth, endOfMonth } from 'date-fns'
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line } from 'recharts'
+
+const RechartsLineChart = LineChart
 
 const Performance = () => {
+  const [activeView, setActiveView] = useState('reviews') // 'reviews', 'kpis', 'cycles'
   const [performances, setPerformances] = useState([])
   const [allPerformances, setAllPerformances] = useState([])
   const [employees, setEmployees] = useState([])
@@ -16,9 +19,11 @@ const Performance = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('All')
   const [ratingFilter, setRatingFilter] = useState('All')
-  const [periodFilter, setPeriodFilter] = useState('All')
   const [sortBy, setSortBy] = useState('reviewDate')
   const [sortOrder, setSortOrder] = useState('desc')
+  const [dateRangeFilter, setDateRangeFilter] = useState({ start: '', end: '' })
+  const [quickFilter, setQuickFilter] = useState('all') // 'all', 'upcoming', 'overdue', 'recent'
+  const [showFilters, setShowFilters] = useState(false)
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
   const [kpis, setKpis] = useState([])
@@ -37,7 +42,6 @@ const Performance = () => {
   const [performanceFormData, setPerformanceFormData] = useState({
     employeeId: '',
     reviewDate: format(new Date(), 'yyyy-MM-dd'),
-    period: '',
     rating: 3,
     goals: '',
     achievements: '',
@@ -73,9 +77,19 @@ const Performance = () => {
     loadData()
   }, [])
 
+  // Debounced search term for better performance
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   useEffect(() => {
     filterAndSortPerformances()
-  }, [searchTerm, employeeFilter, ratingFilter, periodFilter, sortBy, sortOrder, allPerformances])
+  }, [debouncedSearchTerm, employeeFilter, ratingFilter, sortBy, sortOrder, allPerformances, dateRangeFilter, quickFilter])
 
   const loadData = async () => {
     try {
@@ -91,12 +105,27 @@ const Performance = () => {
       
       setAllPerformances(Array.isArray(performanceData) ? performanceData : [])
       
+      // Load users instead of employees for the dropdown
       if (isAdmin) {
-        const employeesData = await api.getEmployees()
-        setEmployees(Array.isArray(employeesData) ? employeesData : [])
+        const usersData = await api.getUsers()
+        // Filter out SUPER_ADMIN users and ensure we have valid user objects
+        const filteredUsers = Array.isArray(usersData) 
+          ? usersData.filter(user => {
+              const role = (user.role || user.designation || '').toUpperCase()
+              return role !== 'SUPER_ADMIN' && user.id
+            })
+          : []
+        setEmployees(filteredUsers)
       } else {
-        const employeesData = await api.getEmployees()
-        setEmployees(Array.isArray(employeesData) ? employeesData : [])
+        const usersData = await api.getUsers()
+        // Filter out SUPER_ADMIN users and ensure we have valid user objects
+        const filteredUsers = Array.isArray(usersData) 
+          ? usersData.filter(user => {
+              const role = (user.role || user.designation || '').toUpperCase()
+              return role !== 'SUPER_ADMIN' && user.id
+            })
+          : []
+        setEmployees(filteredUsers)
       }
 
       // Load KPI configurations (useful for admins and for showing KPI info in reviews)
@@ -125,18 +154,18 @@ const Performance = () => {
     }
   }
 
-  const filterAndSortPerformances = () => {
+  const filterAndSortPerformances = useCallback(() => {
     let filtered = [...allPerformances]
 
     // Apply search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase()
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase()
       filtered = filtered.filter(p => 
-        p.period?.toLowerCase().includes(searchLower) ||
         p.goals?.toLowerCase().includes(searchLower) ||
         p.achievements?.toLowerCase().includes(searchLower) ||
         p.feedback?.toLowerCase().includes(searchLower) ||
-        getEmployeeName(p.employeeId)?.toLowerCase().includes(searchLower)
+        getEmployeeName(p.employeeId)?.toLowerCase().includes(searchLower) ||
+        p.managerEvaluation?.toLowerCase().includes(searchLower)
       )
     }
 
@@ -150,9 +179,44 @@ const Performance = () => {
       filtered = filtered.filter(p => p.rating === parseInt(ratingFilter))
     }
 
-    // Apply period filter
-    if (periodFilter !== 'All') {
-      filtered = filtered.filter(p => p.period === periodFilter)
+    // Apply date range filter
+    if (dateRangeFilter.start) {
+      filtered = filtered.filter(p => {
+        const reviewDate = p.reviewDate ? new Date(p.reviewDate) : null
+        if (!reviewDate) return false
+        return reviewDate >= new Date(dateRangeFilter.start)
+      })
+    }
+    if (dateRangeFilter.end) {
+      filtered = filtered.filter(p => {
+        const reviewDate = p.reviewDate ? new Date(p.reviewDate) : null
+        if (!reviewDate) return false
+        return reviewDate <= new Date(dateRangeFilter.end)
+      })
+    }
+
+    // Apply quick filter
+    if (quickFilter === 'upcoming') {
+      const today = new Date()
+      filtered = filtered.filter(p => {
+        const reviewDate = p.reviewDate ? new Date(p.reviewDate) : null
+        if (!reviewDate) return false
+        return reviewDate >= today
+      })
+    } else if (quickFilter === 'overdue') {
+      const today = new Date()
+      filtered = filtered.filter(p => {
+        const reviewDate = p.reviewDate ? new Date(p.reviewDate) : null
+        if (!reviewDate) return false
+        return reviewDate < today
+      })
+    } else if (quickFilter === 'recent') {
+      const thirtyDaysAgo = subMonths(new Date(), 1)
+      filtered = filtered.filter(p => {
+        const reviewDate = p.reviewDate ? new Date(p.reviewDate) : null
+        if (!reviewDate) return false
+        return reviewDate >= thirtyDaysAgo
+      })
     }
 
     // Sort
@@ -161,16 +225,12 @@ const Performance = () => {
 
       switch (sortBy) {
         case 'reviewDate':
-          aValue = new Date(a.reviewDate || 0)
-          bValue = new Date(b.reviewDate || 0)
+          aValue = a.reviewDate ? new Date(a.reviewDate).getTime() : 0
+          bValue = b.reviewDate ? new Date(b.reviewDate).getTime() : 0
           break
         case 'rating':
           aValue = a.rating || 0
           bValue = b.rating || 0
-          break
-        case 'period':
-          aValue = a.period || ''
-          bValue = b.period || ''
           break
         case 'employee':
           aValue = getEmployeeName(a.employeeId) || ''
@@ -181,23 +241,113 @@ const Performance = () => {
           bValue = b[sortBy] || ''
       }
 
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1
+      // Robust compare (return 0 when equal so toggling sort order is reliable)
+      let cmp = 0
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        cmp = aValue === bValue ? 0 : aValue > bValue ? 1 : -1
       } else {
-        return aValue < bValue ? 1 : -1
+        const aStr = String(aValue ?? '').toLowerCase()
+        const bStr = String(bValue ?? '').toLowerCase()
+        cmp = aStr.localeCompare(bStr)
       }
+
+      return sortOrder === 'asc' ? cmp : -cmp
     })
 
     setPerformances(filtered)
+  }, [debouncedSearchTerm, employeeFilter, ratingFilter, sortBy, sortOrder, allPerformances, employees])
+
+  // Define loadEmployeeHistory and loadCompensationsForPerformance before they're used
+  const loadEmployeeHistory = useCallback(async (employeeId) => {
+    try {
+      // Rating history from existing performances
+      const history = allPerformances
+        .filter(p => p.employeeId === employeeId)
+        .sort((a, b) => new Date(b.reviewDate) - new Date(a.reviewDate))
+      setRatingHistory(history)
+
+      // Promotion history from API
+      try {
+        const promos = await api.getPromotionsByEmployee(employeeId)
+        setPromotions(Array.isArray(promos) ? promos : [])
+      } catch (err) {
+        console.warn('Could not load promotions:', err)
+        setPromotions([])
+      }
+
+      // Compensation history for employee
+      try {
+        const comps = await api.getCompensationsByEmployee(employeeId)
+        setCompensations(Array.isArray(comps) ? comps : [])
+      } catch (err) {
+        console.warn('Could not load compensations by employee:', err)
+        setCompensations([])
+      }
+
+
+    } catch (err) {
+      console.error('Error loading employee history:', err)
+      setRatingHistory([])
+      setPromotions([])
+      setCompensations([])
+    }
+  }, [allPerformances])
+
+  const loadCompensationsForPerformance = useCallback(async (performanceId) => {
+    try {
+      const comps = await api.getCompensationsByPerformance(performanceId)
+      setCompensations(Array.isArray(comps) ? comps : [])
+    } catch (err) {
+      console.warn('Could not load compensations for performance:', err)
+      setCompensations([])
+    }
+  }, [])
+
+  // Goal Progress Tracking Functions - moved before handlePerformanceSubmit
+  const parseGoals = (goalsText) => {
+    if (!goalsText || typeof goalsText !== 'string') return []
+    
+    const goals = goalsText.split('\n').filter(goal => goal.trim())
+    return goals.map(goal => {
+      // Look for percentage patterns like "75%" or "completed 75%"
+      const percentageMatch = goal.match(/(\d+)%|completed\s+(\d+)%/i)
+      const percentage = percentageMatch ? parseInt(percentageMatch[1] || percentageMatch[2]) : 0
+      
+      // Extract goal title (before any percentage or status)
+      const title = goal.replace(/\d+%|completed\s+\d+%|in-progress|completed/gi, '').trim()
+      
+      // Determine status based on percentage
+      const status = percentage === 100 ? 'completed' : percentage > 0 ? 'in-progress' : 'not-started'
+      
+      // Assign color based on percentage
+      let color = '#f59e0b' // Default yellow
+      if (percentage === 100) {
+        color = '#10b981' // Green for completed
+      } else if (percentage === 0) {
+        color = '#ef4444' // Red for not started
+      }
+      
+      return {
+        title: title || goal.trim(),
+        percentage: Math.max(0, Math.min(100, percentage)),
+        status,
+        color
+      }
+    })
   }
 
-  const handleOpenPerformanceModal = (performance = null) => {
+  const calculateOverallProgress = (goals) => {
+    if (!goals || goals.length === 0) return 0
+    const total = goals.reduce((sum, goal) => sum + goal.percentage, 0)
+    return Math.round(total / goals.length)
+  }
+
+  const handleOpenPerformanceModal = useCallback((performance = null) => {
     if (performance) {
       setEditingPerformance(performance)
       setPerformanceFormData({
         employeeId: performance.employeeId?.toString() || '',
         reviewDate: performance.reviewDate ? format(parseISO(performance.reviewDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-        period: performance.period || '',
         rating: performance.rating || 3,
         goals: performance.goals || '',
         achievements: performance.achievements || '',
@@ -223,7 +373,6 @@ const Performance = () => {
       setPerformanceFormData({
         employeeId: '',
         reviewDate: format(new Date(), 'yyyy-MM-dd'),
-        period: '',
         rating: 3,
         goals: '',
         achievements: '',
@@ -240,9 +389,9 @@ const Performance = () => {
       setCompensationFormData({ performanceId: '', employeeId: '', recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })
     }
     setShowPerformanceModal(true)
-  }
+  }, [loadEmployeeHistory, loadCompensationsForPerformance])
 
-  const handlePerformanceSubmit = async (e) => {
+  const handlePerformanceSubmit = useCallback(async (e) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
@@ -286,9 +435,9 @@ const Performance = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [performanceFormData, editingPerformance, loadData, parseGoals, calculateOverallProgress])
 
-  const handleDeletePerformance = async (id) => {
+  const handleDeletePerformance = useCallback(async (id) => {
     if (!window.confirm('Are you sure you want to delete this performance review? This action cannot be undone.')) {
       return
     }
@@ -312,10 +461,15 @@ const Performance = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [loadData])
 
   // KPI management helpers
   const openKpiModal = (kpi = null) => {
+    // Switch to KPIs tab if not already there
+    if (activeView !== 'kpis') {
+      setActiveView('kpis')
+    }
+    
     if (kpi) {
       setEditingKpi(kpi)
       setKpiFormData({
@@ -333,6 +487,11 @@ const Performance = () => {
   }
 
   const openCycleModal = (cycle = null) => {
+    // Switch to Cycles tab if not already there
+    if (activeView !== 'cycles') {
+      setActiveView('cycles')
+    }
+    
     if (cycle) {
       setEditingCycle(cycle)
       setCycleFormData({
@@ -370,8 +529,10 @@ const Performance = () => {
         setSuccessMessage('KPI created!')
       }
       await loadData()
+      // Close modal and reset form after successful submission
       setShowKpiModal(false)
       setEditingKpi(null)
+      setKpiFormData({ name: '', description: '', target: '', weight: '', active: true })
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err) {
       setError(err.message || 'Error saving KPI')
@@ -402,8 +563,10 @@ const Performance = () => {
         setSuccessMessage('Review cycle created!')
       }
       await loadData()
+      // Close modal and reset form after successful submission
       setShowCycleModal(false)
       setEditingCycle(null)
+      setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err) {
       setError(err.message || 'Error saving review cycle')
@@ -566,7 +729,162 @@ const Performance = () => {
     }
   }
 
-  const openViewModal = (performance) => {
+  // Export Functions
+  const handleExportReviewsCSV = () => {
+    try {
+      const csvData = performances.map(p => {
+        const employee = employees.find(emp => emp.id === p.employeeId)
+        const cycle = reviewCycles.find(c => c.id === p.reviewCycleId)
+        return {
+          Employee: getEmployeeName(p.employeeId) || 'N/A',
+          'Review Date': p.reviewDate ? format(parseISO(p.reviewDate), 'yyyy-MM-dd') : 'N/A',
+          'Review Cycle': cycle?.name || 'N/A',
+          Rating: p.rating || 0,
+          Goals: (p.goals || '').replace(/\n/g, '; ').substring(0, 100),
+          Achievements: (p.achievements || '').replace(/\n/g, '; ').substring(0, 100),
+          Feedback: (p.feedback || '').replace(/\n/g, '; ').substring(0, 100),
+          'Manager Evaluation': (p.managerEvaluation || '').replace(/\n/g, '; ').substring(0, 100)
+        }
+      })
+
+      if (csvData.length === 0) {
+        setError('No data to export')
+        setTimeout(() => setError(null), 3000)
+        return
+      }
+
+      const headers = Object.keys(csvData[0])
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `performance_reviews_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      setSuccessMessage('Performance reviews exported successfully')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      setError('Error exporting data: ' + error.message)
+      setTimeout(() => setError(null), 5000)
+    }
+  }
+
+  const handleExportKPIsCSV = () => {
+    try {
+      const csvData = kpis.map(k => ({
+        Name: k.name || 'N/A',
+        Description: (k.description || '').replace(/\n/g, '; '),
+        Target: k.target || 'N/A',
+        Weight: k.weight || 0,
+        Status: k.active ? 'Active' : 'Inactive'
+      }))
+
+      if (csvData.length === 0) {
+        setError('No KPI data to export')
+        setTimeout(() => setError(null), 3000)
+        return
+      }
+
+      const headers = Object.keys(csvData[0])
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `kpi_configurations_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      setSuccessMessage('KPI configurations exported successfully')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      setError('Error exporting data: ' + error.message)
+      setTimeout(() => setError(null), 5000)
+    }
+  }
+
+  const handleExportCyclesCSV = () => {
+    try {
+      const csvData = reviewCycles.map(c => {
+        const kpi = kpis.find(k => k.id === c.kpiConfigId)
+        return {
+          Name: c.name || 'N/A',
+          'Start Date': c.startDate ? format(parseISO(c.startDate), 'yyyy-MM-dd') : 'N/A',
+          'End Date': c.endDate ? format(parseISO(c.endDate), 'yyyy-MM-dd') : 'N/A',
+          'KPI Configuration': kpi?.name || 'N/A',
+          Status: c.active ? 'Active' : 'Inactive'
+        }
+      })
+
+      if (csvData.length === 0) {
+        setError('No cycle data to export')
+        setTimeout(() => setError(null), 3000)
+        return
+      }
+
+      const headers = Object.keys(csvData[0])
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `review_cycles_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      setSuccessMessage('Review cycles exported successfully')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      setError('Error exporting data: ' + error.message)
+      setTimeout(() => setError(null), 5000)
+    }
+  }
+
+  // Clear Filters Function
+  const handleClearFilters = () => {
+    setSearchTerm('')
+    setEmployeeFilter('All')
+    setRatingFilter('All')
+    setDateRangeFilter({ start: '', end: '' })
+    setQuickFilter('all')
+    setSortBy('reviewDate')
+    setSortOrder('desc')
+    setSuccessMessage('Filters cleared')
+    setTimeout(() => setSuccessMessage(null), 2000)
+  }
+
+  const hasActiveFilters =
+    employeeFilter !== 'All' ||
+    ratingFilter !== 'All' ||
+    quickFilter !== 'all' ||
+    !!dateRangeFilter.start ||
+    !!dateRangeFilter.end ||
+    !!searchTerm
+
+  const openViewModal = useCallback((performance) => {
     setSelectedPerformance(performance)
     // Load rating history, promotions and compensations for this employee
     if (performance && performance.employeeId) {
@@ -576,52 +894,7 @@ const Performance = () => {
       loadCompensationsForPerformance(performance.id)
     }
     setShowViewModal(true)
-  }
-
-  const loadEmployeeHistory = async (employeeId) => {
-    try {
-      // Rating history from existing performances
-      const history = allPerformances
-        .filter(p => p.employeeId === employeeId)
-        .sort((a, b) => new Date(b.reviewDate) - new Date(a.reviewDate))
-      setRatingHistory(history)
-
-      // Promotion history from API
-      try {
-        const promos = await api.getPromotionsByEmployee(employeeId)
-        setPromotions(Array.isArray(promos) ? promos : [])
-      } catch (err) {
-        console.warn('Could not load promotions:', err)
-        setPromotions([])
-      }
-
-      // Compensation history for employee
-      try {
-        const comps = await api.getCompensationsByEmployee(employeeId)
-        setCompensations(Array.isArray(comps) ? comps : [])
-      } catch (err) {
-        console.warn('Could not load compensations by employee:', err)
-        setCompensations([])
-      }
-
-
-    } catch (err) {
-      console.error('Error loading employee history:', err)
-      setRatingHistory([])
-      setPromotions([])
-      setCompensations([])
-    }
-  }
-
-  const loadCompensationsForPerformance = async (performanceId) => {
-    try {
-      const comps = await api.getCompensationsByPerformance(performanceId)
-      setCompensations(Array.isArray(comps) ? comps : [])
-    } catch (err) {
-      console.warn('Could not load compensations for performance:', err)
-      setCompensations([])
-    }
-  }
+  }, [loadEmployeeHistory, loadCompensationsForPerformance])
 
   // KPI auto-calculation helpers (optimized)
   const parseTargetPercent = (target) => {
@@ -814,7 +1087,7 @@ const Performance = () => {
     }
   }
 
-  const getEmployeeName = (employeeId) => {
+  const getEmployeeName = useCallback((employeeId) => {
     try {
       const employee = employees.find(emp => emp && emp.id === employeeId)
       if (employee) {
@@ -824,7 +1097,7 @@ const Performance = () => {
     } catch (err) {
       return 'Unknown'
     }
-  }
+  }, [employees])
 
   const getRatingStars = (rating) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -855,7 +1128,78 @@ const Performance = () => {
   }
 
   // Calculate statistics
-  const stats = {
+  // Memoized stats calculation
+  // Analytics Data
+  const analyticsData = useMemo(() => {
+    const ratingDistribution = [0, 0, 0, 0, 0] // 1-5 stars
+    const monthlyTrends = {}
+    const departmentPerformance = {}
+    
+    allPerformances.forEach(p => {
+      // Rating distribution
+      const rating = p.rating || 0
+      if (rating >= 1 && rating <= 5) {
+        ratingDistribution[rating - 1]++
+      }
+      
+      // Monthly trends
+      if (p.reviewDate) {
+        const month = format(parseISO(p.reviewDate), 'yyyy-MM')
+        if (!monthlyTrends[month]) {
+          monthlyTrends[month] = { count: 0, totalRating: 0 }
+        }
+        monthlyTrends[month].count++
+        monthlyTrends[month].totalRating += rating
+      }
+      
+      // Department performance
+      const employee = employees.find(emp => emp.id === p.employeeId)
+      const dept = employee?.department || 'Unknown'
+      if (!departmentPerformance[dept]) {
+        departmentPerformance[dept] = { count: 0, totalRating: 0 }
+      }
+      departmentPerformance[dept].count++
+      departmentPerformance[dept].totalRating += rating
+    })
+    
+    const ratingChartData = [
+      { name: '1 Star', value: ratingDistribution[0], fill: '#ef4444' },
+      { name: '2 Stars', value: ratingDistribution[1], fill: '#f97316' },
+      { name: '3 Stars', value: ratingDistribution[2], fill: '#f59e0b' },
+      { name: '4 Stars', value: ratingDistribution[3], fill: '#3b82f6' },
+      { name: '5 Stars', value: ratingDistribution[4], fill: '#10b981' }
+    ]
+    
+    const trendChartData = Object.keys(monthlyTrends)
+      .sort()
+      .slice(-6) // Last 6 months
+      .map(month => ({
+        month: format(parseISO(`${month}-01`), 'MMM yyyy'),
+        reviews: monthlyTrends[month].count,
+        avgRating: monthlyTrends[month].count > 0 
+          ? (monthlyTrends[month].totalRating / monthlyTrends[month].count).toFixed(1)
+          : 0
+      }))
+    
+    const departmentChartData = Object.keys(departmentPerformance)
+      .map(dept => ({
+        department: dept,
+        reviews: departmentPerformance[dept].count,
+        avgRating: departmentPerformance[dept].count > 0
+          ? (departmentPerformance[dept].totalRating / departmentPerformance[dept].count).toFixed(1)
+          : 0
+      }))
+      .sort((a, b) => b.reviews - a.reviews)
+      .slice(0, 5) // Top 5 departments
+    
+    return {
+      ratingDistribution: ratingChartData,
+      trendData: trendChartData,
+      departmentData: departmentChartData
+    }
+  }, [allPerformances, employees])
+
+  const stats = useMemo(() => ({
     total: allPerformances.length,
     averageRating: allPerformances.length > 0
       ? (allPerformances.reduce((sum, p) => sum + (p.rating || 0), 0) / allPerformances.length).toFixed(1)
@@ -864,67 +1208,23 @@ const Performance = () => {
     excellent: allPerformances.filter(p => (p.rating || 0) >= 4.5).length,
     good: allPerformances.filter(p => (p.rating || 0) >= 3 && (p.rating || 0) < 4).length,
     needsImprovement: allPerformances.filter(p => (p.rating || 0) < 3).length
-  }
+  }), [allPerformances])
 
-  // Get unique periods for filter
-  const uniquePeriods = [...new Set(allPerformances.map(p => p.period).filter(Boolean))].sort().reverse()
 
-  // Prepare chart data for rating distribution
-  const ratingDistribution = [1, 2, 3, 4, 5].map(rating => ({
-    rating: `${rating} Star${rating > 1 ? 's' : ''}`,
-    count: allPerformances.filter(p => p.rating === rating).length
-  }))
+  // (Removed) Rating Distribution and Performance Trends chart data
 
-  // Prepare chart data for performance trends (by period)
-  const performanceTrends = uniquePeriods.slice(0, 6).map(period => {
-    const periodPerformances = allPerformances.filter(p => p.period === period)
-    const avgRating = periodPerformances.length > 0
-      ? periodPerformances.reduce((sum, p) => sum + (p.rating || 0), 0) / periodPerformances.length
-      : 0
-    return {
-      period,
-      averageRating: parseFloat(avgRating.toFixed(1)),
-      reviews: periodPerformances.length
-    }
-  })
-
-  // Get top performers data
-  const topPerformersData = allPerformances
+  // Memoized top performers data
+  const topPerformersData = useMemo(() => 
+    allPerformances
     .filter(p => (p.rating || 0) >= 4)
     .sort((a, b) => (b.rating || 0) - (a.rating || 0))
     .slice(0, 5)
     .map(p => ({
       name: getEmployeeName(p.employeeId),
       rating: p.rating || 0,
-      period: p.period
-    }))
-
-  // Goal Progress Tracking Functions
-  const parseGoals = (goalsText) => {
-    if (!goalsText || typeof goalsText !== 'string') return []
-    
-    const goals = goalsText.split('\n').filter(goal => goal.trim())
-    return goals.map(goal => {
-      // Look for percentage patterns like "75%" or "completed 75%"
-      const percentageMatch = goal.match(/(\d+)%|completed\s+(\d+)%/i)
-      const percentage = percentageMatch ? parseInt(percentageMatch[1] || percentageMatch[2]) : 0
-      
-      // Extract goal title (before any percentage or status)
-      const title = goal.split(/\d+%|completed/i)[0].trim()
-      
-      // Determine status based on exact percentage ranges
-      let status = 'in-progress'
-      if (percentage === 100) status = 'completed'
-      else status = 'in-progress'
-      
-      return {
-        title,
-        percentage: Math.min(percentage, 100),
-        status,
-        color: getProgressColor(percentage)
-      }
-    })
-  }
+      })),
+    [allPerformances, getEmployeeName]
+  )
 
   // KPI parsing helpers
   const parseKpis = (kpiText) => {
@@ -987,12 +1287,6 @@ const Performance = () => {
     }
   }
 
-  const calculateOverallProgress = (goals) => {
-    if (!goals || goals.length === 0) return 0
-    const total = goals.reduce((sum, goal) => sum + goal.percentage, 0)
-    return Math.round(total / goals.length)
-  }
-
   const getGoalProgressData = (goals) => {
     if (!goals || goals.length === 0) return []
     
@@ -1016,78 +1310,523 @@ const Performance = () => {
     )
   }
 
+  // If creating/editing performance review, show full page view (like payroll page)
+  if (showPerformanceModal && isAdmin) {
   return (
-    <div className="space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-          <span className="block sm:inline">{successMessage}</span>
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
+      <>
+        <div className="min-h-screen bg-gray-50 -m-4 md:-m-6 -mt-0">
+          <div className="w-full mx-auto">
+            <div className="bg-white rounded-2xl shadow-2xl px-2 md:px-4 pt-2 md:pt-4 pb-4 md:pb-6 border-2 border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-2xl md:text-3xl font-bold text-blue-600 flex items-center gap-3">
+                  {editingPerformance ? (
+                    <>
+                      <Target size={28} className="text-blue-600" />
+                      Edit Performance Review
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={28} className="text-blue-600" />
+                      Create Performance Review
+                    </>
+                  )}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowPerformanceModal(false)
+                    setEditingPerformance(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              <form onSubmit={handlePerformanceSubmit} className="space-y-5">
+                {/* Employee Information */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Employee Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Employee *</label>
+                      <select
+                        value={performanceFormData.employeeId}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, employeeId: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        required
+                        disabled={!!editingPerformance}
+                      >
+                        <option value="">Select Employee</option>
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id.toString()}>
+                            {emp.name || `Employee ${emp.id}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Review Date *</label>
+                      <input
+                        type="date"
+                        value={performanceFormData.reviewDate}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, reviewDate: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* Rating & Performance */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Rating & Performance</h4>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Rating * (1-5)</label>
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="range"
+                        min="1"
+                        max="5"
+                        value={performanceFormData.rating}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, rating: parseInt(e.target.value) })}
+                        className="flex-1"
+                      />
+                      <div className="flex items-center gap-2">
+                        <div className="flex">
+                          {getRatingStars(performanceFormData.rating)}
+                        </div>
+                        <span className="text-lg font-bold text-gray-900 w-12 text-center">{performanceFormData.rating}/5</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Total Reviews</div>
-          <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+                {/* Goals & KPIs */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Goals & KPIs</h4>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Goal Tracking</label>
+                    <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                      <p className="text-xs text-blue-700 font-medium mb-1">📌 Format:</p>
+                      <p className="text-xs text-blue-600">List goals, one per line. You may optionally include progress as a percentage.</p>
+                    </div>
+                    <textarea
+                      value={performanceFormData.goals}
+                      onChange={(e) => setPerformanceFormData({ ...performanceFormData, goals: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows="4"
+                      placeholder="Enter goals, one per line:&#10;Improve client satisfaction&#10;Complete project management course&#10;Reduce bug resolution time"
+                    />
+                  </div>
+
+                  {/* KPI selection + results */}
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">KPI Template (optional)</label>
+                      <select
+                        value={performanceFormData.kpiConfigId}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, kpiConfigId: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      >
+                        <option value="">No KPI</option>
+                        {kpis.map(k => (
+                          <option key={k.id} value={k.id.toString()}>{k.name}{k.target ? ` — ${k.target}` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Review Cycle (optional)</label>
+                      <select
+                        value={performanceFormData.reviewCycleId || ''}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, reviewCycleId: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      >
+                        <option value="">No Cycle</option>
+                        {reviewCycles.map(c => (
+                          <option key={c.id} value={c.id.toString()}>{c.name} {c.startDate && c.endDate ? `(${c.startDate} → ${c.endDate})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">KPI Results</label>
+                    <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                      <p className="text-xs text-blue-700 font-medium mb-1">📌 Format:</p>
+                      <p className="text-xs text-blue-600">Enter KPI results one per line, as "KPI Name: value (optional %)", e.g. "Response Time: 18h (75%)" or "Sales: 120"</p>
+                    </div>
+                    <textarea
+                      value={performanceFormData.kpiResults}
+                      onChange={(e) => setPerformanceFormData({ ...performanceFormData, kpiResults: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows="3"
+                      placeholder="Enter KPI results, one per line:&#10;Response Time: 18h (75%)&#10;Sales: 120"
+                    />
+                  </div>
+                </div>
+
+                {/* Achievements & Feedback */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Achievements & Feedback</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Achievements</label>
+                      <textarea
+                        value={performanceFormData.achievements}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, achievements: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows="3"
+                        placeholder="Key achievements and accomplishments..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Feedback</label>
+                      <textarea
+                        value={performanceFormData.feedback}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, feedback: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows="3"
+                        placeholder="Manager feedback and comments..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manager Evaluation */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Manager Evaluation</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Manager Evaluation</label>
+                      <textarea
+                        value={performanceFormData.managerEvaluation}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, managerEvaluation: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        rows="3"
+                        placeholder="Manager evaluation and summary..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Areas for Improvement</label>
+                      <textarea
+                        value={performanceFormData.areasForImprovement}
+                        onChange={(e) => setPerformanceFormData({ ...performanceFormData, areasForImprovement: e.target.value })}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows="3"
+                        placeholder="Areas that need improvement..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Promotion Recommendation */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Promotion Recommendation (optional)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Effective Date</label>
+                      <input type="date" value={promotionFormData.effectiveDate} onChange={(e) => setPromotionFormData({ ...promotionFormData, effectiveDate: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">From Position</label>
+                      <input value={promotionFormData.fromPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, fromPosition: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Current position (optional)" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">To Position</label>
+                      <input value={promotionFormData.toPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, toPosition: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Recommended position" />
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                    <textarea value={promotionFormData.notes} onChange={(e) => setPromotionFormData({ ...promotionFormData, notes: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" rows={3} placeholder="Rationale and context for promotion recommendation (optional)" />
+                  </div>
+                  <div className="flex gap-2 justify-end mt-4">
+                    <button type="button" onClick={() => setPromotionFormData({ employeeId: performanceFormData.employeeId || '', effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })} className="px-6 py-2.5 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors">Clear</button>
+                    <button type="button" onClick={handleAddPromotionInline} className="px-6 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-colors shadow-md">Add Promotion</button>
+                  </div>
+                </div>
+
+                {/* Compensation Recommendation */}
+                <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                  <h4 className="text-xl font-bold text-gray-800 mb-4">Compensation Recommendation (optional)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Recommended %</label>
+                      <input type="number" step="0.1" value={compensationFormData.recommendedPercentage} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedPercentage: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Recommended Amount</label>
+                      <input type="number" step="0.01" value={compensationFormData.recommendedAmount} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedAmount: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Effective Date</label>
+                      <input type="date" value={compensationFormData.effectiveDate} onChange={(e) => setCompensationFormData({ ...compensationFormData, effectiveDate: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                    <textarea value={compensationFormData.notes} onChange={(e) => setCompensationFormData({ ...compensationFormData, notes: e.target.value })} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" rows={3} placeholder="Notes for compensation recommendation (optional)" />
+                  </div>
+                  <div className="flex gap-2 justify-end mt-4">
+                    <button type="button" onClick={() => setCompensationFormData({ performanceId: performanceFormData.id || '', employeeId: performanceFormData.employeeId || '', recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })} className="px-6 py-2.5 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors">Clear</button>
+                    <button type="button" onClick={handleAddCompensationInline} className="px-6 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-colors shadow-md">Add Recommendation</button>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPerformanceModal(false)
+                      setEditingPerformance(null)
+                    }}
+                    className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all font-semibold"
+                  >
+                    {loading ? 'Saving...' : editingPerformance ? 'Update Performance Review' : 'Create Performance Review'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Avg Rating</div>
-          <div className="text-2xl font-bold text-green-600">{stats.averageRating}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Top Performers</div>
-          <div className="text-2xl font-bold text-yellow-600">{stats.topPerformers}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Excellent (4.5+)</div>
-          <div className="text-2xl font-bold text-purple-600">{stats.excellent}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="text-sm text-gray-600">Needs Improvement</div>
-          <div className="text-2xl font-bold text-orange-600">{stats.needsImprovement}</div>
+      </>
+    )
+  }
+
+  return (
+    <div className="space-y-6 p-3 sm:p-4 md:p-6 bg-gray-50 max-w-full overflow-x-hidden min-h-screen">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Performance Management</h1>
+        <p className="text-gray-600">Track and manage employee performance reviews, KPIs, and appraisals</p>
+      </div>
+
+      {/* Tabs Navigation */}
+      <div className="bg-white rounded-xl shadow-md p-3 sm:p-4 border-2 border-gray-200">
+        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 flex-wrap">
+          <button
+            onClick={() => {
+              setActiveView('reviews')
+              setShowKpiModal(false)
+              setShowCycleModal(false)
+            }}
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+              activeView === 'reviews'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Target size={18} />
+            Performance Reviews ({allPerformances.length})
+          </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => {
+                  setActiveView('kpis')
+                  setShowCycleModal(false)
+                }}
+                className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                  activeView === 'kpis'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <BarChart3 size={18} />
+                KPI Configuration ({kpis.length})
+              </button>
+              <button
+                onClick={() => {
+                  setActiveView('cycles')
+                  setShowKpiModal(false)
+                }}
+                className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
+                  activeView === 'cycles'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Calendar size={18} />
+                Review Cycles ({reviewCycles.length})
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex flex-1 items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:flex-initial">
+      {/* Success/Error Messages - Fixed Top Right */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 bg-green-50 border border-green-200 text-green-800 px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2 max-w-md">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 text-green-600" />
+          <span>{successMessage}</span>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="ml-2 text-green-600 hover:text-green-800 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {error && (
+        <div className="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] transition-all duration-300 flex items-center gap-2 max-w-md">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="ml-2 text-white hover:text-red-200 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Performance Reviews Tab Content */}
+      {(activeView === 'reviews' || (!isAdmin && activeView !== 'kpis' && activeView !== 'cycles')) && (
+        <React.Fragment>
+      {/* Statistics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-white rounded-xl shadow-md p-4 md:p-6 border-2 border-blue-100 hover:shadow-lg transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">Total Reviews</div>
+                  <div className="text-2xl md:text-3xl font-bold text-gray-800">{stats.total}</div>
+        </div>
+                <Target className="text-blue-600 opacity-50" size={32} />
+        </div>
+        </div>
+            <div className="bg-white rounded-xl shadow-md p-4 md:p-6 border-2 border-green-100 hover:shadow-lg transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">Avg Rating</div>
+                  <div className="text-2xl md:text-3xl font-bold text-green-600">{stats.averageRating}</div>
+        </div>
+                <Star className="text-green-600 opacity-50" size={32} />
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-4 md:p-6 border-2 border-yellow-100 hover:shadow-lg transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">Top Performers</div>
+                  <div className="text-2xl md:text-3xl font-bold text-yellow-600">{stats.topPerformers}</div>
+                </div>
+                <Award className="text-yellow-600 opacity-50" size={32} />
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-4 md:p-6 border-2 border-purple-100 hover:shadow-lg transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">Excellent (4.5+)</div>
+                  <div className="text-2xl md:text-3xl font-bold text-purple-600">{stats.excellent}</div>
+                </div>
+                <TrendingUp className="text-purple-600 opacity-50" size={32} />
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-4 md:p-6 border-2 border-orange-100 hover:shadow-lg transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">Needs Improvement</div>
+                  <div className="text-2xl md:text-3xl font-bold text-orange-600">{stats.needsImprovement}</div>
+                </div>
+                <AlertCircle className="text-orange-600 opacity-50" size={32} />
+              </div>
+        </div>
+      </div>
+
+      {/* Filters (Audit Logs style) */}
+      <div className="bg-white rounded-xl shadow-md p-4 border-2 border-gray-200">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-semibold"
+            >
+              <Filter size={18} />
+              Filters
+              {showFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {hasActiveFilters && (
+              <button
+                onClick={handleClearFilters}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-semibold"
+              >
+                <X size={16} />
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Search reviews..."
+                placeholder="Search by employee, goals, feedback..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg w-full md:w-96 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            {isAdmin && (
+          </div>
+
+          <button
+            onClick={handleExportReviewsCSV}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm font-semibold transition-colors shadow-sm"
+            title="Export to CSV"
+          >
+            <Download size={18} />
+            Export
+          </button>
+        </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quick Filter</label>
+              <select
+                value={quickFilter}
+                onChange={(e) => setQuickFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="recent">Recent (30 days)</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+
+            {isAdmin ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
               <select
                 value={employeeFilter}
                 onChange={(e) => setEmployeeFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="All">All Employees</option>
-                {employees.map((emp) => {
-                  const employeeName = emp.name || `Employee ${emp.id}`
-                  return (
+                  {employees.map((emp) => (
                     <option key={emp.id} value={emp.id.toString()}>
-                      {employeeName}
+                      {emp.name || `Employee ${emp.id}`}
                     </option>
-                  )
-                })}
+                  ))}
               </select>
+              </div>
+            ) : (
+              <div />
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
             <select
               value={ratingFilter}
               onChange={(e) => setRatingFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="All">All Ratings</option>
               <option value="5">5 Stars</option>
@@ -1096,87 +1835,56 @@ const Performance = () => {
               <option value="2">2 Stars</option>
               <option value="1">1 Star</option>
             </select>
-            <select
-              value={periodFilter}
-              onChange={(e) => setPeriodFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="All">All Periods</option>
-              {uniquePeriods.map((period) => (
-                <option key={period} value={period}>
-                  {period}
-                </option>
-              ))}
-            </select>
           </div>
-          <div className="flex gap-2">
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={dateRangeFilter.start}
+                onChange={(e) => setDateRangeFilter({ ...dateRangeFilter, start: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={dateRangeFilter.end}
+                onChange={(e) => setDateRangeFilter({ ...dateRangeFilter, end: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="reviewDate">Sort by Date</option>
-              <option value="rating">Sort by Rating</option>
-              <option value="period">Sort by Period</option>
-              {isAdmin && <option value="employee">Sort by Employee</option>}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="reviewDate">Review Date</option>
+                <option value="rating">Rating</option>
+                {isAdmin && <option value="employee">Employee</option>}
             </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 flex items-center gap-2"
-              title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
             >
               <ArrowUpDown size={18} />
+                {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Row */}
-      {allPerformances.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Rating Distribution Chart */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-200">
-            <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
-              <BarChart3 size={24} />
-              Rating Distribution
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={ratingDistribution}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="rating" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Performance Trends Chart */}
-          {performanceTrends.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-200">
-              <h3 className="text-xl font-bold text-blue-600 mb-4 flex items-center gap-2">
-                <LineChart size={24} />
-                Performance Trends
-              </h3>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="lg:col-span-2">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <RechartsLineChart data={performanceTrends}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="period" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="averageRating" stroke="#3b82f6" strokeWidth={2} />
-                    </RechartsLineChart>
-                  </ResponsiveContainer>
-                </div>
-                
               </div>
             </div>
           )}
         </div>
-      )}
+
+      {/* (Removed) Rating Distribution and Performance Trends charts */}
 
       {/* Top Performers */}
       {topPerformersData.length > 0 && isAdmin && (
@@ -1193,7 +1901,6 @@ const Performance = () => {
                   <div className="flex">{getRatingStars(performer.rating)}</div>
                 </div>
                 <p className="font-bold text-gray-800 truncate">{performer.name}</p>
-                <p className="text-xs text-gray-600">{performer.period}</p>
               </div>
             ))}
           </div>
@@ -1201,58 +1908,38 @@ const Performance = () => {
       )}
 
       {/* Performance Reviews Table */}
-      <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden">
-        <div className="p-6 border-b-2 border-gray-200 bg-gray-50">
+      <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
+        <div className="p-4 md:p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-50 to-gray-50">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
               <Target size={24} className="text-blue-600" />
               Performance Reviews ({performances.length})
             </h3>
             {isAdmin && (
-              <div className="flex items-center gap-3">
                 <button
                   onClick={() => handleOpenPerformanceModal()}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-semibold"
+                className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 font-semibold"
                 >
                   <Plus size={20} />
-                  Create Review
+                <span className="hidden sm:inline">Create Review</span>
+                <span className="sm:hidden">Create</span>
                 </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowKpiModal(true)}
-                    className="bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-xl hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all duration-200 font-medium"
-                    title="KPI Configuration"
-                  >
-                    <BarChart3 size={18} />
-                    KPI Config
-                  </button>
-                  <button
-                    onClick={() => setShowCycleModal(true)}
-                    className="bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-xl hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all duration-200 font-medium"
-                    title="Review Cycles"
-                  >
-                    <Calendar size={18} />
-                    Cycles
-                  </button>
-                </div>
-              </div>
             )}
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-blue-600 text-white">
+            <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
               <tr>
                 {isAdmin && (
-                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
                 )}
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Period</th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Cycle</th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Review Date</th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Rating</th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Goals</th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Achievements</th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
+                <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider hidden md:table-cell">Cycle</th>
+                <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Review Date</th>
+                <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Rating</th>
+                <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider hidden lg:table-cell">Goals</th>
+                <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider hidden lg:table-cell">Achievements</th>
+                <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -1260,7 +1947,7 @@ const Performance = () => {
                 <tr>
                   <td colSpan={isAdmin ? 7 : 6} className="px-6 py-12 text-center text-gray-500">
                     <Target className="mx-auto text-gray-400 mb-4" size={48} />
-                    <p className="text-lg">No performance reviews found</p>
+                    <p className="text-lg font-medium">No performance reviews found</p>
                     {searchTerm && (
                       <p className="text-sm text-gray-400 mt-2">Try adjusting your search or filters</p>
                     )}
@@ -1273,20 +1960,17 @@ const Performance = () => {
                   return (
                     <tr key={performance.id} className="hover:bg-gray-50 transition-colors">
                       {isAdmin && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {getEmployeeName(performance.employeeId)}
                         </td>
                       )}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                        {performance.period || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
                         {(reviewCycles.find(c => c.id === performance.reviewCycleId) || {}).name || '—'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(performance.reviewDate)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="flex">
                             {getRatingStars(performance.rating || 0)}
@@ -1296,14 +1980,14 @@ const Performance = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                      <td className="px-4 md:px-6 py-3 md:py-4 text-sm text-gray-900 max-w-xs truncate hidden lg:table-cell">
                         {performance.goals || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                      <td className="px-4 md:px-6 py-3 md:py-4 text-sm text-gray-900 max-w-xs truncate hidden lg:table-cell">
                         {performance.achievements || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center gap-2">
+                      <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center gap-1 md:gap-2">
                           <button
                             onClick={() => openViewModal(performance)}
                             className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
@@ -1339,6 +2023,244 @@ const Performance = () => {
           </table>
         </div>
       </div>
+        </React.Fragment>
+      )}
+
+      {/* KPI Configuration Tab Content */}
+      {activeView === 'kpis' && isAdmin && (
+        <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
+          <div className="p-4 md:p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-50 to-gray-50">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
+                <BarChart3 size={24} className="text-blue-600" />
+                KPI Configuration ({kpis.length})
+              </h3>
+              <button
+                onClick={() => openKpiModal(null)}
+                className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 font-semibold"
+              >
+                <Plus size={20} />
+                <span className="hidden sm:inline">Create KPI</span>
+                <span className="sm:hidden">Create</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-0">
+         
+            {kpis.length === 0 ? (
+              <div className="px-4 md:px-6 pb-4 md:pb-6">
+                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <BarChart3 className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-500 font-medium">No KPI templates yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Create your first KPI to get started</p>
+                  <button
+                    onClick={() => openKpiModal(null)}
+                    className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto shadow-md transition-all duration-200 font-semibold"
+                  >
+                    <Plus size={20} />
+                    Create Your First KPI
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-full table-fixed">
+                    <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                      <tr>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Name</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider hidden md:table-cell">Description</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Target</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Weight</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {kpis.map(k => (
+                        <tr key={k.id} className="hover:bg-blue-50/30 transition-colors">
+                          <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{k.name}</div>
+                          </td>
+                          <td className="px-4 md:px-6 py-3 md:py-4 hidden md:table-cell">
+                            <div className="text-sm text-gray-600 max-w-xs truncate" title={k.description || ''}>
+                              {k.description || '—'}
+                            </div>
+                          </td>
+                          <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                            {k.target ? (
+                              <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium">
+                                {k.target}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                            {k.weight !== null && k.weight !== undefined ? (
+                              <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-medium">
+                                {k.weight}%
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                            <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${
+                              k.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {k.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm font-medium">
+              <div className="flex items-center gap-2">
+                <button
+                                onClick={() => openKpiModal(k)} 
+                                className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                                title="Edit"
+                              >
+                                <Edit size={18} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteKpi(k.id)} 
+                                className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={18} />
+                </button>
+              </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+            </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Review Cycles Tab Content */}
+      {activeView === 'cycles' && isAdmin && (
+        <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
+          <div className="p-4 md:p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-50 to-gray-50">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
+                <Calendar size={24} className="text-blue-600" />
+                Review Cycles ({reviewCycles.length})
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportCyclesCSV}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-md"
+                  title="Export Cycles to CSV"
+                >
+                  <Download size={18} />
+                  <span className="hidden sm:inline">Export</span>
+                </button>
+                <button
+                  onClick={() => openCycleModal(null)}
+                  className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 font-semibold"
+                >
+                  <Plus size={20} />
+                  <span className="hidden sm:inline">Create Cycle</span>
+                  <span className="sm:hidden">Create</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-0">
+          
+                  {reviewCycles.length === 0 ? (
+              <div className="px-4 md:px-6 pb-4 md:pb-6">
+                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <Calendar className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-500 font-medium">No review cycles defined</p>
+                  <p className="text-sm text-gray-400 mt-1">Create your first cycle to get started</p>
+                  <button
+                    onClick={() => openCycleModal(null)}
+                    className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto shadow-md transition-all duration-200 font-semibold"
+                  >
+                    <Plus size={20} />
+                    Create Your First Cycle
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-full table-fixed">
+                    <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                      <tr>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Cycle Name</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">KPI Configuration</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Start Date</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">End Date</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                        <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {reviewCycles.map(c => {
+                      const associatedKpi = kpis.find(kpi => kpi.id === c.kpiConfigId)
+                      return (
+                          <tr key={c.id} className="hover:bg-blue-50/30 transition-colors">
+                            <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                              <div className="text-sm font-semibold text-gray-900">{c.name}</div>
+                            </td>
+                            <td className="px-4 md:px-6 py-3 md:py-4">
+                              {associatedKpi ? (
+                                <div className="text-sm text-gray-600">
+                                  <div className="font-medium">{associatedKpi.name}</div>
+                                  {associatedKpi.target && (
+                                    <div className="text-xs text-gray-500">Target: {associatedKpi.target}</div>
+                            )}
+                          </div>
+                              ) : (
+                                <span className="text-sm text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-600">{formatDate(c.startDate)}</div>
+                            </td>
+                            <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-600">{formatDate(c.endDate)}</div>
+                            </td>
+                            <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                              <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${
+                                c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {c.active ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td className="px-4 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                                <button 
+                                  onClick={() => openCycleModal(c)} 
+                                  className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit size={18} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteCycle(c.id)} 
+                                  className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                          </div>
+                            </td>
+                          </tr>
+                      )
+                      })}
+                    </tbody>
+                  </table>
+              </div>
+                  )}
+                </div>
+              </div>
+      )}
 
       {/* Review Cycle Modal */}
       {showCycleModal && (
@@ -1347,59 +2269,30 @@ const Performance = () => {
           setEditingCycle(null)
           setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
         }}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
                 <Calendar size={28} className="text-blue-600" />
-                Review Cycles
+                {editingCycle ? 'Edit Review Cycle' : 'Create New Review Cycle'}
               </h3>
-              <div className="flex items-center gap-2">
-                <button onClick={() => openCycleModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">New Cycle</button>
-                <button
-                  onClick={() => { setShowCycleModal(false); setEditingCycle(null); setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' }) }}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setShowCycleModal(false)
+                  setEditingCycle(null)
+                  setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors p-1 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={24} />
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="md:col-span-1">
-                <h4 className="font-semibold text-gray-800 mb-2">Existing Cycles</h4>
-                <div className="space-y-2">
-                  {reviewCycles.length === 0 ? (
-                    <p className="text-sm text-gray-500">No review cycles defined.</p>
-                  ) : (
-                    reviewCycles.map(c => {
-                      const associatedKpi = kpis.find(kpi => kpi.id === c.kpiConfigId)
-                      return (
-                        <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between">
-                          <div>
-                            <div className="font-medium text-gray-800">{c.name}</div>
-                            <div className="text-xs text-gray-500">{c.startDate || 'N/A'} → {c.endDate || 'N/A'}</div>
-                            {associatedKpi && (
-                              <div className="text-xs text-blue-600 mt-1">
-                                KPI: {associatedKpi.name} {associatedKpi.target ? `(Target: ${associatedKpi.target})` : ''}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => openCycleModal(c)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
-                            <button onClick={() => handleDeleteCycle(c.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="md:col-span-1">
-                <h4 className="font-semibold text-gray-800 mb-2">Create / Edit Cycle</h4>
-                <form onSubmit={handleCycleSubmit} className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Cycle Name *</label>
+            <form onSubmit={handleCycleSubmit} className="space-y-5">
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Cycle Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">KPI Configuration *</label>
                     <select 
                       value={cycleFormData.kpiConfigId || ''} 
                       onChange={(e) => {
@@ -1410,7 +2303,7 @@ const Performance = () => {
                           kpiConfigId: e.target.value 
                         })
                       }} 
-                      className="w-full px-3 py-2 border rounded-lg"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" 
                       required
                     >
                       <option value="">Select KPI Configuration</option>
@@ -1420,29 +2313,64 @@ const Performance = () => {
                         </option>
                       ))}
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">Cycle name will be set from selected KPI</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Start Date</label>
-                    <input type="date" value={cycleFormData.startDate} onChange={(e) => setCycleFormData({ ...cycleFormData, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
+                    <input 
+                      type="date" 
+                      value={cycleFormData.startDate} 
+                      onChange={(e) => setCycleFormData({ ...cycleFormData, startDate: e.target.value })} 
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      required
+                    />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">End Date</label>
-                    <input type="date" value={cycleFormData.endDate} onChange={(e) => setCycleFormData({ ...cycleFormData, endDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
+                    <input 
+                      type="date" 
+                      value={cycleFormData.endDate} 
+                      onChange={(e) => setCycleFormData({ ...cycleFormData, endDate: e.target.value })} 
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      required
+                    />
                   </div>
-                  <div>
-                    <label className="inline-flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={cycleFormData.active} onChange={(e) => setCycleFormData({ ...cycleFormData, active: e.target.checked })} />
-                      <span className="text-gray-600">Active</span>
-                    </label>
+                  
+                  <div className="md:col-span-2 flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      checked={cycleFormData.active} 
+                      onChange={(e) => setCycleFormData({ ...cycleFormData, active: e.target.checked })} 
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label className="text-sm font-semibold text-gray-700">Active</label>
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => { setShowCycleModal(false); setEditingCycle(null); setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' }) }} className="px-4 py-2 border rounded-lg">Close</button>
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg">{editingCycle ? 'Update' : 'Create'}</button>
                   </div>
-                </form>
               </div>
+              
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowCycleModal(false)
+                    setEditingCycle(null)
+                    setCycleFormData({ name: '', startDate: '', endDate: '', active: true, kpiConfigId: '' })
+                  }} 
+                  className="px-6 py-2.5 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold transition-colors shadow-md"
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : editingCycle ? 'Update Cycle' : 'Create Cycle'}
+                </button>
             </div>
+            </form>
           </div>
         </div>
       )}
@@ -1452,79 +2380,111 @@ const Performance = () => {
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
           setShowKpiModal(false)
           setEditingKpi(null)
+          setKpiFormData({ name: '', description: '', target: '', weight: '', active: true })
         }}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
               <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
                 <BarChart3 size={28} className="text-blue-600" />
-                KPI Configuration
+                {editingKpi ? 'Edit KPI' : 'Create New KPI'}
               </h3>
-              <div className="flex items-center gap-2">
-                <button onClick={() => openKpiModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">New KPI</button>
                 <button
-                  onClick={() => { setShowKpiModal(false); setEditingKpi(null) }}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                onClick={() => {
+                  setShowKpiModal(false)
+                  setEditingKpi(null)
+                  setKpiFormData({ name: '', description: '', target: '', weight: '', active: true })
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors p-1 hover:bg-gray-100 rounded-lg"
                 >
                   <X size={24} />
                 </button>
               </div>
+
+            <form onSubmit={handleKpiSubmit} className="space-y-5">
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">KPI Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
+                    <input 
+                      value={kpiFormData.name} 
+                      onChange={(e) => setKpiFormData({ ...kpiFormData, name: e.target.value })} 
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      required 
+                      placeholder="e.g., Attendance Rate, Task Completion"
+                    />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="md:col-span-1">
-                <h4 className="font-semibold text-gray-800 mb-2">Existing KPIs</h4>
-                <div className="space-y-2">
-                  {kpis.length === 0 ? (
-                    <p className="text-sm text-gray-500">No KPI templates yet.</p>
-                  ) : (
-                    kpis.map(k => (
-                      <div key={k.id} className="border rounded-lg p-3 flex items-start justify-between">
-                        <div>
-                          <div className="font-medium text-gray-800">{k.name}</div>
-                          <div className="text-xs text-gray-500">{k.target !== undefined && k.target !== null && k.target !== '' ? k.target : 'No target specified'}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openKpiModal(k)} className="text-yellow-600 p-2 rounded-lg hover:bg-yellow-50"><Edit size={16} /></button>
-                          <button onClick={() => handleDeleteKpi(k.id)} className="text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                    <textarea 
+                      value={kpiFormData.description} 
+                      onChange={(e) => setKpiFormData({ ...kpiFormData, description: e.target.value })} 
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      rows={4}
+                      placeholder="Describe what this KPI measures..."
+                    />
               </div>
 
-              <div className="md:col-span-1">
-                <h4 className="font-semibold text-gray-800 mb-2">Create / Edit KPI</h4>
-                <form onSubmit={handleKpiSubmit} className="space-y-3">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Name *</label>
-                    <input value={kpiFormData.name} onChange={(e) => setKpiFormData({ ...kpiFormData, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Target</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g., 90% or 90" 
+                      value={kpiFormData.target} 
+                      onChange={(e) => setKpiFormData({ ...kpiFormData, target: e.target.value })} 
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Enter target value (percentage or number)</p>
                   </div>
+                  
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Target</label>
-                    <input type="text" placeholder="Enter target (e.g., 75 or 75%)" value={kpiFormData.target} onChange={(e) => setKpiFormData({ ...kpiFormData, target: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (%)</label>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      placeholder="0-100" 
+                      value={kpiFormData.weight} 
+                      onChange={(e) => setKpiFormData({ ...kpiFormData, weight: e.target.value === '' ? '' : parseInt(e.target.value, 10) })} 
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Weight percentage for this KPI (0-100)</p>
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Weight</label>
-                    <input type="number" min="0" max="100" placeholder="Enter weight (0-100)" value={kpiFormData.weight} onChange={(e) => setKpiFormData({ ...kpiFormData, weight: e.target.value === '' ? '' : parseInt(e.target.value, 10) })} className="w-full px-3 py-2 border rounded-lg" />
+                  
+                  <div className="md:col-span-2 flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      checked={kpiFormData.active} 
+                      onChange={(e) => setKpiFormData({ ...kpiFormData, active: e.target.checked })} 
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label className="text-sm font-semibold text-gray-700">Active</label>
                   </div>
-                  <div>
-                    <label className="inline-flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={kpiFormData.active} onChange={(e) => setKpiFormData({ ...kpiFormData, active: e.target.checked })} />
-                      <span className="text-gray-600">Active</span>
-                    </label>
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Description</label>
-                    <textarea value={kpiFormData.description} onChange={(e) => setKpiFormData({ ...kpiFormData, description: e.target.value })} className="w-full px-3 py-2 border rounded-lg" rows={4} />
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => { setShowKpiModal(false); setEditingKpi(null) }} className="px-4 py-2 border rounded-lg">Close</button>
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg">{editingKpi ? 'Update' : 'Create'}</button>
+              
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowKpiModal(false)
+                    setEditingKpi(null)
+                    setKpiFormData({ name: '', description: '', target: '', weight: '', active: true })
+                  }} 
+                  className="px-6 py-2.5 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold transition-colors shadow-md"
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : editingKpi ? 'Update KPI' : 'Create KPI'}
+                </button>
                   </div>
                 </form>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -1552,52 +2512,64 @@ const Performance = () => {
               </button>
             </div>
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              {/* Review Information */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Review Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {isAdmin && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Employee</label>
-                    <p className="text-lg font-semibold text-gray-800">{getEmployeeName(selectedPerformance.employeeId)}</p>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Employee</label>
+                      <p className="text-base text-gray-900 font-medium">{getEmployeeName(selectedPerformance.employeeId)}</p>
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Period</label>
-                  <p className="text-lg font-semibold text-gray-800">{selectedPerformance.period || 'N/A'}</p>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Review Date</label>
+                    <p className="text-base text-gray-900 font-medium">{formatDate(selectedPerformance.reviewDate)}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Cycle</label>
-                  <p className="text-sm text-gray-800">{(reviewCycles.find(c => c.id === selectedPerformance.reviewCycleId) || {}).name || '—'}</p>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Rating</label>
+                    <div className="flex items-center gap-3">
+                      <div className="flex">{getRatingStars(selectedPerformance.rating || 0)}</div>
+                      <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${getRatingColor(selectedPerformance.rating || 0)}`}>
+                        {selectedPerformance.rating || 0}/5
+                      </span>
+                    </div>
                 </div>
                 {selectedPerformance.reviewCycleId && (() => {
                   const cycle = reviewCycles.find(c => c.id === selectedPerformance.reviewCycleId)
                   return cycle ? (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Cycle Start Date</label>
-                        <p className="text-sm text-gray-800">{formatDate(cycle.startDate)}</p>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Review Cycle</label>
+                          <p className="text-base text-gray-900 font-medium">{cycle.name || '—'}</p>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Cycle End Date</label>
-                        <p className="text-sm text-gray-800">{formatDate(cycle.endDate)}</p>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Cycle Period</label>
+                          <p className="text-sm text-gray-600">
+                            {formatDate(cycle.startDate)} → {formatDate(cycle.endDate)}
+                          </p>
                       </div>
                     </>
-                  ) : null
-                })()}
+                    ) : (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Review Date</label>
-                  <p className="text-sm text-gray-800">{formatDate(selectedPerformance.reviewDate)}</p>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Review Cycle</label>
+                        <p className="text-base text-gray-900 font-medium">—</p>
                 </div>
+                    )
+                  })()}
+                  {selectedPerformance.kpiConfigId && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Rating</label>
-                  <div className="flex items-center gap-3">
-                    <div className="flex">{getRatingStars(selectedPerformance.rating || 0)}</div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${getRatingColor(selectedPerformance.rating || 0)}`}>
-                      {selectedPerformance.rating || 0}/5
-                    </span>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">KPI Template</label>
+                      <p className="text-base text-gray-900 font-medium">
+                        {(kpis.find(k => k.id === selectedPerformance.kpiConfigId) || {}).name || 'N/A'}
+                      </p>
                   </div>
+                  )}
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">Goals & Progress</label>
+              {/* Goals & Progress */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Goals & Progress</h4>
                 {(() => {
                   const goals = parseGoals(selectedPerformance.goals)
                   const overallProgress = calculateOverallProgress(goals)
@@ -1704,9 +2676,9 @@ const Performance = () => {
                 })()}
               </div>
 
-              {/* KPI Results Display */}
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">KPI Results</label>
+              {/* KPI Results */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">KPI Results</h4>
                 {selectedPerformance.kpiConfigId && (
                   <p className="text-sm text-gray-700 mb-2">Template: <strong>{(kpis.find(k => k.id === selectedPerformance.kpiConfigId) || {}).name || 'N/A'}</strong></p>
                 )}
@@ -1774,38 +2746,60 @@ const Performance = () => {
 
 
 
+              {/* Achievements & Feedback */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Achievements & Feedback</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">Achievements</label>
-                <p className="text-gray-800 bg-green-50 p-4 rounded-lg border border-green-200 whitespace-pre-wrap">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Achievements</label>
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <p className="text-gray-800 whitespace-pre-wrap text-sm">
                   {selectedPerformance.achievements || 'No achievements recorded'}
                 </p>
+                    </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">Feedback</label>
-                <p className="text-gray-800 bg-blue-50 p-4 rounded-lg border border-blue-200 whitespace-pre-wrap">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Feedback</label>
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <p className="text-gray-800 whitespace-pre-wrap text-sm">
                   {selectedPerformance.feedback || 'No feedback provided'}
                 </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Manager evaluation (visible to admin/managers) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">Manager Evaluation</label>
-                <p className="text-gray-800 bg-purple-50 p-4 rounded-lg border border-purple-200 whitespace-pre-wrap">
+              {/* Manager Evaluation */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h4 className="text-xl font-bold text-gray-800 mb-4">Manager Evaluation</h4>
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                  <p className="text-gray-800 whitespace-pre-wrap text-sm">
                   {selectedPerformance.managerEvaluation || 'No manager evaluation recorded'}
                 </p>
+                </div>
+                {selectedPerformance.areasForImprovement && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Areas for Improvement</label>
+                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                      <p className="text-gray-800 whitespace-pre-wrap text-sm">
+                        {selectedPerformance.areasForImprovement}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Rating History */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-600">Rating History</label>
-                  <span className="text-xs text-gray-500">{ratingHistory.length} records</span>
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xl font-bold text-gray-800">Rating History</h4>
+                  <span className="text-sm text-gray-500 font-medium">{ratingHistory.length} records</span>
                 </div>
                 {ratingHistory.length > 0 ? (
                   <div className="space-y-3">
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
                       <ResponsiveContainer width="100%" height={150}>
-                        <RechartsLineChart data={ratingHistory.map(r => ({ date: r.period || formatDate(r.reviewDate), rating: r.rating || 0 }))}>
+                        <RechartsLineChart data={ratingHistory.map(r => ({ date: formatDate(r.reviewDate), rating: r.rating || 0 }))}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="date" />
                           <YAxis domain={[1, 5]} allowDecimals={false} />
@@ -1819,8 +2813,7 @@ const Performance = () => {
                       {ratingHistory.map((r, idx) => (
                         <div key={idx} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
                           <div>
-                            <div className="font-medium text-gray-800">{r.period || formatDate(r.reviewDate)}</div>
-                            <div className="text-xs text-gray-500">{formatDate(r.reviewDate)}</div>
+                            <div className="font-medium text-gray-800">{formatDate(r.reviewDate)}</div>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="flex">{getRatingStars(r.rating || 0)}</div>
@@ -1836,12 +2829,10 @@ const Performance = () => {
               </div>
 
               {/* Promotion History */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-600">Promotion History</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{promotions.length} records</span>
-                  </div>
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xl font-bold text-gray-800">Promotion History</h4>
+                  <span className="text-sm text-gray-500 font-medium">{promotions.length} records</span>
                 </div>
 
                 {promotions.length > 0 ? (
@@ -1900,13 +2891,11 @@ const Performance = () => {
 
               </div>
 
-              {/* Appraisal Compensation History */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-600">Compensation Recommendations</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{compensations.length} records</span>
-                  </div>
+              {/* Compensation Recommendations */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xl font-bold text-gray-800">Compensation Recommendations</h4>
+                  <span className="text-sm text-gray-500 font-medium">{compensations.length} records</span>
                 </div>
 
                 {compensations.length > 0 ? (
@@ -1971,15 +2960,6 @@ const Performance = () => {
                   </div>
                 )}
 
-              </div>
-              {selectedPerformance.areasForImprovement && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-2">Areas for Improvement</label>
-                  <p className="text-gray-800 bg-yellow-50 p-4 rounded-lg border border-yellow-200 whitespace-pre-wrap">
-                    {selectedPerformance.areasForImprovement}
-                  </p>
-                </div>
-              )}
             </div>
             <div className="flex gap-3 justify-end pt-6 mt-6 border-t border-gray-200">
               <button
@@ -2004,266 +2984,6 @@ const Performance = () => {
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Create/Edit Performance Modal */}
-      {showPerformanceModal && isAdmin && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => {
-          setShowPerformanceModal(false)
-          setEditingPerformance(null)
-        }}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-blue-600 flex items-center gap-3">
-                <Target size={28} className="text-blue-600" />
-                {editingPerformance ? 'Edit Performance Review' : 'Create Performance Review'}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowPerformanceModal(false)
-                  setEditingPerformance(null)
-                }}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            <form onSubmit={handlePerformanceSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Employee *</label>
-                <select
-                  value={performanceFormData.employeeId}
-                  onChange={(e) => setPerformanceFormData({ ...performanceFormData, employeeId: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                  disabled={!!editingPerformance}
-                >
-                  <option value="">Select Employee</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id.toString()}>
-                      {emp.name || `Employee ${emp.id}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Review Date *</label>
-                  <input
-                    type="date"
-                    value={performanceFormData.reviewDate}
-                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, reviewDate: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Period *</label>
-                  <input
-                    type="text"
-                    value={performanceFormData.period}
-                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, period: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., Q1 2024, Q2 2024, Jan-Mar 2024"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Rating * (1-5)</label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={performanceFormData.rating}
-                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, rating: parseInt(e.target.value) })}
-                    className="flex-1"
-                  />
-                  <div className="flex items-center gap-2">
-                    <div className="flex">
-                      {getRatingStars(performanceFormData.rating)}
-                    </div>
-                    <span className="text-lg font-bold text-gray-900 w-12 text-center">{performanceFormData.rating}/5</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Goal Tracking</label>
-                <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs text-blue-700 font-medium mb-1">📌 Format:</p>
-                  <p className="text-xs text-blue-600">List goals, one per line. You may optionally include progress as a percentage.</p>
-                </div>
-                <textarea
-                  value={performanceFormData.goals}
-                  onChange={(e) => setPerformanceFormData({ ...performanceFormData, goals: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="4"
-                  placeholder="Enter goals, one per line:&#10;Improve client satisfaction&#10;Complete project management course&#10;Reduce bug resolution time"
-                />
-
-                {/* KPI selection + results */}
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">KPI Template (optional)</label>
-                  <select
-                    value={performanceFormData.kpiConfigId}
-                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, kpiConfigId: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">No KPI</option>
-                    {kpis.map(k => (
-                      <option key={k.id} value={k.id.toString()}>{k.name}{k.target ? ` — ${k.target}` : ''}</option>
-                    ))}
-                  </select>
-
-                  <label className="block text-sm font-medium text-gray-700 mb-2 mt-3">Review Cycle (optional)</label>
-                  <select
-                    value={performanceFormData.reviewCycleId || ''}
-                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, reviewCycleId: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">No Cycle</option>
-                    {reviewCycles.map(c => (
-                      <option key={c.id} value={c.id.toString()}>{c.name} {c.startDate && c.endDate ? `(${c.startDate} → ${c.endDate})` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="mt-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">KPI Results</label>
-                  <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-xs text-blue-700 font-medium mb-1">📌 Format:</p>
-                    <p className="text-xs text-blue-600">Enter KPI results one per line, as "KPI Name: value (optional %)", e.g. "Response Time: 18h (75%)" or "Sales: 120"</p>
-                  </div>
-                  <textarea
-                    value={performanceFormData.kpiResults}
-                    onChange={(e) => setPerformanceFormData({ ...performanceFormData, kpiResults: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    rows="3"
-                    placeholder="Enter KPI results, one per line:&#10;Response Time: 18h (75%)&#10;Sales: 120"
-                  />
-
-
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Achievements</label>
-                <textarea
-                  value={performanceFormData.achievements}
-                  onChange={(e) => setPerformanceFormData({ ...performanceFormData, achievements: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="3"
-                  placeholder="Key achievements and accomplishments..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
-                <textarea
-                  value={performanceFormData.feedback}
-                  onChange={(e) => setPerformanceFormData({ ...performanceFormData, feedback: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="3"
-                  placeholder="Manager feedback and comments..."
-                />
-              </div>
-
-              {/* Manager evaluation (by manager/admin) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Manager Evaluation</label>
-                <textarea
-                  value={performanceFormData.managerEvaluation}
-                  onChange={(e) => setPerformanceFormData({ ...performanceFormData, managerEvaluation: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  rows="3"
-                  placeholder="Manager evaluation and summary..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Areas for Improvement</label>
-                <textarea
-                  value={performanceFormData.areasForImprovement}
-                  onChange={(e) => setPerformanceFormData({ ...performanceFormData, areasForImprovement: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="3"
-                  placeholder="Areas that need improvement..."
-                />
-              </div>
-
-              {/* Inline Promotion Recommendation (create/edit) */}
-              <div className="mt-4 border-t pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Promotion Recommendation (optional)</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Effective Date</label>
-                    <input type="date" value={promotionFormData.effectiveDate} onChange={(e) => setPromotionFormData({ ...promotionFormData, effectiveDate: e.target.value })} className="w-full px-3 py-2 border rounded" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">From Position</label>
-                    <input value={promotionFormData.fromPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, fromPosition: e.target.value })} className="w-full px-3 py-2 border rounded" placeholder="Current position (optional)" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">To Position</label>
-                    <input value={promotionFormData.toPosition} onChange={(e) => setPromotionFormData({ ...promotionFormData, toPosition: e.target.value })} className="w-full px-3 py-2 border rounded" placeholder="Recommended position" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <label className="block text-sm text-gray-600 mb-1">Notes</label>
-                  <textarea value={promotionFormData.notes} onChange={(e) => setPromotionFormData({ ...promotionFormData, notes: e.target.value })} className="w-full px-3 py-2 border rounded" rows={3} placeholder="Rationale and context for promotion recommendation (optional)" />
-                </div>
-                <div className="flex gap-2 justify-end mt-2">
-                  <button type="button" onClick={() => setPromotionFormData({ employeeId: performanceFormData.employeeId || '', effectiveDate: format(new Date(), 'yyyy-MM-dd'), fromPosition: '', toPosition: '', notes: '' })} className="px-4 py-2 border rounded">Clear</button>
-                  <button type="button" onClick={handleAddPromotionInline} className="px-4 py-2 bg-green-600 text-white rounded">Add Promotion</button>
-                </div>
-              </div>
-
-              {/* Inline Compensation Recommendation (create/edit) */}
-              <div className="mt-4 border-t pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Compensation Recommendation (optional)</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Recommended %</label>
-                    <input type="number" step="0.1" value={compensationFormData.recommendedPercentage} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedPercentage: e.target.value })} className="w-full px-3 py-2 border rounded" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Recommended Amount</label>
-                    <input type="number" step="0.01" value={compensationFormData.recommendedAmount} onChange={(e) => setCompensationFormData({ ...compensationFormData, recommendedAmount: e.target.value })} className="w-full px-3 py-2 border rounded" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Effective Date</label>
-                    <input type="date" value={compensationFormData.effectiveDate} onChange={(e) => setCompensationFormData({ ...compensationFormData, effectiveDate: e.target.value })} className="w-full px-3 py-2 border rounded" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <label className="block text-sm text-gray-600 mb-1">Notes</label>
-                  <textarea value={compensationFormData.notes} onChange={(e) => setCompensationFormData({ ...compensationFormData, notes: e.target.value })} className="w-full px-3 py-2 border rounded" rows={3} placeholder="Notes for compensation recommendation (optional)" />
-                </div>
-                <div className="flex gap-2 justify-end mt-2">
-                  <button type="button" onClick={() => setCompensationFormData({ performanceId: performanceFormData.id || '', employeeId: performanceFormData.employeeId || '', recommendedPercentage: '', recommendedAmount: '', status: 'PENDING', effectiveDate: format(new Date(), 'yyyy-MM-dd'), notes: '' })} className="px-4 py-2 border rounded">Clear</button>
-                  <button type="button" onClick={handleAddCompensationInline} className="px-4 py-2 bg-green-600 text-white rounded">Add Recommendation</button>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPerformanceModal(false)
-                    setEditingPerformance(null)
-                  }}
-                  className="px-6 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-semibold shadow-md hover:shadow-lg transition-all"
-                >
-                  {loading ? 'Saving...' : editingPerformance ? 'Update Review' : 'Create Review'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

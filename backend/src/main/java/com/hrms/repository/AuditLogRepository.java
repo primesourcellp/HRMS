@@ -36,5 +36,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
+    
+    List<AuditLog> findAllByOrderByTimestampDesc();
 }
 

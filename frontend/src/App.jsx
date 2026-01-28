@@ -22,6 +22,7 @@ import ClientManagement from './pages/ClientManagement'
 import TeamManagement from './pages/TeamManagement'
 import MyTeams from './pages/MyTeams'
 import Compliance from './pages/Compliance'
+import AuditLogs from './pages/AuditLogs'
 import InitialRoute from './components/InitialRoute'
 import { isAuthenticated, verifyToken } from './utils/auth'
 import { hasPermission, getUserRole } from './utils/roles'
@@ -43,6 +44,7 @@ function App() {
             <Route path="team-attendance" element={<TeamAttendance />} />
             <Route path="leave" element={<LeaveManagement />} />
             <Route path="payroll" element={<Payroll />} />
+            <Route path="my-payroll" element={<Payroll />} />
             <Route path="performance" element={<Performance />} />
             <Route path="shifts" element={<Shifts />} />
             <Route path="tickets" element={<HRTickets />} />
@@ -54,6 +56,7 @@ function App() {
           <Route path="teams" element={<TeamManagement />} />
           <Route path="my-teams" element={<MyTeams />} />
           <Route path="compliance" element={<Compliance />} />
+          <Route path="audit-logs" element={<AuditLogs />} />
           <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

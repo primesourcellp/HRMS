@@ -3,6 +3,7 @@ package com.hrms.service;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.hrms.entity.ReviewCycle;
@@ -17,16 +18,16 @@ public class ReviewCycleService {
         return reviewCycleRepository.findAll();
     }
 
-    public ReviewCycle getCycleById(Long id) {
-        return reviewCycleRepository.findById(id).orElse(null);
+    public ReviewCycle getCycleById(@NonNull Long id) {
+        return reviewCycleRepository.findById(java.util.Objects.requireNonNull(id)).orElse(null);
     }
 
-    public ReviewCycle createCycle(ReviewCycle cycle) {
-        return reviewCycleRepository.save(cycle);
+    public ReviewCycle createCycle(@NonNull ReviewCycle cycle) {
+        return reviewCycleRepository.save(java.util.Objects.requireNonNull(cycle));
     }
 
-    public ReviewCycle updateCycle(Long id, ReviewCycle cycle) {
-        return reviewCycleRepository.findById(id).map(existing -> {
+    public ReviewCycle updateCycle(@NonNull Long id, ReviewCycle cycle) {
+        return reviewCycleRepository.findById(java.util.Objects.requireNonNull(id)).map(existing -> {
             existing.setName(cycle.getName());
             existing.setStartDate(cycle.getStartDate());
             existing.setEndDate(cycle.getEndDate());
@@ -35,7 +36,7 @@ public class ReviewCycleService {
         }).orElseThrow(() -> new RuntimeException("Review cycle not found"));
     }
 
-    public void deleteCycle(Long id) {
-        reviewCycleRepository.deleteById(id);
+    public void deleteCycle(@NonNull Long id) {
+        reviewCycleRepository.deleteById(java.util.Objects.requireNonNull(id));
     }
 }

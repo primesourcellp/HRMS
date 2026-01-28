@@ -20,6 +20,7 @@ import com.hrms.repository.UserRepository;
 import com.hrms.service.EmailService;
 import com.hrms.service.OtpService;
 import com.hrms.service.UserService;
+import com.hrms.service.AuditLogService;
 import com.hrms.util.JwtUtil;
 
 import jakarta.servlet.http.Cookie;
@@ -45,6 +46,9 @@ public class AuthController {
     
     @Autowired
     private OtpService otpService;
+    
+    @Autowired
+    private AuditLogService auditLogService;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, String> registrationData) {
@@ -106,7 +110,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> credentials, HttpServletResponse httpResponse) {
+    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> credentials, 
+                                                     HttpServletResponse httpResponse,
+                                                     HttpServletRequest httpRequest) {
         Map<String, Object> response = new HashMap<>();
         
         try {
@@ -164,6 +170,20 @@ public class AuthController {
                         "name", user.get().getName(),
                         "role", user.get().getRole()
                     ));
+                    
+                    // Log login event
+                    try {
+                        auditLogService.logLoginEvent(
+                            user.get().getId(),
+                            user.get().getName(),
+                            user.get().getRole(),
+                            httpRequest
+                        );
+                    } catch (Exception e) {
+                        // Don't fail login if audit logging fails
+                        System.err.println("Failed to log login event: " + e.getMessage());
+                    }
+                    
                     return ResponseEntity.ok(response);
                 }
             }
@@ -334,8 +354,36 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, Object>> logout(HttpServletResponse httpResponse) {
+    public ResponseEntity<Map<String, Object>> logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         Map<String, Object> response = new HashMap<>();
+        
+        // Get user info from request (set by JwtAuthenticationFilter)
+        String email = (String) httpRequest.getAttribute("userEmail");
+        String role = (String) httpRequest.getAttribute("userRole");
+        Long userId = (Long) httpRequest.getAttribute("userId");
+        String userName = null;
+        
+        // Try to get user name for audit log
+        if (userId != null) {
+            try {
+                Optional<User> user = userRepository.findById(userId);
+                if (user.isPresent()) {
+                    userName = user.get().getName();
+                }
+            } catch (Exception e) {
+                // Ignore if user lookup fails
+            }
+        }
+        
+        // Log logout event before clearing cookies
+        if (userId != null && userName != null && role != null) {
+            try {
+                auditLogService.logLogoutEvent(userId, userName, role, httpRequest);
+            } catch (Exception e) {
+                // Don't fail logout if audit logging fails
+                System.err.println("Failed to log logout event: " + e.getMessage());
+            }
+        }
         
         // Clear access token cookie
         Cookie accessTokenCookie = new Cookie("accessToken", null);

@@ -4,9 +4,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,11 +22,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.entity.HRTicket;
 import com.hrms.entity.User;
-import com.hrms.repository.UserRepository;
 import com.hrms.repository.AuditLogRepository;
+import com.hrms.repository.UserRepository;
+import com.hrms.service.AuditLogService;
 import com.hrms.service.HRTicketService;
 import com.hrms.service.NotificationService;
-import com.hrms.service.AuditLogService;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -31,6 +34,8 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequestMapping("/api/tickets")
 @CrossOrigin(origins = "http://localhost:3000")
 public class HRTicketController {
+
+    private static final Logger logger = LoggerFactory.getLogger(HRTicketController.class);
 
     @Autowired
     private HRTicketService ticketService;
@@ -49,10 +54,10 @@ public class HRTicketController {
 
     private Long getCurrentUserId(HttpServletRequest request) {
         Object userIdObj = request.getAttribute("userId");
-        if (userIdObj instanceof Long) {
-            return (Long) userIdObj;
-        } else if (userIdObj instanceof Number) {
-            return ((Number) userIdObj).longValue();
+        if (userIdObj instanceof Long userId) {
+            return userId;
+        } else if (userIdObj instanceof Number number) {
+            return number.longValue();
         }
         return null;
     }
@@ -63,8 +68,8 @@ public class HRTicketController {
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<HRTicket>> getEmployeeTickets(@PathVariable Long employeeId) {
-        return ResponseEntity.ok(ticketService.getEmployeeTickets(employeeId));
+    public ResponseEntity<List<HRTicket>> getEmployeeTickets(@PathVariable @NonNull Long employeeId) {
+        return ResponseEntity.ok(ticketService.getEmployeeTickets(java.util.Objects.requireNonNull(employeeId)));
     }
 
     @GetMapping("/status/{status}")
@@ -73,13 +78,13 @@ public class HRTicketController {
     }
 
     @GetMapping("/assigned/{assignedTo}")
-    public ResponseEntity<List<HRTicket>> getAssignedTickets(@PathVariable Long assignedTo) {
-        return ResponseEntity.ok(ticketService.getAssignedTickets(assignedTo));
+    public ResponseEntity<List<HRTicket>> getAssignedTickets(@PathVariable @NonNull Long assignedTo) {
+        return ResponseEntity.ok(ticketService.getAssignedTickets(java.util.Objects.requireNonNull(assignedTo)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<HRTicket> getTicketById(@PathVariable Long id) {
-        return ticketService.getTicketById(id)
+    public ResponseEntity<HRTicket> getTicketById(@PathVariable @NonNull Long id) {
+        return ticketService.getTicketById(java.util.Objects.requireNonNull(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -93,7 +98,7 @@ public class HRTicketController {
             // Log audit event
             Long userId = getCurrentUserId(request);
             if (userId != null) {
-                User employee = userRepository.findById(created.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(created.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 Map<String, Object> ticketData = new HashMap<>();
                 ticketData.put("subject", created.getSubject());
@@ -120,17 +125,17 @@ public class HRTicketController {
             
             // Send notification to HR_ADMIN if employee is in their team
             try {
-                User employee = userRepository.findById(created.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(created.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 notificationService.notifyHRTicketCreated(
-                    created.getEmployeeId(),
+                    java.util.Objects.requireNonNull(created.getEmployeeId()),
                     created.getId(),
                     employeeName,
                     created.getSubject()
                 );
             } catch (Exception e) {
                 // Log but don't fail the request if notification fails
-                System.err.println("Failed to send HR ticket notification: " + e.getMessage());
+                logger.warn("Failed to send HR ticket notification for ticket ID: {}", created.getId(), e);
             }
             
             response.put("success", true);
@@ -138,6 +143,7 @@ public class HRTicketController {
             response.put("ticket", created);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
+            logger.error("Error creating HR ticket", e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -145,7 +151,7 @@ public class HRTicketController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateTicket(@PathVariable Long id, @RequestBody HRTicket ticket, HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> updateTicket(@PathVariable @NonNull Long id, @RequestBody HRTicket ticket, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Long currentUserId = getCurrentUserId(request);
@@ -161,11 +167,11 @@ public class HRTicketController {
                 }
             }
             
-            HRTicket updated = ticketService.updateTicket(id, ticket);
+            HRTicket updated = ticketService.updateTicket(java.util.Objects.requireNonNull(id), ticket);
             
             // Log audit event
             if (currentUserId != null) {
-                User employee = userRepository.findById(updated.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(updated.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 String action = "UPDATE_TICKET";
                 if ("RESOLVED".equals(updated.getStatus())) {
@@ -202,6 +208,7 @@ public class HRTicketController {
             response.put("ticket", updated);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Error updating HR ticket with ID: {}", id, e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -209,18 +216,18 @@ public class HRTicketController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteTicket(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> deleteTicket(@PathVariable @NonNull Long id, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         try {
             // Get ticket info before deletion for audit log
-            HRTicket ticket = ticketService.getTicketById(id).orElse(null);
+            HRTicket ticket = ticketService.getTicketById(java.util.Objects.requireNonNull(id)).orElse(null);
             
-            ticketService.deleteTicket(id);
+            ticketService.deleteTicket(java.util.Objects.requireNonNull(id));
             
             // Log audit event
             Long userId = getCurrentUserId(request);
             if (userId != null && ticket != null) {
-                User employee = userRepository.findById(ticket.getEmployeeId()).orElse(null);
+                User employee = userRepository.findById(java.util.Objects.requireNonNull(ticket.getEmployeeId())).orElse(null);
                 String employeeName = employee != null ? employee.getName() : "Unknown";
                 Map<String, Object> ticketData = new HashMap<>();
                 ticketData.put("subject", ticket.getSubject() != null ? ticket.getSubject() : "N/A");
@@ -250,6 +257,7 @@ public class HRTicketController {
             response.put("message", "Ticket deleted successfully");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Error deleting HR ticket with ID: {}", id, e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);

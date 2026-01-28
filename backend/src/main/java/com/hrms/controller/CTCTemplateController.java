@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.hrms.dto.CTCTemplateDTO;
 import com.hrms.entity.CTCTemplate;
@@ -41,6 +43,8 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequestMapping("/api/ctc-templates")
 @CrossOrigin(origins = "http://localhost:3000")
 public class CTCTemplateController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CTCTemplateController.class);
     
     @Autowired
     private CTCTemplateService ctcTemplateService;
@@ -61,6 +65,7 @@ public class CTCTemplateController {
             }
             return false;
         } catch (Exception e) {
+            logger.error("Error checking CTC template write access", e);
             return false;
         }
     }
@@ -81,6 +86,7 @@ public class CTCTemplateController {
             }
             return false;
         } catch (Exception e) {
+            logger.error("Error checking CTC template read access", e);
             return false;
         }
     }
@@ -107,7 +113,7 @@ public class CTCTemplateController {
             }
             return ResponseEntity.ok(mapToDTOList(templates));
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error fetching CTC templates", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of());
         }
     }
@@ -157,7 +163,7 @@ public class CTCTemplateController {
             response.put("salaryStructure", structureMap);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error converting CTC to salary structure for templateId {}", templateId, e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -185,7 +191,7 @@ public class CTCTemplateController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error fetching CTC template by id {}", id, e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -207,7 +213,7 @@ public class CTCTemplateController {
             response.put("template", mapToDTO(created));
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error creating CTC template", e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -229,7 +235,7 @@ public class CTCTemplateController {
             response.put("template", mapToDTO(updated));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error updating CTC template with id {}", id, e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -251,7 +257,7 @@ public class CTCTemplateController {
             response.put("message", "CTC Template deleted successfully");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error deleting CTC template with id {}", id, e);
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);

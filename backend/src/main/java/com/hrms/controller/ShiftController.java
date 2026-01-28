@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,8 +41,8 @@ public class ShiftController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Shift> getShiftById(@PathVariable Long id) {
-        return shiftService.getShiftById(id)
+    public ResponseEntity<Shift> getShiftById(@PathVariable @NonNull Long id) {
+        return shiftService.getShiftById(java.util.Objects.requireNonNull(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -63,7 +64,7 @@ public class ShiftController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateShift(@PathVariable Long id, @RequestBody Shift shift) {
+    public ResponseEntity<Map<String, Object>> updateShift(@PathVariable @NonNull Long id, @RequestBody Shift shift) {
         Map<String, Object> response = new HashMap<>();
         try {
             Shift updated = shiftService.updateShift(id, shift);
@@ -79,7 +80,7 @@ public class ShiftController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteShift(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deleteShift(@PathVariable @NonNull Long id) {
         Map<String, Object> response = new HashMap<>();
         try {
             shiftService.deleteShift(id);
@@ -94,9 +95,9 @@ public class ShiftController {
     }
     
     @GetMapping("/{id}/employees")
-    public ResponseEntity<List<User>> getEmployeesByShift(@PathVariable Long id) {
+    public ResponseEntity<List<User>> getEmployeesByShift(@PathVariable @NonNull Long id) {
         try {
-            return ResponseEntity.ok(shiftService.getEmployeesByShiftId(id));
+            return ResponseEntity.ok(shiftService.getEmployeesByShiftId(java.util.Objects.requireNonNull(id)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
@@ -104,7 +105,7 @@ public class ShiftController {
     
     @PostMapping("/{id}/assign")
     public ResponseEntity<Map<String, Object>> assignEmployeeToShift(
-            @PathVariable Long id, @RequestBody Map<String, Object> request) {
+            @PathVariable @NonNull Long id, @RequestBody Map<String, Object> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Object employeeIdObj = request.get("employeeId");
@@ -131,7 +132,7 @@ public class ShiftController {
             String startDate = request.get("startDate") != null ? request.get("startDate").toString() : null;
             String endDate = request.get("endDate") != null ? request.get("endDate").toString() : null;
             
-            shiftService.assignEmployeeToShift(employeeId, id, startDate, endDate);
+            shiftService.assignEmployeeToShift(employeeId, java.util.Objects.requireNonNull(id), startDate, endDate);
             response.put("success", true);
             response.put("message", "Employee assigned to shift successfully");
             return ResponseEntity.ok(response);
@@ -144,7 +145,7 @@ public class ShiftController {
     
     @PutMapping("/{id}/assignment")
     public ResponseEntity<Map<String, Object>> updateEmployeeAssignment(
-            @PathVariable Long id, @RequestBody Map<String, Object> request) {
+            @PathVariable @NonNull Long id, @RequestBody Map<String, Object> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Object employeeIdObj = request.get("employeeId");
@@ -171,7 +172,7 @@ public class ShiftController {
             String startDate = request.get("startDate") != null ? request.get("startDate").toString() : null;
             String endDate = request.get("endDate") != null ? request.get("endDate").toString() : null;
             
-            shiftService.updateEmployeeAssignment(employeeId, id, startDate, endDate);
+            shiftService.updateEmployeeAssignment(employeeId, java.util.Objects.requireNonNull(id), startDate, endDate);
             response.put("success", true);
             response.put("message", "Employee assignment updated successfully");
             return ResponseEntity.ok(response);
@@ -184,7 +185,7 @@ public class ShiftController {
     
     @PostMapping("/{id}/unassign")
     public ResponseEntity<Map<String, Object>> unassignEmployeeFromShift(
-            @PathVariable Long id, @RequestBody Map<String, Long> request) {
+            @PathVariable @NonNull Long id, @RequestBody Map<String, Long> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Long employeeId = request.get("employeeId");
@@ -205,9 +206,9 @@ public class ShiftController {
     }
     
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<?> getShiftByEmployeeId(@PathVariable Long employeeId) {
+    public ResponseEntity<?> getShiftByEmployeeId(@PathVariable @NonNull Long employeeId) {
         try {
-            Map<String, Object> shiftWithDates = shiftService.getShiftWithAssignmentDatesByEmployeeId(employeeId);
+            Map<String, Object> shiftWithDates = shiftService.getShiftWithAssignmentDatesByEmployeeId(java.util.Objects.requireNonNull(employeeId));
             if (shiftWithDates.containsKey("id")) {
                 return ResponseEntity.ok(shiftWithDates);
             } else {
@@ -226,7 +227,7 @@ public class ShiftController {
     
     @PostMapping("/{id}/assign-team")
     public ResponseEntity<Map<String, Object>> assignTeamToShift(
-            @PathVariable Long id, @RequestBody Map<String, Object> request) {
+            @PathVariable @NonNull Long id, @RequestBody Map<String, Object> request) {
         Map<String, Object> response = new HashMap<>();
         try {
             Object employeeIdsObj = request.get("employeeIds");
@@ -261,7 +262,7 @@ public class ShiftController {
             String startDate = request.get("startDate") != null ? request.get("startDate").toString() : null;
             String endDate = request.get("endDate") != null ? request.get("endDate").toString() : null;
             
-            Map<String, Object> result = shiftService.assignTeamToShift(id, employeeIds, startDate, endDate);
+            Map<String, Object> result = shiftService.assignTeamToShift(java.util.Objects.requireNonNull(id), employeeIds, startDate, endDate);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             response.put("success", false);
